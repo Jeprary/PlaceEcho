@@ -1,0 +1,13 @@
+{
+  "name": "placeecho",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PlaceEcho v0.1 monorepo",
+  "packageManager": "pnpm@11.19.0",
+  "scripts": {
+    "dev:web": "pnpm --filter @placeecho/web dev",
+    "dev:api": "pnpm --filter @placeecho/api dev",
+    "build": "pnpm --recursive --if-present build",
+    "typecheck": "pnpm --recursive --if-present typecheck"
+  }
+}

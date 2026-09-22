@@ -1,0 +1,1 @@
+"""PlaceEcho GPU worker skeleton."""
