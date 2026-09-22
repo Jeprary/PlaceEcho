@@ -10,8 +10,8 @@
     "panorama_url": "/demo/fake-panorama.jpg",
     "panorama_width": 4096,
     "panorama_height": 2048,
-    "splat_url": null,
-    "collider_url": null
+    "splat_url": "/local-world/world.spz",
+    "collider_url": "/local-world/collider.glb"
   },
   "media": [
     {
@@ -33,8 +33,8 @@
         "cue": { "label": "movie_poster" },
         "source_grounding": { "x": 1560, "y": 720 },
         "world_grounding": null,
-        "position": null,
-        "normal": null,
+        "position": [0, 0.03, -0.65],
+        "normal": [0, 1, 0],
         "hero": {
           "status": "not_requested",
           "job_id": null,
