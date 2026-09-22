@@ -181,7 +181,7 @@ test("OSS storage applies its prefix and treats a missing object as null", async
   assert.equal(objects.has("placeecho/scenes/one/file.bin"), false);
 });
 
-test("stages OSS-backed inputs for the local GPU worker and uploads its output", async (t) => {
+test("stages remote-backed inputs for the local GPU worker and uploads its output", async (t) => {
   const durable = new InMemoryStorage();
   const scratch = new InMemoryStorage();
   const requests: StitchImageRequest[] = [];

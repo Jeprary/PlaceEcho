@@ -67,6 +67,15 @@ WORKER_DATA_DIR=/opt/placeecho/data
 
 The mounted directory is durable storage only. MediaSDK inputs and outputs still use local scratch storage and are cleaned after each job.
 
+The checked-in helper performs those steps idempotently after an administrator supplies the CSG mount point:
+
+```bash
+bash /opt/placeecho/releases/source-20260922-csg/deploy/ecs/configure-csg-mount.sh \
+  172.16.0.2:/share-name
+```
+
+It does not change any security-group rule. If the OSS console reports `NoPermission` for `hcs-sgw:*`, the current RAM user cannot create or even inspect the gateway; an account administrator must create it and provide the non-secret NFS mount point.
+
 ## Marble activation
 
 The API implements the asynchronous World Labs boundary at `POST /api/scenes/:sceneId/world/generate`. Put `WLT_API_KEY` only in `/etc/placeecho/api.env` with mode `0600`; never commit it. `MARBLE_API_BASE_URL` and `MARBLE_MODEL` are optional overrides. The ECS only needs outbound HTTPS access—no inbound security-group rule is required.
