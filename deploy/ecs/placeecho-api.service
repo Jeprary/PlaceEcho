@@ -1,0 +1,22 @@
+[Unit]
+Description=PlaceEcho API
+After=network-online.target placeecho-gpu-worker.service
+Wants=placeecho-gpu-worker.service
+
+[Service]
+Type=simple
+User=placeecho
+Group=placeecho
+WorkingDirectory=/opt/placeecho/current-api
+Environment=HOST=127.0.0.1
+Environment=PORT=3000
+Environment=LOCAL_DATA_DIR=/opt/placeecho/data
+Environment=WORKER_DATA_DIR=/opt/placeecho/data
+Environment=GPU_WORKER_URL=http://127.0.0.1:8001
+EnvironmentFile=-/etc/placeecho/api.env
+ExecStart=/usr/bin/node dist/server.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

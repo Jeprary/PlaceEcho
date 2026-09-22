@@ -1,4 +1,8 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
+import type { PanoramaJobService } from "../jobs/service.js";
+import type { WorldJobService } from "../jobs/world-service.js";
+import type { MediaService } from "../media/service.js";
+import type { SceneService } from "../scenes/service.js";
 
 const notImplemented = (reply: FastifyReply, capability: string) =>
   reply.code(501).send({
@@ -7,18 +11,108 @@ const notImplemented = (reply: FastifyReply, capability: string) =>
     message: "PlaceEcho v0.1 contract placeholder; product logic is not implemented.",
   });
 
-export function registerContractRoutes(app: FastifyInstance): void {
-  app.post("/api/scenes", async (_request, reply) =>
-    notImplemented(reply, "create_scene"),
+export interface ContractRouteDependencies {
+  sceneService: SceneService;
+  mediaService: MediaService;
+  panoramaJobs: PanoramaJobService;
+  worldJobs: WorldJobService;
+}
+
+export function registerContractRoutes(
+  app: FastifyInstance,
+  dependencies: ContractRouteDependencies,
+): void {
+  app.post("/api/scenes", async (_request, reply) => {
+    const scene = await dependencies.sceneService.create();
+    return reply.code(201).send({ scene_id: scene.scene_id });
+  });
+
+  app.get<{ Params: { sceneId: string } }>(
+    "/api/scenes/:sceneId",
+    async (request, reply) => {
+      const scene = await dependencies.sceneService.get(request.params.sceneId);
+      if (scene === null) {
+        return reply.code(404).send({
+          status: "not_found",
+          message: `Scene not found: ${request.params.sceneId}`,
+        });
+      }
+
+      return reply.send(scene);
+    },
   );
 
-  app.get("/api/scenes/:sceneId", async (_request, reply) =>
-    notImplemented(reply, "get_scene"),
+  app.post<{
+    Params: { sceneId: string };
+    Querystring: { filename?: string };
+    Body: Buffer;
+  }>("/api/scenes/:sceneId/media", async (request, reply) => {
+    if (!request.query.filename) {
+      return reply.code(400).send({
+        status: "invalid_request",
+        message: "The filename query parameter is required.",
+      });
+    }
+    if (!Buffer.isBuffer(request.body) || request.body.length === 0) {
+      return reply.code(400).send({
+        status: "invalid_request",
+        message: "Send a non-empty .insp file as application/octet-stream.",
+      });
+    }
+    try {
+      const stored = await dependencies.mediaService.uploadInsp(
+        request.params.sceneId,
+        request.query.filename,
+        request.body,
+      );
+      if (stored === null) {
+        return reply.code(404).send({ status: "not_found", message: "Scene not found." });
+      }
+      return reply.code(201).send({
+        media_id: stored.media.id,
+        media: stored.media,
+      });
+    } catch (error) {
+      return reply.code(400).send({
+        status: "invalid_request",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+  app.get<{ Params: { sceneId: string; mediaId: string } }>(
+    "/api/scenes/:sceneId/media/:mediaId",
+    async (request, reply) => {
+      const data = await dependencies.mediaService.get(
+        request.params.sceneId,
+        request.params.mediaId,
+      );
+      if (data === null) return reply.code(404).send({ status: "not_found" });
+      return reply.type("application/octet-stream").send(Buffer.from(data));
+    },
   );
 
-  app.post("/api/scenes/:sceneId/media", async (_request, reply) =>
-    notImplemented(reply, "upload_media"),
-  );
+  app.post<{
+    Params: { sceneId: string };
+    Body: { media_ids?: string[]; enable_stitch_fusion?: boolean };
+  }>("/api/scenes/:sceneId/panorama/stitch", async (request, reply) => {
+    try {
+      const job = await dependencies.panoramaJobs.create(
+        request.params.sceneId,
+        request.body?.media_ids ?? [],
+        request.body?.enable_stitch_fusion ?? false,
+      );
+      if (job === null) {
+        return reply.code(404).send({ status: "not_found", message: "Scene not found." });
+      }
+      return reply.code(202).send({ job_id: job.job_id });
+    } catch (error) {
+      return reply.code(400).send({
+        status: "invalid_request",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
 
   app.post("/api/scenes/:sceneId/analyze", async (_request, reply) =>
     notImplemented(reply, "analyze_scene"),
@@ -33,9 +127,23 @@ export function registerContractRoutes(app: FastifyInstance): void {
     notImplemented(reply, "register_world"),
   );
 
-  app.post("/api/scenes/:sceneId/world/generate", async (_request, reply) =>
-    notImplemented(reply, "generate_world"),
-  );
+  app.post<{
+    Params: { sceneId: string };
+    Body: { prompt?: string };
+  }>("/api/scenes/:sceneId/world/generate", async (request, reply) => {
+    try {
+      const job = await dependencies.worldJobs.create(request.params.sceneId, {
+        prompt: request.body?.prompt,
+      });
+      if (job === null) return reply.code(404).send({ status: "not_found" });
+      return reply.code(202).send({ job_id: job.job_id });
+    } catch (error) {
+      return reply.code(400).send({
+        status: "invalid_request",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
 
   app.patch(
     "/api/scenes/:sceneId/memories/:memoryId/anchor",
@@ -47,7 +155,23 @@ export function registerContractRoutes(app: FastifyInstance): void {
     async (_request, reply) => notImplemented(reply, "create_hero_job"),
   );
 
-  app.get("/api/jobs/:jobId", async (_request, reply) =>
-    notImplemented(reply, "get_job"),
+  app.get<{ Params: { jobId: string } }>(
+    "/api/jobs/:jobId",
+    async (request, reply) => {
+      const job =
+        (await dependencies.panoramaJobs.get(request.params.jobId)) ??
+        (await dependencies.worldJobs.get(request.params.jobId));
+      if (job === null) return reply.code(404).send({ status: "not_found" });
+      return reply.send(job);
+    },
+  );
+
+  app.get<{ Params: { jobId: string } }>(
+    "/api/jobs/:jobId/output",
+    async (request, reply) => {
+      const output = await dependencies.panoramaJobs.getOutput(request.params.jobId);
+      if (output === null) return reply.code(404).send({ status: "not_found" });
+      return reply.type("image/jpeg").send(Buffer.from(output));
+    },
   );
 }

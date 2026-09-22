@@ -8,6 +8,7 @@
     "dev:web": "pnpm --filter @placeecho/web dev",
     "dev:api": "pnpm --filter @placeecho/api dev",
     "build": "pnpm --recursive --if-present build",
+    "test": "pnpm --recursive --if-present test",
     "typecheck": "pnpm --recursive --if-present typecheck"
   }
 }

@@ -21,6 +21,9 @@ tmp/
 *.pt
 *.pth
 
+# Proprietary Insta360 SDK payloads are supplied only during deployment.
+apps/gpu-worker/vendor/
+
 .venv/
 __pycache__/
 *.pyc

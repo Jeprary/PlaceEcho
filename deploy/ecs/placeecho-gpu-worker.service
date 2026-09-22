@@ -1,0 +1,15 @@
+[Unit]
+Description=PlaceEcho GPU Worker
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=5
+ExecStartPre=-/usr/bin/docker rm -f placeecho-gpu-worker
+ExecStart=/usr/bin/docker run --name placeecho-gpu-worker --gpus all -p 127.0.0.1:8001:8000 -e STITCH_INPUT_ROOT=/data -e STITCH_OUTPUT_ROOT=/data -v /opt/placeecho/data:/data placeecho-gpu-worker:0.1.0
+ExecStop=/usr/bin/docker stop placeecho-gpu-worker
+
+[Install]
+WantedBy=multi-user.target

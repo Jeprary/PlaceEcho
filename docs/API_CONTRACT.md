@@ -1,6 +1,6 @@
 # PlaceEcho API Contract v0.1
 
-This document freezes the high-level collaboration routes. Only `GET /health` is implemented during initialization. All `/api` routes are explicit HTTP 501 stubs: their paths exist, but no product behavior, persistence, upload parsing, AI call, world generation, or GPU job exists yet.
+This document freezes the high-level collaboration routes. Scene persistence, private media upload, panorama jobs, and the internal GPU Worker image-stitch endpoint are implemented. Remaining public `/api` routes are explicit HTTP 501 stubs unless marked otherwise.
 
 ## Status Legend
 
@@ -20,23 +20,85 @@ Returns:
 
 ## Scene
 
-### `POST /api/scenes` — Stub
+### `POST /api/scenes` — Implemented
 
-Will create a Scene and return an application-generated ID:
+Creates an empty `draft` Scene, persists it through `StorageProvider`, and returns an application-generated ID with HTTP 201:
 
 ```json
 { "scene_id": "scene_001" }
 ```
 
-### `GET /api/scenes/:sceneId` — Stub
+Local development persists the manifest at `.local-data/scenes/<scene_id>/scene.json`. The path remains an implementation detail behind `StorageProvider`.
 
-Will return the current Scene manifest.
+### `GET /api/scenes/:sceneId` — Implemented
+
+Returns the current Scene manifest. A missing Scene returns HTTP 404:
+
+```json
+{
+  "status": "not_found",
+  "message": "Scene not found: scene_missing"
+}
+```
 
 ## Media
 
-### `POST /api/scenes/:sceneId/media` — Stub
+### `POST /api/scenes/:sceneId/media?filename=<name.insp>` — Implemented for INSP
 
-May initially accept local multipart upload, persist through `StorageProvider`, and return an application-generated `media_id` plus media record. A future OSS migration should preserve the higher-level contract.
+Accepts one `.insp` file as `application/octet-stream`, persists it through `StorageProvider`, adds it to the Scene, and returns an application-generated `media_id` plus media record with HTTP 201. The initial body limit is 64 MiB. A future direct-to-OSS upload flow must preserve the higher-level media and job contracts.
+
+### `GET /api/scenes/:sceneId/media/:mediaId` — Implemented
+
+Returns the private source object as `application/octet-stream`. Authentication and signed-download behavior remain deployment concerns.
+
+## Panorama Stitching
+
+### `POST /api/scenes/:sceneId/panorama/stitch` — Implemented
+
+Accepts one or more uploaded `.insp` media IDs and returns HTTP 202 with an application-generated job ID. A single `.insp` is a valid X5 input and is the normal path. `enable_stitch_fusion` must only be enabled for a known bracketed capture set; multiple arbitrary images must not be fused implicitly:
+
+```json
+{
+  "media_ids": ["media_001", "media_002", "media_003"],
+  "enable_stitch_fusion": true
+}
+```
+
+```json
+{ "job_id": "job_001" }
+```
+
+The API converts media IDs to private storage keys, calls the internal worker, persists job state, and updates `Scene.world.panorama_*` only after the output has been validated. The public request never exposes ECS filesystem paths. With OSS enabled, the API stages source objects into the private worker scratch directory and uploads the validated JPEG back to OSS before marking the job complete.
+
+### `POST /v1/stitch/image` — Implemented internal Worker API
+
+This endpoint is private to the API/GPU network and must not be exposed to browsers. It accepts storage keys relative to mounted worker roots:
+
+```json
+{
+  "input_keys": ["scene_001/capture_001.insp"],
+  "output_key": "scene_001/panorama.jpg",
+  "output_width": 8600,
+  "output_height": 4300,
+  "stitch_type": "optflow",
+  "enable_stitchfusion": false
+}
+```
+
+Multiple inputs are supported for camera bracket sets. `enable_stitchfusion` is explicit because the number of inputs alone does not prove that files belong to one bracket. Width must be exactly twice height. A successful response confirms the actual JPEG dimensions:
+
+```json
+{
+  "status": "completed",
+  "output_key": "scene_001/panorama.jpg",
+  "width": 8600,
+  "height": 4300,
+  "elapsed_ms": 12345,
+  "cuda_enabled": true
+}
+```
+
+Failures return HTTP 400 for invalid storage keys/input and HTTP 502 for a MediaSDK execution failure. The synchronous internal call will sit behind the public asynchronous job boundary.
 
 ## Memory Analysis
 
@@ -69,9 +131,15 @@ This route must not return authoritative 3D position or normal.
 
 Will register existing or generated splat, Collider, and related world metadata.
 
-### `POST /api/scenes/:sceneId/world/generate` — Stub / future capability
+### `POST /api/scenes/:sceneId/world/generate` — Implemented for Marble
 
-Reserved asynchronous world-generation boundary. It may later create a Marble job. Marble is not integrated in v0.1 initialization.
+Creates an asynchronous Marble World API job from the Scene's completed 2:1 panorama. The World Labs key remains server-side in `WLT_API_KEY`; it must never be sent to the browser or committed. An optional prompt may guide the reconstruction:
+
+```json
+{ "prompt": "Preserve the room layout and major furniture." }
+```
+
+The job submits the panorama, polls the provider operation, and persists the returned `world_id`, Marble URL, and asset manifest. Provider asset URLs should be copied to durable project storage before long-term use; that download/copy step is not yet implemented.
 
 ## Anchor Persistence
 
@@ -96,9 +164,13 @@ Will create an optional GPU Hero job and return an application-generated job ID:
 { "job_id": "job_001" }
 ```
 
-### `GET /api/jobs/:jobId` — Stub
+### `GET /api/jobs/:jobId` — Implemented for panorama and Marble world jobs
 
-Will report `queued`, `running`, `completed`, or `failed`.
+Reports `queued`, `running`, `completed`, or `failed`. Completed panorama jobs include `output_url`, dimensions, elapsed worker time, and whether CUDA was enabled. Completed Marble jobs include `world_id`, `world_marble_url`, and the provider asset manifest. Failed jobs include a bounded error message.
+
+### `GET /api/jobs/:jobId/output` — Implemented
+
+Returns the completed panorama as `image/jpeg`. Returns HTTP 404 while the output is unavailable.
 
 ## Native-to-Web Bridge — Planned, not an HTTP API
 
