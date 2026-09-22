@@ -91,7 +91,24 @@ The FastAPI worker is the future boundary for PyTorch, NVIDIA CUDA, segmentation
 
 ### Optional iOS Capture Shell
 
-The future thin shell may use the Insta360 Camera SDK, X5 capture, the Media SDK, upload, and a WKWebView bridge. It must not reimplement the Web product.
+The thin shell hosts the Web product in `WKWebView` and owns optional native X5
+acquisition. The current scaffold includes the WKWebView bridge plus an
+Insta360-backed capture provider for capture, camera-file download, and 2:1 JPEG
+export. The native SDK binaries remain local ignored dependencies and are never
+committed.
+
+The intended paid-team network lifecycle is temporary: PlaceEcho joins the X5
+hotspot with an app-owned `joinOnce` configuration, downloads and exports the
+capture, removes that configuration, waits for normal internet connectivity to
+return, and only then uploads. The automatic adapter remains in the project but
+its entitlement is commented out for Personal Team signing. The current default
+flow uses manual X5 Wi-Fi selection, capture through local export, and manual
+return to normal networking. Upload and internet-restoration gating remain
+pending.
+
+The shell must not reimplement the Web product. Web sends a `capture_panorama`
+request with an application-generated `scene_id`; only a durable uploaded URL may
+cross `importPanorama()` in the completed product flow.
 
 ## StorageProvider Abstraction
 

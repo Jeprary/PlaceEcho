@@ -8,6 +8,8 @@ dist/
 .DS_Store
 
 .local-data/
+apps/ios/Vendor/
+xcuserdata/
 uploads/
 outputs/
 tmp/
