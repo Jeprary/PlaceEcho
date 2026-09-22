@@ -100,9 +100,34 @@ Will create an optional GPU Hero job and return an application-generated job ID:
 
 Will report `queued`, `running`, `completed`, or `failed`.
 
-## Native-to-Web Bridge — Planned, not an HTTP API
+## Native-to-Web Bridge — Scaffolded, not an HTTP API
 
-Future message shape:
+Web-to-native capture request:
+
+```json
+{
+  "type": "capture_panorama",
+  "scene_id": "scene_001"
+}
+```
+
+Native-to-Web local-export status:
+
+```json
+{
+  "type": "panorama_staged",
+  "scene_id": "scene_001",
+  "width": 11904,
+  "height": 5952
+}
+```
+
+`panorama_staged` means the camera capture has been downloaded and exported into
+the app sandbox and the SDK camera session has been shut down. In Personal Team
+builds, Wi-Fi selection remains manual. This status must not invoke
+`importPanorama()`.
+
+Native-to-Web durable success message, after upload:
 
 ```json
 {
@@ -114,4 +139,21 @@ Future message shape:
 }
 ```
 
-The Web converts this to a `PanoramaAsset` and invokes `importPanorama(asset)`. The bridge is not implemented.
+The Web converts only `panorama_ready` to a `PanoramaAsset` and invokes
+`importPanorama(asset)`. Its `url` must be durable and Web-readable; a native
+app-sandbox `file://` URL is only an intermediate capture result and never crosses
+that boundary.
+
+Native-to-Web failure message:
+
+```json
+{
+  "type": "capture_failed",
+  "scene_id": "scene_001",
+  "message": "..."
+}
+```
+
+The Web receiver, WKWebView message handler, and native capture provider are
+scaffolded. The native shell currently emits `panorama_staged`; device validation,
+internet-restoration gating, and upload-before-`panorama_ready` remain pending.

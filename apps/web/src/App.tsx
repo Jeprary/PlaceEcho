@@ -1,7 +1,13 @@
 import type { Scene } from "@placeecho/shared";
 import { useEffect, useRef, useState } from "react";
 import demoSceneFixture from "../../../assets/demo/demo-scene.json";
+import { WorldEntry, type IOSCaptureStatus } from "./WorldEntry";
 import { DeviceOrientationSource } from "./world/DeviceOrientationSource";
+import {
+  installIOSPanoramaBridge,
+  isIOSPanoramaCaptureAvailable,
+  requestIOSPanoramaCapture,
+} from "./world/IOSPanoramaBridge";
 import {
   SpatialRuntime,
   type SpatialRuntimeSnapshot,
@@ -28,6 +34,18 @@ export function App() {
   const [gyroStatus, setGyroStatus] = useState<
     "idle" | "requesting" | "active" | "denied"
   >("idle");
+  const [iosCaptureAvailable] = useState(isIOSPanoramaCaptureAvailable);
+  const [activeView, setActiveView] = useState<"spaces" | "world">(() =>
+    isIOSPanoramaCaptureAvailable() ? "spaces" : "world",
+  );
+  const [iosCaptureStatus, setIOSCaptureStatus] =
+    useState<IOSCaptureStatus>({ type: "idle" });
+
+  useEffect(() => {
+    if (!iosCaptureAvailable) return;
+    const uninstallIOSBridge = installIOSPanoramaBridge(setIOSCaptureStatus);
+    return uninstallIOSBridge;
+  }, [iosCaptureAvailable]);
 
   useEffect(() => {
     if (!runtimeHost.current) return;
@@ -53,6 +71,20 @@ export function App() {
       setGyroStatus(enabled ? "active" : "denied");
     } catch {
       setGyroStatus("denied");
+    }
+  };
+
+  const captureIOSPanorama = () => {
+    setIOSCaptureStatus({ type: "requesting" });
+    try {
+      requestIOSPanoramaCapture(demoScene.scene_id);
+    } catch (error) {
+      setIOSCaptureStatus({
+        type: "failed",
+        sceneId: demoScene.scene_id,
+        message:
+          error instanceof Error ? error.message : "Panorama capture failed.",
+      });
     }
   };
 
@@ -95,7 +127,7 @@ export function App() {
         <span>Memory Reveal will begin here in a later prototype.</span>
       </section>
 
-      {gyroStatus !== "active" && (
+      {activeView === "world" && gyroStatus !== "active" && (
         <section className="mobile-wind-gate">
           <p>PlaceEcho</p>
           <h2>Move like the wind</h2>
@@ -105,9 +137,31 @@ export function App() {
             {gyroStatus === "idle" && "Enter Wind Mode"}
           </button>
           {gyroStatus === "denied" && (
-            <span>Motion access is required to fly.</span>
+            <span>
+              Motion access was not granted. Allow motion access for PlaceEcho
+              in iOS Settings, then return and try again.
+            </span>
           )}
         </section>
+      )}
+
+      {iosCaptureAvailable && activeView === "world" && (
+        <button
+          className="world-entry-return"
+          type="button"
+          onClick={() => setActiveView("spaces")}
+        >
+          Spaces
+        </button>
+      )}
+
+      {iosCaptureAvailable && activeView === "spaces" && (
+        <WorldEntry
+          captureStatus={iosCaptureStatus}
+          worldStatus={worldStatus}
+          onCapture={captureIOSPanorama}
+          onEnterDemo={() => setActiveView("world")}
+        />
       )}
     </main>
   );
