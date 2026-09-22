@@ -1,0 +1,22 @@
+{
+  "memories": [
+    { "id": "memory_001", "name": "演唱会观演与周边", "media": [
+      { "id": "IMG_5117.JPG", "kind": "image", "src": "/local-memory/IMG_5117.JPG" },
+      { "id": "IMG_5154.JPG", "kind": "image", "src": "/local-memory/IMG_5154.JPG" },
+      { "id": "concert-video", "kind": "video", "src": "/local-memory/cc0a31c872ca1921b0d3c78c8f940b64.mp4" },
+      { "id": "fxn-132124", "kind": "image", "src": "/local-memory/fxn%202025-09-20%20132124.568.JPG" },
+      { "id": "fxn-141807", "kind": "image", "src": "/local-memory/fxn%202025-09-20%20141807.530.JPG" }
+    ] },
+    { "id": "memory_002", "name": "娃娃与挂件收藏", "media": [
+      { "id": "4e991b", "kind": "image", "src": "/local-memory/4e991b5330a3ae2b60c02b8aeb14954b.JPG" },
+      { "id": "IMG_0114", "kind": "image", "src": "/local-memory/IMG_0114.JPG" },
+      { "id": "IMG_1491", "kind": "image", "src": "/local-memory/IMG_1491.JPG" }
+    ] },
+    { "id": "memory_003", "name": "书桌用餐与影音日常", "media": [
+      { "id": "IMG_0133", "kind": "image", "src": "/local-memory/IMG_0133.JPG" },
+      { "id": "IMG_5449", "kind": "image", "src": "/local-memory/IMG_5449.JPG" },
+      { "id": "IMG_5510", "kind": "image", "src": "/local-memory/IMG_5510.JPG" },
+      { "id": "IMG_5521", "kind": "image", "src": "/local-memory/IMG_5521.JPG" }
+    ] }
+  ]
+}

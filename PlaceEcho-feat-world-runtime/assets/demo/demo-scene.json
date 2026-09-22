@@ -1,0 +1,28 @@
+{
+  "schema_version": "0.1",
+  "scene_id": "scene_demo",
+  "status": "draft",
+  "scene_context": { "text": "本地测试空间：照片、视频和录音来自 Test 素材集。", "audio_url": "/local-memory/%E6%96%B0%E5%BD%95%E9%9F%B3%204.m4a" },
+  "world": { "panorama_url": "/local-world/360.jpg", "panorama_width": 8600, "panorama_height": 4300, "splat_url": "/local-world/world.spz", "collider_url": "/local-world/collider.glb" },
+  "media": [
+    { "id": "IMG_5117.JPG", "source_name": "IMG_5117.JPG", "type": "image", "url": "/local-memory/IMG_5117.JPG" },
+    { "id": "IMG_5154.JPG", "source_name": "IMG_5154.JPG", "type": "image", "url": "/local-memory/IMG_5154.JPG" },
+    { "id": "cc0a31c872ca1921b0d3c78c8f940b64.mp4", "source_name": "cc0a31c872ca1921b0d3c78c8f940b64.mp4", "type": "video", "url": "/local-memory/cc0a31c872ca1921b0d3c78c8f940b64.mp4" },
+    { "id": "fxn 2025-09-20 132124.568.JPG", "source_name": "fxn 2025-09-20 132124.568.JPG", "type": "image", "url": "/local-memory/fxn%202025-09-20%20132124.568.JPG" },
+    { "id": "fxn 2025-09-20 141807.530.JPG", "source_name": "fxn 2025-09-20 141807.530.JPG", "type": "image", "url": "/local-memory/fxn%202025-09-20%20141807.530.JPG" },
+    { "id": "4e991b5330a3ae2b60c02b8aeb14954b.JPG", "source_name": "4e991b5330a3ae2b60c02b8aeb14954b.JPG", "type": "image", "url": "/local-memory/4e991b5330a3ae2b60c02b8aeb14954b.JPG" },
+    { "id": "IMG_0114.JPG", "source_name": "IMG_0114.JPG", "type": "image", "url": "/local-memory/IMG_0114.JPG" },
+    { "id": "IMG_1491.JPG", "source_name": "IMG_1491.JPG", "type": "image", "url": "/local-memory/IMG_1491.JPG" },
+    { "id": "IMG_0133.JPG", "source_name": "IMG_0133.JPG", "type": "image", "url": "/local-memory/IMG_0133.JPG" },
+    { "id": "IMG_5449.JPG", "source_name": "IMG_5449.JPG", "type": "image", "url": "/local-memory/IMG_5449.JPG" },
+    { "id": "IMG_5510.JPG", "source_name": "IMG_5510.JPG", "type": "image", "url": "/local-memory/IMG_5510.JPG" },
+    { "id": "IMG_5521.JPG", "source_name": "IMG_5521.JPG", "type": "image", "url": "/local-memory/IMG_5521.JPG" },
+    { "id": "新录音 4.m4a", "source_name": "新录音 4.m4a", "type": "audio", "url": "/local-memory/%E6%96%B0%E5%BD%95%E9%9F%B3%204.m4a" }
+  ],
+  "memories": [
+    { "id": "memory_001", "name": "演唱会观演与周边", "summary": null, "media_ids": ["IMG_5117.JPG", "IMG_5154.JPG", "cc0a31c872ca1921b0d3c78c8f940b64.mp4", "fxn 2025-09-20 132124.568.JPG", "fxn 2025-09-20 141807.530.JPG"], "reflection": null, "anchor": { "id": "anchor_001", "cue": { "label": "wall photo board" }, "source_grounding": { "x": 4343, "y": 2064 }, "world_grounding": null, "position": [0, 0.03, -0.65], "normal": [0, 1, 0], "hero": { "status": "not_requested", "job_id": null, "asset_url": null } } },
+    { "id": "memory_002", "name": "娃娃与挂件收藏", "summary": null, "media_ids": ["4e991b5330a3ae2b60c02b8aeb14954b.JPG", "IMG_0114.JPG", "IMG_1491.JPG"], "reflection": null, "anchor": { "id": "anchor_002", "cue": { "label": "bed" }, "source_grounding": { "x": 3096, "y": 3161 }, "world_grounding": null, "position": null, "normal": null, "hero": { "status": "not_requested", "job_id": null, "asset_url": null } } },
+    { "id": "memory_003", "name": "书桌用餐与影音日常", "summary": null, "media_ids": ["IMG_0133.JPG", "IMG_5449.JPG", "IMG_5510.JPG", "IMG_5521.JPG", "新录音 4.m4a"], "reflection": null, "anchor": { "id": "anchor_003", "cue": { "label": "wooden desk" }, "source_grounding": { "x": 6966, "y": 3010 }, "world_grounding": null, "position": null, "normal": null, "hero": { "status": "not_requested", "job_id": null, "asset_url": null } } }
+  ],
+  "unassigned_media_ids": []
+}

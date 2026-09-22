@@ -1,0 +1,21 @@
+{
+  "name": "@placeecho/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/types/index.js"
+    },
+    "./schema/scene.schema.json": "./schema/scene.schema.json"
+  },
+  "files": ["dist", "schema"],
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0"
+  }
+}

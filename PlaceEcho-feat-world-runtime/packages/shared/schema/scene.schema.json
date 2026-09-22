@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://placeecho.dev/schema/scene.schema.json",
+  "title": "PlaceEcho Scene v0.1",
+  "description": "Serialized runtime manifest/current state for one PlaceEcho Scene.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "scene_id",
+    "status",
+    "scene_context",
+    "world",
+    "media",
+    "memories",
+    "unassigned_media_ids"
+  ],
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "scene_id": { "type": "string", "minLength": 1 },
+    "status": { "type": "string", "minLength": 1 },
+    "scene_context": { "$ref": "#/$defs/sceneContext" },
+    "world": { "$ref": "#/$defs/world" },
+    "media": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/media" }
+    },
+    "memories": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/memory" }
+    },
+    "unassigned_media_ids": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "nullableString": {
+      "type": ["string", "null"]
+    },
+    "nullableNonNegativeInteger": {
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
+    "sceneContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "audio_url"],
+      "properties": {
+        "text": { "$ref": "#/$defs/nullableString" },
+        "audio_url": { "$ref": "#/$defs/nullableString" }
+      }
+    },
+    "world": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "panorama_url",
+        "panorama_width",
+        "panorama_height",
+        "splat_url",
+        "collider_url"
+      ],
+      "properties": {
+        "panorama_url": { "$ref": "#/$defs/nullableString" },
+        "panorama_width": { "$ref": "#/$defs/nullableNonNegativeInteger" },
+        "panorama_height": { "$ref": "#/$defs/nullableNonNegativeInteger" },
+        "splat_url": { "$ref": "#/$defs/nullableString" },
+        "collider_url": { "$ref": "#/$defs/nullableString" }
+      }
+    },
+    "media": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "source_name", "type", "url"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "source_name": { "type": "string" },
+        "type": {
+          "enum": ["image", "video", "live_photo", "audio", "text"]
+        },
+        "url": { "$ref": "#/$defs/nullableString" }
+      }
+    },
+    "cue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label"],
+      "properties": {
+        "label": { "type": "string", "minLength": 1 }
+      }
+    },
+    "sourceGrounding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      }
+    },
+    "worldGrounding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["view_id", "x", "y"],
+      "properties": {
+        "view_id": { "type": "string", "minLength": 1 },
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      }
+    },
+    "vector3": {
+      "type": "array",
+      "prefixItems": [
+        { "type": "number" },
+        { "type": "number" },
+        { "type": "number" }
+      ],
+      "items": false,
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "hero": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "job_id", "asset_url"],
+      "properties": {
+        "status": {
+          "enum": [
+            "not_requested",
+            "queued",
+            "running",
+            "completed",
+            "failed"
+          ]
+        },
+        "job_id": { "$ref": "#/$defs/nullableString" },
+        "asset_url": { "$ref": "#/$defs/nullableString" }
+      }
+    },
+    "anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "cue",
+        "source_grounding",
+        "world_grounding",
+        "position",
+        "normal",
+        "hero"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "cue": { "$ref": "#/$defs/cue" },
+        "source_grounding": {
+          "oneOf": [
+            { "$ref": "#/$defs/sourceGrounding" },
+            { "type": "null" }
+          ]
+        },
+        "world_grounding": {
+          "oneOf": [
+            { "$ref": "#/$defs/worldGrounding" },
+            { "type": "null" }
+          ]
+        },
+        "position": {
+          "oneOf": [{ "$ref": "#/$defs/vector3" }, { "type": "null" }]
+        },
+        "normal": {
+          "oneOf": [{ "$ref": "#/$defs/vector3" }, { "type": "null" }]
+        },
+        "hero": { "$ref": "#/$defs/hero" }
+      }
+    },
+    "memory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "summary",
+        "media_ids",
+        "reflection",
+        "anchor"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "summary": { "$ref": "#/$defs/nullableString" },
+        "media_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "reflection": { "$ref": "#/$defs/nullableString" },
+        "anchor": { "$ref": "#/$defs/anchor" }
+      }
+    }
+  }
+}

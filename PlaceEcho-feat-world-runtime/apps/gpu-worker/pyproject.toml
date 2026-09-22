@@ -1,0 +1,16 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "placeecho-gpu-worker"
+version = "0.1.0"
+description = "PlaceEcho GPU worker skeleton"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.116,<1",
+  "uvicorn[standard]>=0.35,<1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/placeecho_gpu_worker"]
