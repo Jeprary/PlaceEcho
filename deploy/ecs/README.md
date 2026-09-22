@@ -8,6 +8,7 @@ The current deployment deliberately keeps both services on loopback. It does not
 /opt/placeecho/current-api -> releases/api-*/ (active API release)
 /opt/placeecho/releases/  immutable source and API release directories
 /opt/placeecho/data/      API storage plus worker input/output mount
+/mnt/placeecho-oss/       optional Cloud Storage Gateway NFS mount
 /opt/placeecho/app/       deployment source/build context
 /opt/placeecho/vendor/    private Insta360 delivery archive
 ```
@@ -25,7 +26,7 @@ Use an authenticated HTTPS gateway before making the API externally reachable. N
 
 The target bucket is `team28-insta360xboldmaker` in `oss-cn-hangzhou`. `OSSStorageProvider` is implemented with auto-refreshing ECS-role STS credentials. Bind a least-privilege ECS RAM role for only the required bucket prefixes, then select it in `/etc/placeecho/api.env`. Do not put a long-lived AccessKey in `.env`, a systemd unit, Git, or a container image.
 
-Do not mount the bucket with ossfs, BatchCompute mappings, or Cloud Storage Gateway for this pipeline. The API reads and writes durable objects through the OSS SDK. Only the inputs needed by one MediaSDK invocation are staged into `/opt/placeecho/data`; its output is uploaded to OSS and the scratch files are removed. This preserves object-storage semantics and avoids adding a paid gateway or treating large `.insp` objects as a general-purpose filesystem.
+Direct OSS SDK access through an ECS RAM role is preferred. If the account administrator does not permit role attachment or AccessKey creation, use Cloud Storage Gateway (CSG) with NFS. Do not use BatchCompute mappings, which do not apply to a normal ECS instance, and do not use ossfs for this large-file pipeline. In either remote mode, only the inputs needed by one MediaSDK invocation are staged into `/opt/placeecho/data`; its output is copied back to durable storage and the scratch files are removed.
 
 Recommended private prefixes:
 
@@ -48,6 +49,23 @@ WORKER_DATA_DIR=/opt/placeecho/data
 ```
 
 `OSS_ECS_RAM_ROLE` is optional because the metadata service can return the attached role name. Until the role exists, `LocalStorageProvider` remains active so the API does not fail at startup.
+
+### Cloud Storage Gateway fallback
+
+Create a CSG file gateway in `cn-hangzhou`, in the same VPC and vSwitch as Team28, and expose the `placeecho` bucket prefix through NFS. CSG is separately billed and requires a cache disk; confirm its price before creation. Once the console provides the NFS server mount point:
+
+1. Install the NFS client on the ECS and mount the share at `/mnt/placeecho-oss` with `_netdev` persistence.
+2. Verify the mount is writable by the `placeecho` service user.
+3. Install `deploy/ecs/placeecho-api-mounted.conf` as a systemd drop-in so the API cannot start before the remote filesystem is mounted.
+4. Configure `/etc/placeecho/api.env` as follows:
+
+```text
+STORAGE_PROVIDER=mounted
+MOUNTED_STORAGE_DIR=/mnt/placeecho-oss
+WORKER_DATA_DIR=/opt/placeecho/data
+```
+
+The mounted directory is durable storage only. MediaSDK inputs and outputs still use local scratch storage and are cleaned after each job.
 
 ## Marble activation
 

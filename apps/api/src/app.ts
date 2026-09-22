@@ -35,10 +35,13 @@ export function buildApp(options: BuildAppOptions = {}) {
   );
   const localDataDirectory =
     options.localDataDirectory ?? process.env.LOCAL_DATA_DIR ?? ".local-data";
-  const storage = options.storageProvider ?? storageFromEnvironment(localDataDirectory);
+  const storageProviderName = process.env.STORAGE_PROVIDER ?? "local";
+  const storage =
+    options.storageProvider ??
+    storageFromEnvironment(storageProviderName, localDataDirectory);
   const workerStorage =
     options.workerStorageProvider ??
-    (process.env.STORAGE_PROVIDER === "oss"
+    (storageProviderName === "oss" || storageProviderName === "mounted"
       ? new LocalStorageProvider(process.env.WORKER_DATA_DIR ?? localDataDirectory)
       : storage);
   const sceneService = new SceneService(new SceneRepository(storage));
@@ -78,9 +81,20 @@ export function buildApp(options: BuildAppOptions = {}) {
   return app;
 }
 
-function storageFromEnvironment(localDataDirectory: string): StorageProvider {
-  if ((process.env.STORAGE_PROVIDER ?? "local") !== "oss") {
+function storageFromEnvironment(
+  providerName: string,
+  localDataDirectory: string,
+): StorageProvider {
+  if (providerName === "local") {
     return new LocalStorageProvider(localDataDirectory);
+  }
+  if (providerName === "mounted") {
+    return new LocalStorageProvider(
+      process.env.MOUNTED_STORAGE_DIR ?? "/mnt/placeecho-oss",
+    );
+  }
+  if (providerName !== "oss") {
+    throw new Error(`Unsupported STORAGE_PROVIDER: ${providerName}`);
   }
   return new OSSStorageProvider({
     region: process.env.OSS_REGION ?? "oss-cn-hangzhou",

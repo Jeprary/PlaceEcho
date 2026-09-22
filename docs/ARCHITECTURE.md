@@ -27,7 +27,7 @@ The JavaScript/TypeScript projects use a pnpm workspace without Turborepo. The P
 ```text
 Web authoring/runtime
   <-> API
-       ├── StorageProvider -> LocalStorageProvider | OSSStorageProvider
+       ├── StorageProvider -> LocalStorageProvider | mounted CSG/NFS | OSSStorageProvider
        ├── Memory AI boundary
        ├── Spatial AI grounding boundary
        ├── Marble World API job boundary
@@ -60,7 +60,7 @@ External when needed
         └── future CUDA/SAM3D runtime
 ```
 
-`scene.json` is a serialized runtime manifest/current state, not a production database. In the initial cloud deployment the same logical keys are stored below the private `placeecho/` OSS prefix. GPU work is staged through a host-local scratch directory because the proprietary MediaSDK consumes filesystem paths rather than OSS object streams.
+`scene.json` is a serialized runtime manifest/current state, not a production database. In the initial cloud deployment the same logical keys are stored below the private `placeecho/` OSS prefix, either through the OSS SDK or a Cloud Storage Gateway NFS mount when the account cannot attach an ECS RAM role. GPU work is always staged through a host-local scratch directory because the proprietary MediaSDK consumes filesystem paths and should not render directly into remote storage.
 
 ## Future Alibaba Deployment
 
@@ -107,7 +107,7 @@ The future thin shell may use the Insta360 Camera SDK, X5 capture, the Media SDK
 
 ## StorageProvider Abstraction
 
-API business modules access storage through a replaceable `StorageProvider`, not scattered filesystem calls. `LocalStorageProvider` supports development and `OSSStorageProvider` supports deployment without changing Web, Memory AI, Spatial AI, or GPU business contracts. OSS credentials come only from an attached ECS RAM role through IMDSv2 and auto-refreshing STS credentials; long-lived AccessKeys are not accepted as repository, service-file, or image secrets. The ECS role and least-privilege policy are deployment prerequisites rather than application code.
+API business modules access storage through a replaceable `StorageProvider`, not scattered filesystem calls. `LocalStorageProvider` supports development and also represents a Cloud Storage Gateway NFS mount; `OSSStorageProvider` supports direct object access without changing Web, Memory AI, Spatial AI, or GPU business contracts. Direct OSS credentials come only from an attached ECS RAM role through IMDSv2 and auto-refreshing STS credentials; long-lived AccessKeys are not accepted as repository, service-file, or image secrets. If the account cannot attach a role, CSG/NFS is the credential-free ECS-side fallback. Both remote modes stage each GPU job through host-local scratch storage.
 
 ## AI Responsibility Boundaries
 
