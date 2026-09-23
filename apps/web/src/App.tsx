@@ -1,24 +1,33 @@
 import type { Scene } from "@placeecho/shared";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import demoSceneFixture from "../../../assets/demo/demo-scene.json";
 import { DeviceOrientationSource } from "./world/DeviceOrientationSource";
 import { MemorySlidesOverlay } from "./memory/MemorySlidesOverlay";
 import {
   SpatialRuntime,
   type SpatialRuntimeSnapshot,
+  type WorldLoadProgress,
   type WorldLoadStatus,
 } from "./world/SpatialRuntime";
 
 const demoScene = demoSceneFixture as unknown as Scene;
 const debugOrigin =
   new URLSearchParams(window.location.search).get("debugOrigin") === "1";
+const debugHeroLayout =
+  new URLSearchParams(window.location.search).get("heroLayout") === "1";
 
 const initialSnapshot: SpatialRuntimeSnapshot = {
   proximity: "far",
   distance: Number.POSITIVE_INFINITY,
   anchorId: "",
+  memoryId: "",
   memoryName: "",
   reachedPresentationActive: false,
+};
+
+const initialWorldProgress: WorldLoadProgress = {
+  phase: "opening",
+  value: 0.02,
 };
 
 export function App() {
@@ -26,18 +35,28 @@ export function App() {
   const runtimeRef = useRef<SpatialRuntime | null>(null);
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [worldStatus, setWorldStatus] = useState<WorldLoadStatus>("loading");
+  const [worldProgress, setWorldProgress] = useState(initialWorldProgress);
   const [gyroStatus, setGyroStatus] = useState<
     "idle" | "requesting" | "active" | "denied"
   >("idle");
-  const [presentationVisible, setPresentationVisible] = useState(false);
-
+  const [audioUnlocked, setAudioUnlocked] = useState(false);
+  const heroLayout =
+    debugHeroLayout ||
+    demoScene.memories.some(
+      (memory) =>
+        memory.id === snapshot.memoryId &&
+        memory.anchor.hero.status === "completed" &&
+        Boolean(memory.anchor.hero.asset_url),
+    );
   useEffect(() => {
     if (!runtimeHost.current) return;
     const runtime = new SpatialRuntime(runtimeHost.current, {
       scene: demoScene,
       onSnapshot: setSnapshot,
       onWorldStatus: setWorldStatus,
+      onWorldProgress: setWorldProgress,
       orientationSource: new DeviceOrientationSource(),
+      reachedPresentationControl: "external",
     });
     runtimeRef.current = runtime;
     runtime.start();
@@ -47,18 +66,13 @@ export function App() {
     };
   }, []);
 
-  useEffect(() => {
-    if (snapshot.reachedPresentationActive) {
-      setPresentationVisible(true);
-    }
-  }, [snapshot.reachedPresentationActive]);
-
-  const finishPresentation = () => {
-    setPresentationVisible(false);
-  };
+  const finishPresentation = useCallback(() => {
+    runtimeRef.current?.completeReachedPresentation();
+  }, []);
 
   const enterWindMode = async () => {
     if (!runtimeRef.current || gyroStatus === "requesting") return;
+    setAudioUnlocked(true);
     setGyroStatus("requesting");
     try {
       const enabled = await runtimeRef.current.enableGyroscope();
@@ -70,6 +84,7 @@ export function App() {
 
   return (
     <main
+      onPointerDownCapture={() => setAudioUnlocked(true)}
       className={`spatial-shell spatial-shell--${snapshot.proximity}${
         snapshot.reachedPresentationActive
           ? " spatial-shell--reached-presentation"
@@ -78,16 +93,28 @@ export function App() {
     >
       <div className="spatial-runtime" ref={runtimeHost} />
       <MemorySlidesOverlay
-        active={presentationVisible && snapshot.reachedPresentationActive}
-        memoryName={snapshot.memoryName}
+        active={snapshot.reachedPresentationActive}
+        memoryId={snapshot.memoryId}
+        heroLayout={heroLayout}
+        audibleAutoplay={audioUnlocked}
+        preloadEnabled={worldStatus !== "loading"}
         onFinished={finishPresentation}
       />
       <div className="approach-veil" aria-hidden="true" />
       <div
-        className={`world-loading-cover world-loading-cover--${worldStatus}`}
+        className={`world-loading-cover world-loading-cover--${worldStatus} world-loading-cover--${worldProgress.phase}`}
         aria-hidden={worldStatus !== "loading"}
       >
-        <span />
+        <div className="world-loading-indicator">
+          <p>
+            {worldProgress.phase === "opening" && "Opening space"}
+            {worldProgress.phase === "decoding" && "Forming space"}
+            {worldProgress.phase === "preparing" && "Preparing first view"}
+          </p>
+          <div className="world-loading-track">
+            <span style={{ transform: `scaleX(${worldProgress.value})` }} />
+          </div>
+        </div>
       </div>
 
       <p className={`proximity proximity--${snapshot.proximity}`}>
@@ -100,17 +127,6 @@ export function App() {
           World origin [0, 0, 0] · axes + 1.55 m white mast
         </p>
       )}
-
-      <section
-        className="reached-prompt"
-        role="status"
-        aria-live="polite"
-        aria-hidden={!snapshot.reachedPresentationActive}
-      >
-        <p>Memory reached</p>
-        <h2>{snapshot.memoryName}</h2>
-        <span>Memory Reveal will begin here in a later prototype.</span>
-      </section>
 
       {gyroStatus !== "active" && (
         <section className="mobile-wind-gate">
