@@ -46,6 +46,7 @@ export interface SpatialRuntimeSnapshot {
   proximity: AnchorProximity;
   distance: number;
   anchorId: string;
+  memoryId: string;
   memoryName: string;
   reachedPresentationActive: boolean;
 }
@@ -56,6 +57,7 @@ export interface SpatialRuntimeOptions {
   onWorldStatus?: (status: WorldLoadStatus) => void;
   orientationSource?: WindOrientationSource;
   thresholds?: ProximityThresholds;
+  reachedPresentationControl?: "timed" | "external";
 }
 
 export class SpatialRuntime {
@@ -76,6 +78,7 @@ export class SpatialRuntime {
   private readonly thresholds: ProximityThresholds;
   private readonly onSnapshot?: (snapshot: SpatialRuntimeSnapshot) => void;
   private readonly onWorldStatus?: (status: WorldLoadStatus) => void;
+  private readonly reachedPresentationControl: "timed" | "external";
   private readonly isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
   private readonly colliderOctree = new Octree();
   private readonly cameraCollider = new Sphere(
@@ -116,6 +119,8 @@ export class SpatialRuntime {
     this.thresholds = options.thresholds ?? DEFAULT_PROXIMITY_THRESHOLDS;
     this.onSnapshot = options.onSnapshot;
     this.onWorldStatus = options.onWorldStatus;
+    this.reachedPresentationControl =
+      options.reachedPresentationControl ?? "timed";
 
     const anchorPosition = this.memory.anchor.position;
     if (!anchorPosition) {
@@ -201,6 +206,27 @@ export class SpatialRuntime {
       this.startGlide();
     }
     return enabled;
+  }
+
+  completeReachedPresentation(): void {
+    if (!this.reachedPresentationActive || this.disposed) return;
+    if (this.reachedResumeTimer !== null) {
+      window.clearTimeout(this.reachedResumeTimer);
+      this.reachedResumeTimer = null;
+    }
+    this.reachedPresentationActive = false;
+    this.publishSnapshot("reached", this.distanceToAnchorVolume(), true);
+    this.reachedResumeTimer = window.setTimeout(() => {
+      if (this.disposed) return;
+      this.windController.turnBy(MathUtils.degToRad(100));
+      this.reachedResumeTimer = window.setTimeout(() => {
+        this.reachedResumeTimer = null;
+        if (!this.disposed) {
+          this.windController.setInputLocked(false);
+          this.startGlide();
+        }
+      }, 2_300);
+    }, 520);
   }
 
   dispose(): void {
@@ -442,27 +468,17 @@ export class SpatialRuntime {
       this.reachedPresentationActive = true;
       this.windController.endCapture();
       this.windController.arrive();
-      const flightDurationSeconds = MathUtils.clamp(
-        elapsedSeconds - this.currentFlightStartedAt,
-        3,
-        8,
-      );
-      this.reachedResumeTimer = window.setTimeout(() => {
-        if (this.disposed) return;
-        this.reachedPresentationActive = false;
-        this.publishSnapshot("reached", this.distanceToAnchorVolume(), true);
+      if (this.reachedPresentationControl === "timed") {
+        const flightDurationSeconds = MathUtils.clamp(
+          elapsedSeconds - this.currentFlightStartedAt,
+          3,
+          8,
+        );
         this.reachedResumeTimer = window.setTimeout(() => {
-          if (this.disposed) return;
-          this.windController.turnBy(MathUtils.degToRad(100));
-          this.reachedResumeTimer = window.setTimeout(() => {
-            this.reachedResumeTimer = null;
-            if (!this.disposed) {
-              this.windController.setInputLocked(false);
-              this.startGlide();
-            }
-          }, 2_300);
-        }, 520);
-      }, flightDurationSeconds * 1_000);
+          this.reachedResumeTimer = null;
+          this.completeReachedPresentation();
+        }, flightDurationSeconds * 1_000);
+      }
     } else if (proximity === "approaching") {
       if (this.anchorEncounterArmed && !this.anchorCaptureActive) {
         this.anchorCaptureActive = true;
@@ -509,6 +525,7 @@ export class SpatialRuntime {
       proximity,
       distance,
       anchorId: this.memory.anchor.id,
+      memoryId: this.memory.id,
       memoryName: this.memory.name,
       reachedPresentationActive: this.reachedPresentationActive,
     });

@@ -1,5 +1,5 @@
 import type { Scene } from "@placeecho/shared";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import demoSceneFixture from "../../../assets/demo/demo-scene.json";
 import { DeviceOrientationSource } from "./world/DeviceOrientationSource";
 import { MemorySlidesOverlay } from "./memory/MemorySlidesOverlay";
@@ -17,6 +17,7 @@ const initialSnapshot: SpatialRuntimeSnapshot = {
   proximity: "far",
   distance: Number.POSITIVE_INFINITY,
   anchorId: "",
+  memoryId: "",
   memoryName: "",
   reachedPresentationActive: false,
 };
@@ -29,8 +30,6 @@ export function App() {
   const [gyroStatus, setGyroStatus] = useState<
     "idle" | "requesting" | "active" | "denied"
   >("idle");
-  const [presentationVisible, setPresentationVisible] = useState(false);
-
   useEffect(() => {
     if (!runtimeHost.current) return;
     const runtime = new SpatialRuntime(runtimeHost.current, {
@@ -38,6 +37,7 @@ export function App() {
       onSnapshot: setSnapshot,
       onWorldStatus: setWorldStatus,
       orientationSource: new DeviceOrientationSource(),
+      reachedPresentationControl: "external",
     });
     runtimeRef.current = runtime;
     runtime.start();
@@ -47,15 +47,9 @@ export function App() {
     };
   }, []);
 
-  useEffect(() => {
-    if (snapshot.reachedPresentationActive) {
-      setPresentationVisible(true);
-    }
-  }, [snapshot.reachedPresentationActive]);
-
-  const finishPresentation = () => {
-    setPresentationVisible(false);
-  };
+  const finishPresentation = useCallback(() => {
+    runtimeRef.current?.completeReachedPresentation();
+  }, []);
 
   const enterWindMode = async () => {
     if (!runtimeRef.current || gyroStatus === "requesting") return;
@@ -78,8 +72,8 @@ export function App() {
     >
       <div className="spatial-runtime" ref={runtimeHost} />
       <MemorySlidesOverlay
-        active={presentationVisible && snapshot.reachedPresentationActive}
-        memoryName={snapshot.memoryName}
+        active={snapshot.reachedPresentationActive}
+        memoryId={snapshot.memoryId}
         onFinished={finishPresentation}
       />
       <div className="approach-veil" aria-hidden="true" />

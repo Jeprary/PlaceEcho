@@ -1,28 +1,39 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-type Slide = { kind: "image" | "video"; src: string; poster?: string };
+type Slide = {
+  kind: "image" | "video";
+  src: string;
+  poster?: string;
+  duration_ms?: number;
+};
 type MemoryManifest = {
-  memories: Array<{ id: string; name: string; media: Slide[] }>;
+  default_image_duration_ms?: number;
+  memories: Array<{ id: string; media: Slide[] }>;
 };
 
 type MemorySlidesOverlayProps = {
   active: boolean;
-  memoryName: string;
+  memoryId: string;
   onFinished: () => void;
 };
 
+const DEFAULT_IMAGE_DURATION_MS = 1_800;
+const MIN_IMAGE_DURATION_MS = 250;
+
 export function MemorySlidesOverlay({
   active,
-  memoryName,
+  memoryId,
   onFinished,
 }: MemorySlidesOverlayProps) {
   const [manifest, setManifest] = useState<MemoryManifest | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const selectedMemory =
-    manifest?.memories.find((memory) => memory.name === memoryName) ??
-    manifest?.memories[0];
+  const unavailableHandled = useRef(false);
+  const selectedMemory = manifest?.memories.find(
+    (memory) => memory.id === memoryId,
+  );
   const slides = selectedMemory?.media ?? [];
   const slide = slides[index];
 
@@ -40,6 +51,7 @@ export function MemorySlidesOverlay({
       })
       .catch((error: unknown) => {
         if (!cancelled) {
+          setLoadFailed(true);
           console.warn("PlaceEcho memory manifest could not be loaded.", error);
         }
       });
@@ -49,24 +61,39 @@ export function MemorySlidesOverlay({
   }, []);
 
   useEffect(() => {
+    unavailableHandled.current = false;
     if (!active) return;
     setIndex(0);
     setPaused(false);
-  }, [active, memoryName]);
+  }, [active, memoryId]);
 
-  const advance = () => {
+  useEffect(() => {
+    if (!active || unavailableHandled.current) return;
+    const manifestReadyWithoutSlides = manifest !== null && slides.length === 0;
+    if (!loadFailed && !manifestReadyWithoutSlides) return;
+    unavailableHandled.current = true;
+    onFinished();
+  }, [active, loadFailed, manifest, onFinished, slides.length]);
+
+  const advance = useCallback(() => {
     if (index >= slides.length - 1) {
       onFinished();
       return;
     }
     setIndex((value) => value + 1);
-  };
+  }, [index, onFinished, slides.length]);
 
   useEffect(() => {
     if (!active || !slide || paused || slide.kind !== "image") return;
-    const timer = window.setTimeout(advance, 1_800);
+    const durationMs = Math.max(
+      slide.duration_ms ??
+        manifest?.default_image_duration_ms ??
+        DEFAULT_IMAGE_DURATION_MS,
+      MIN_IMAGE_DURATION_MS,
+    );
+    const timer = window.setTimeout(advance, durationMs);
     return () => window.clearTimeout(timer);
-  }, [active, index, paused, slide?.kind, slides.length]);
+  }, [active, advance, manifest?.default_image_duration_ms, paused, slide]);
 
   useEffect(() => {
     if (!active || slide?.kind !== "video") return;
@@ -77,7 +104,12 @@ export function MemorySlidesOverlay({
   if (!active || !slide) return null;
 
   return (
-    <div className="memory-overlay" role="dialog" aria-label="Memory reveal">
+    <div
+      className="memory-overlay"
+      role="dialog"
+      aria-label="Memory reveal"
+      aria-modal="true"
+    >
       <div className="memory-card">
         {slide.kind === "image" ? (
           <img src={slide.src} alt="Memory" />
