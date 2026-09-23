@@ -217,7 +217,7 @@ export class WindController {
       ? 3.4
       : this.departureTurnActive
         ? 1.7
-        : this.collisionActive
+        : this.collisionActive && !this.hasActiveUserIntent()
           ? 2.1
           : 14;
     const lookBlend = 1 - Math.exp(-lookResponse * deltaSeconds);
