@@ -176,10 +176,10 @@ export class WorldGroundingService {
     );
     const result = await this.grounder.ground(scene, views, groundingMedia);
     const heroRecommendation = normalizeHeroRecommendation(
+      scene,
       result.hero_recommendation,
     );
     validateGroundings(scene, views, result.groundings);
-    validateHeroRecommendation(scene, heroRecommendation);
     const persisted = await this.scenes.setWorldGroundings(
       sceneId,
       result.groundings,
@@ -190,16 +190,34 @@ export class WorldGroundingService {
 }
 
 function normalizeHeroRecommendation(
+  scene: Scene,
   recommendation: HeroRecommendation,
 ): HeroRecommendation {
-  if (recommendation?.action !== "skip") return recommendation;
-  return {
-    ...recommendation,
-    memory_id: null,
-    object_name: null,
-    observations: [],
-    reconstruction_mode: null,
-  };
+  const candidate = recommendation?.action === "skip"
+    ? {
+        ...recommendation,
+        memory_id: null,
+        object_name: null,
+        observations: [],
+        reconstruction_mode: null,
+      }
+    : recommendation;
+  try {
+    validateHeroRecommendation(scene, candidate);
+    return candidate;
+  } catch {
+    return {
+      action: "skip",
+      memory_id: null,
+      object_name: null,
+      observations: [],
+      reconstruction_mode: null,
+      confidence: 0,
+      rationale:
+        "Hero recommendation was discarded because it failed validation.",
+      uncertainty_codes: ["invalid_provider_output"],
+    };
+  }
 }
 
 function validateViews(views: RenderView[]): void {

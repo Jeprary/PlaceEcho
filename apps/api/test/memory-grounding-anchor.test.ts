@@ -26,6 +26,7 @@ test("analyzes selected media, grounds final views, and persists Web geometry", 
   await storage.put("jobs/job_test.json", enc.encode(JSON.stringify({ job_id: "job_test", type: "panorama_stitch", scene_id: sceneId, status: "completed" })));
   await storage.put(`scenes/${sceneId}/panorama/job_test.jpg`, enc.encode("fake-panorama"));
   for (const asset of scene.media) await storage.put(`scenes/${sceneId}/media/${asset.id}/${asset.source_name}`, enc.encode(asset.id));
+  let groundingCalls = 0;
   const app = buildApp({
     logger: false, storageProvider: storage,
     memoryAnalyzer: { async analyze(input) {
@@ -37,7 +38,32 @@ test("analyzes selected media, grounds final views, and persists Web geometry", 
       ], unassigned_media_ids: [] };
     } },
     worldGrounder: { async ground(_scene, views) {
+      groundingCalls += 1;
       assert.equal(views[0]?.view_id, "front");
+      if (groundingCalls === 2) {
+        return {
+          groundings: _scene.memories.map((memory, index) => ({
+            memory_id: memory.id,
+            world_grounding: index === 0
+              ? { view_id: "front", x: 20, y: 30 }
+              : null,
+          })),
+          hero_recommendation: {
+            action: "trigger_3d" as const,
+            memory_id: _scene.memories[0]!.id,
+            object_name: "Invalid candidate",
+            observations: [{
+              media_id: "media_not_in_memory",
+              bbox_xyxy_norm: [0.1, 0.1, 0.9, 0.9] as [number, number, number, number],
+              view_role: "primary" as const,
+            }],
+            reconstruction_mode: "single_view" as const,
+            confidence: 0.9,
+            rationale: "Provider returned an invalid observation.",
+            uncertainty_codes: [],
+          },
+        };
+      }
       return {
         groundings: _scene.memories.map((memory, index) => ({ memory_id: memory.id, world_grounding: index === 0 ? { view_id: "front", x: 20, y: 30 } : null })),
         hero_recommendation: {
@@ -90,6 +116,32 @@ test("analyzes selected media, grounds final views, and persists Web geometry", 
   );
   assert.equal(groundingResult.hero_job_id, null);
   assert.deepEqual(current.memories[0]!.anchor.world_grounding, { view_id: "front", x: 20, y: 30 });
+  const invalidHeroGround = await app.inject({
+    method: "POST",
+    url: `/api/scenes/${sceneId}/world-grounding`,
+    payload: {
+      views: [{
+        view_id: "front",
+        width: 100,
+        height: 100,
+        image_data_url: "data:image/png;base64,YQ==",
+      }],
+    },
+  });
+  assert.equal(invalidHeroGround.statusCode, 200, invalidHeroGround.body);
+  const invalidHeroResult = invalidHeroGround.json<{
+    hero_recommendation: {
+      action: string;
+      memory_id: string | null;
+      uncertainty_codes: string[];
+    };
+  }>();
+  assert.equal(invalidHeroResult.hero_recommendation.action, "skip");
+  assert.equal(invalidHeroResult.hero_recommendation.memory_id, null);
+  assert.deepEqual(
+    invalidHeroResult.hero_recommendation.uncertainty_codes,
+    ["invalid_provider_output"],
+  );
   const memoryId = current.memories[0]!.id;
   const anchor = await app.inject({ method: "PATCH", url: `/api/scenes/${sceneId}/memories/${memoryId}/anchor`, payload: { position: [1, 2, 3], normal: [0, 1, 0] } });
   assert.equal(anchor.statusCode, 200, anchor.body);

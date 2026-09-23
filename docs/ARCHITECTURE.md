@@ -244,6 +244,8 @@ perspective render images with stable view IDs and dimensions. Its second
 Scene-level multimodal request also receives the already-validated Memory
 groups and their image media. A replaceable `WorldGrounder` returns cue pixels
 plus at most one validated Hero recommendation (or `skip`/additional-capture).
+Invalid optional Hero candidates degrade to `skip` and never discard otherwise
+valid final-world grounding pixels.
 Only an explicit generation option and provider-processing confirmation may turn
 a high-confidence recommendation into a Hero job. The API persists only
 `world_grounding`; registering new world assets or recomputing grounding clears
