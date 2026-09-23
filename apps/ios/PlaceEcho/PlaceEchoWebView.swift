@@ -417,6 +417,8 @@ fileprivate final class BundledWebAppSchemeHandler: NSObject, WKURLSchemeHandler
         case "wasm": "application/wasm"
         case "png": "image/png"
         case "jpg", "jpeg": "image/jpeg"
+        case "webp": "image/webp"
+        case "mp4": "video/mp4"
         case "svg": "image/svg+xml"
         case "glb": "model/gltf-binary"
         case "spz": "application/octet-stream"

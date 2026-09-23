@@ -133,6 +133,12 @@ must not make Three.js an initial manager dependency. If the system WebContent
 process does not become interactive promptly, the shell exposes a native recovery
 control that opens only the existing X5 acquisition screen. This is a capture
 availability fallback, not a second implementation of the product home UI.
+Development iOS builds may copy the small set of already-referenced Revisit
+artifacts from ignored `.local-data` into the embedded Web bundle. They retain
+the same `/local-world`, `/local-marble`, and `/local-memory` URL namespace used
+by the development server; this is an offline packaging step, not a second asset
+contract. Source media, PLY/LOD intermediates, and other large generated files
+remain outside Git and outside the app.
 
 ## StorageProvider Abstraction
 

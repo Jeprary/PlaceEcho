@@ -31,3 +31,59 @@ esac
 /bin/rm -rf "${bundle_destination}"
 /bin/mkdir -p "${bundle_destination}"
 /usr/bin/ditto "${web_directory}/dist" "${bundle_destination}"
+
+# Keep generated/private demo assets out of Git while still making the two
+# local Revisit spaces available when this Mac builds the development app.
+# The copied paths intentionally mirror the Web development server routes, so
+# React and SpatialRuntime do not need an iOS-specific asset contract.
+if [[ "${PLACE_ECHO_EMBED_LOCAL_SCENES:-1}" == "1" ]]; then
+  local_data_directory="${repository_root}/.local-data"
+  missing_local_assets=0
+
+  embed_local_asset() {
+    local source_path="$1"
+    local destination_path="$2"
+    if [[ ! -f "${source_path}" ]]; then
+      echo "warning: Skipping missing local PlaceEcho asset: ${source_path}"
+      missing_local_assets=1
+      return
+    fi
+    /bin/mkdir -p "${destination_path:h}"
+    /usr/bin/ditto "${source_path}" "${destination_path}"
+  }
+
+  scene_demo_directory="${local_data_directory}/scenes/scene_demo"
+  embed_local_asset \
+    "${scene_demo_directory}/world/world.spz" \
+    "${bundle_destination}/local-world/world.spz"
+  embed_local_asset \
+    "${scene_demo_directory}/world/collider.glb" \
+    "${bundle_destination}/local-world/collider.glb"
+
+  for media_name in \
+    01-arrival.jpg \
+    02-merch.jpg \
+    03-stage-purple.jpg \
+    04-stage-blue.jpg \
+    05-clip.mp4
+  do
+    embed_local_asset \
+      "${scene_demo_directory}/media/concert-preview/${media_name}" \
+      "${bundle_destination}/local-memory/${media_name}"
+  done
+
+  marble_directory="${local_data_directory}/marble/4907920b-f2b4-4362-a3ed-8e628869fd2c"
+  embed_local_asset \
+    "${marble_directory}/splat-full.spz" \
+    "${bundle_destination}/local-marble/splat-full.spz"
+  embed_local_asset \
+    "${marble_directory}/collider.glb" \
+    "${bundle_destination}/local-marble/collider.glb"
+  embed_local_asset \
+    "${marble_directory}/thumbnail.webp" \
+    "${bundle_destination}/local-marble/thumbnail.webp"
+
+  if [[ "${missing_local_assets}" == "0" ]]; then
+    echo "Embedded the two local PlaceEcho Revisit spaces."
+  fi
+fi

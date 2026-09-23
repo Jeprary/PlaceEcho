@@ -111,6 +111,14 @@ and the X5 hotspot. The iOS shell serves these files through an internal
 does not need a sandbox extension for the app bundle. Node.js and pnpm must be
 available in the macOS login shell.
 
+On a development Mac that has the ignored `.local-data` demo artifacts, the same
+build phase also embeds the two referenced Revisit spaces under their existing
+`/local-world`, `/local-marble`, and `/local-memory` URL paths. Only the runtime
+SPZ, Collider, thumbnail, and Reveal media are copied (roughly 74 MB); source PLY,
+LOD intermediates, and the large authoring panorama stay outside the app. Set
+`PLACE_ECHO_EMBED_LOCAL_SCENES=0` in the Scheme build environment to skip this
+developer-only copy. The source assets remain ignored and must never be committed.
+
 For the current Personal Team build, open the app on normal Wi-Fi, press the Web
 capture button, and then manually connect the iPhone to the X5 Wi-Fi. The bundled
 Web product remains loaded during that switch. After capture, reconnect normal
