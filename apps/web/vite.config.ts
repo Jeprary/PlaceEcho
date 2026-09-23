@@ -54,4 +54,20 @@ function localWorldAssets(): Plugin {
 
 export default defineConfig({
   plugins: [react(), localWorldAssets()],
+  server: {
+    proxy: {
+      "/api": "http://127.0.0.1:3000",
+    },
+  },
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(import.meta.dirname, "index.html"),
+        sceneManager: resolve(
+          import.meta.dirname,
+          "scene-manager-preview.html",
+        ),
+      },
+    },
+  },
 });

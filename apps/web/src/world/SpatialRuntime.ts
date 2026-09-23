@@ -36,6 +36,8 @@ import {
   WindController,
   type WindOrientationSource,
 } from "./WindController";
+import { selectRuntimeMemory } from "./runtimeTarget";
+import { getWorldSpawnTransform } from "./worldSpawn";
 
 export type WorldLoadStatus = "loading" | "ready" | "fallback";
 export type WorldLoadPhase = "opening" | "decoding" | "preparing";
@@ -49,7 +51,6 @@ const CAMERA_COLLIDER_RADIUS = 0.12;
 const CAMERA_BOUNDS_INSET = CAMERA_COLLIDER_RADIUS + 0.02;
 const ESTIMATED_SPZ_TRANSFER_MS = 240;
 const ESTIMATED_SPZ_DECODE_MS = 1_800;
-const DEMO_SPAWN_POSITION = new Vector3(-1.12, 1.55, 1.3);
 
 export interface SpatialRuntimeSnapshot {
   proximity: AnchorProximity;
@@ -68,6 +69,7 @@ export interface SpatialRuntimeOptions {
   orientationSource?: WindOrientationSource;
   thresholds?: ProximityThresholds;
   reachedPresentationControl?: "timed" | "external";
+  targetMemoryId?: string;
 }
 
 export class SpatialRuntime {
@@ -129,7 +131,7 @@ export class SpatialRuntime {
     options: SpatialRuntimeOptions,
   ) {
     this.sourceScene = options.scene;
-    this.memory = this.getPositionedMemory(options.scene);
+    this.memory = selectRuntimeMemory(options.scene, options.targetMemoryId);
     this.thresholds = options.thresholds ?? DEFAULT_PROXIMITY_THRESHOLDS;
     this.onSnapshot = options.onSnapshot;
     this.onWorldStatus = options.onWorldStatus;
@@ -157,8 +159,9 @@ export class SpatialRuntime {
       this.camera.position.set(2.8, 3, 3.5);
       this.camera.lookAt(0, 0.7, 0);
     } else {
-      this.camera.position.copy(DEMO_SPAWN_POSITION);
-      this.camera.lookAt(this.anchorFocusPosition);
+      const spawn = getWorldSpawnTransform(options.scene);
+      this.camera.position.fromArray(spawn.position);
+      this.camera.quaternion.fromArray(spawn.quaternion);
     }
 
     this.renderer = new WebGLRenderer({
@@ -193,6 +196,7 @@ export class SpatialRuntime {
       orientationSource: options.orientationSource,
       startsActive: false,
       resolvePosition: this.resolveCameraCollision,
+      onSteeringInput: this.requestInitialGlide,
     });
     this.resizeObserver = new ResizeObserver(this.resize);
   }
@@ -213,9 +217,6 @@ export class SpatialRuntime {
   async enableGyroscope(): Promise<boolean> {
     const enabled = await this.windController.enableGyroscope();
     this.gyroscopeEnabled = enabled;
-    if (enabled && this.worldReady && this.splatFormationComplete) {
-      this.startGlideWhenColliderReady();
-    }
     return enabled;
   }
 
@@ -498,6 +499,14 @@ export class SpatialRuntime {
     gltf.scene.name = "placeecho-world-collider";
     this.collider = gltf.scene;
     this.scene.add(gltf.scene);
+    if (!this.debugOrigin) {
+      const validatedSpawn = this.camera.position.clone();
+      const correction = this.resolveCameraCollision(validatedSpawn);
+      if (correction) {
+        console.warn("PlaceEcho spawn intersected the Collider and was corrected.");
+        this.camera.position.copy(validatedSpawn);
+      }
+    }
   }
 
   private readonly resize = (): void => {
@@ -532,12 +541,6 @@ export class SpatialRuntime {
         // the exact reveal boundary caused a visible hitch on mobile GPUs.
         this.splatRevealProgress = null;
         this.anchorGroup.visible = true;
-        if (
-          !this.debugOrigin &&
-          (!this.isCoarsePointer || this.gyroscopeEnabled)
-        ) {
-          this.startGlideWhenColliderReady();
-        }
       }
     }
     this.windController.update(deltaSeconds);
@@ -651,6 +654,11 @@ export class SpatialRuntime {
     this.windController.startGlide();
   }
 
+  private readonly requestInitialGlide = (): void => {
+    if (this.debugOrigin || this.reachedPresentationActive) return;
+    this.startGlideWhenColliderReady();
+  };
+
   private startGlideWhenColliderReady(): void {
     void this.colliderLoadPromise.then(() => {
       if (
@@ -733,14 +741,6 @@ export class SpatialRuntime {
     }
     return this.collisionNormal.normalize();
   };
-
-  private getPositionedMemory(scene: PlaceEchoScene): Memory {
-    const memory = scene.memories.find((candidate) => candidate.anchor.position);
-    if (!memory) {
-      throw new Error("The demo Scene does not contain a positioned Memory Anchor.");
-    }
-    return memory;
-  }
 
   private createMemoryAnchor(): { group: Group; plume: Mesh } {
     const group = new Group();

@@ -22,6 +22,7 @@ export interface WindControllerOptions {
   gyroscopeYawRate?: number;
   gyroscopePitchRate?: number;
   startsActive?: boolean;
+  onSteeringInput?: () => void;
   resolvePosition?: (proposedPosition: Vector3) => Vector3 | null;
 }
 
@@ -40,6 +41,8 @@ const GYROSCOPE_RECENTER_INPUT = 0.02;
 const GYROSCOPE_RECENTER_HOLD_SECONDS = 0.12;
 
 export class WindController {
+  private readonly camera: PerspectiveCamera;
+  private readonly canvas: HTMLCanvasElement;
   private readonly forward = new Vector3();
   private readonly collisionNormal = new Vector3();
   private readonly collisionEscapeDirection = new Vector3();
@@ -54,6 +57,7 @@ export class WindController {
   private readonly resolvePosition?: (
     proposedPosition: Vector3,
   ) => Vector3 | null;
+  private readonly onSteeringInput?: () => void;
   private readonly proposedPosition = new Vector3();
   private readonly probePosition = new Vector3();
   private readonly captureTarget = new Vector3();
@@ -82,10 +86,12 @@ export class WindController {
   private connected = false;
 
   constructor(
-    private readonly camera: PerspectiveCamera,
-    private readonly canvas: HTMLCanvasElement,
+    camera: PerspectiveCamera,
+    canvas: HTMLCanvasElement,
     options: WindControllerOptions = {},
   ) {
+    this.camera = camera;
+    this.canvas = canvas;
     this.orientationSource = options.orientationSource;
     this.lookSensitivity = options.lookSensitivity ?? 0.0025;
     this.glideSpeed = options.glideSpeed ?? 0.56;
@@ -94,6 +100,7 @@ export class WindController {
     this.gyroscopePitchRate =
       options.gyroscopePitchRate ?? DEFAULT_GYROSCOPE_PITCH_RATE;
     this.resolvePosition = options.resolvePosition;
+    this.onSteeringInput = options.onSteeringInput;
     this.glideActive = options.startsActive ?? true;
     this.rotation.setFromQuaternion(camera.quaternion, "YXZ");
     this.targetRotation.copy(this.rotation);
@@ -198,6 +205,9 @@ export class WindController {
       orientation && Math.abs(orientation.yaw) > 0.001,
     );
     if (orientation) {
+      if (Math.hypot(orientation.yaw, orientation.pitch) > 0.001) {
+        this.onSteeringInput?.();
+      }
       this.targetRotation.y +=
         orientation.yaw * this.gyroscopeYawRate * deltaSeconds;
       this.targetRotation.x = MathUtils.clamp(
@@ -441,6 +451,9 @@ export class WindController {
   private readonly handleTrackpad = (event: WheelEvent): void => {
     if (this.orientationActive || this.inputLocked) return;
     event.preventDefault();
+    if (Math.hypot(event.deltaX, event.deltaY) > 0) {
+      this.onSteeringInput?.();
+    }
     this.targetRotation.y -= event.deltaX * this.lookSensitivity;
     this.targetRotation.x = MathUtils.clamp(
       this.targetRotation.x - event.deltaY * this.lookSensitivity,
@@ -467,6 +480,7 @@ export class WindController {
     if (this.inputLocked || event.pointerId !== this.dragPointerId) return;
     const deltaX = event.clientX - this.lastPointerX;
     const deltaY = event.clientY - this.lastPointerY;
+    if (Math.hypot(deltaX, deltaY) > 0) this.onSteeringInput?.();
     this.lastPointerX = event.clientX;
     this.lastPointerY = event.clientY;
     this.targetRotation.y -= deltaX * this.lookSensitivity;

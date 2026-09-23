@@ -1,4 +1,23 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
+import {
+  HeroProviderUnavailableError,
+  type HeroJobService,
+} from "../jobs/hero-service.js";
+import type { PanoramaJobService } from "../jobs/service.js";
+import {
+  MarbleProviderUnavailableError,
+  type WorldJobService,
+} from "../jobs/world-service.js";
+import type { MediaService } from "../media/service.js";
+import type {
+  MemoryRequestInput,
+  MemoryRequestService,
+} from "../memory-requests/service.js";
+import type { SceneService } from "../scenes/service.js";
+import type {
+  HeroGenerationVersion,
+  HeroProviderName,
+} from "../services/hero/provider.js";
 
 const notImplemented = (reply: FastifyReply, capability: string) =>
   reply.code(501).send({
@@ -7,18 +26,133 @@ const notImplemented = (reply: FastifyReply, capability: string) =>
     message: "PlaceEcho v0.1 contract placeholder; product logic is not implemented.",
   });
 
-export function registerContractRoutes(app: FastifyInstance): void {
-  app.post("/api/scenes", async (_request, reply) =>
-    notImplemented(reply, "create_scene"),
+export interface ContractRouteDependencies {
+  sceneService: SceneService;
+  mediaService: MediaService;
+  memoryRequests: MemoryRequestService;
+  panoramaJobs: PanoramaJobService;
+  worldJobs: WorldJobService;
+  heroJobs: HeroJobService;
+}
+
+export function registerContractRoutes(
+  app: FastifyInstance,
+  dependencies: ContractRouteDependencies,
+): void {
+  app.post("/api/scenes", async (_request, reply) => {
+    const scene = await dependencies.sceneService.create();
+    return reply.code(201).send({ scene_id: scene.scene_id });
+  });
+
+  app.get<{ Params: { sceneId: string } }>(
+    "/api/scenes/:sceneId",
+    async (request, reply) => {
+      const scene = await dependencies.sceneService.get(request.params.sceneId);
+      if (scene === null) {
+        return reply.code(404).send({
+          status: "not_found",
+          message: `Scene not found: ${request.params.sceneId}`,
+        });
+      }
+
+      return reply.send(scene);
+    },
   );
 
-  app.get("/api/scenes/:sceneId", async (_request, reply) =>
-    notImplemented(reply, "get_scene"),
+  app.post<{
+    Params: { sceneId: string };
+    Querystring: { filename?: string };
+    Body: Buffer;
+  }>("/api/scenes/:sceneId/media", async (request, reply) => {
+    if (!request.query.filename) {
+      return reply.code(400).send({
+        status: "invalid_request",
+        message: "The filename query parameter is required.",
+      });
+    }
+    if (!Buffer.isBuffer(request.body) || request.body.length === 0) {
+      return reply.code(400).send({
+        status: "invalid_request",
+        message: "Send a non-empty INSP, JPG, PNG, or WebP file as application/octet-stream.",
+      });
+    }
+    try {
+      const stored = await dependencies.mediaService.uploadMedia(
+        request.params.sceneId,
+        request.query.filename,
+        request.body,
+      );
+      if (stored === null) {
+        return reply.code(404).send({ status: "not_found", message: "Scene not found." });
+      }
+      return reply.code(201).send({
+        media_id: stored.media.id,
+        media: stored.media,
+      });
+    } catch (error) {
+      return reply.code(400).send({
+        status: "invalid_request",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+  app.post<{
+    Params: { sceneId: string };
+    Body: MemoryRequestInput;
+  }>("/api/scenes/:sceneId/memory-requests", async (request, reply) => {
+    if (!isMemoryRequestInput(request.body)) {
+      return reply.code(400).send({
+        status: "invalid_request",
+        message: "A panorama name and 1–12 media descriptors are required.",
+      });
+    }
+    const record = await dependencies.memoryRequests.create(
+      request.params.sceneId,
+      request.body,
+    );
+    if (record === null) {
+      return reply.code(404).send({
+        status: "not_found",
+        message: "Scene not found.",
+      });
+    }
+    return reply.code(202).send(record);
+  });
+
+  app.get<{ Params: { sceneId: string; mediaId: string } }>(
+    "/api/scenes/:sceneId/media/:mediaId",
+    async (request, reply) => {
+      const data = await dependencies.mediaService.get(
+        request.params.sceneId,
+        request.params.mediaId,
+      );
+      if (data === null) return reply.code(404).send({ status: "not_found" });
+      return reply.type("application/octet-stream").send(Buffer.from(data));
+    },
   );
 
-  app.post("/api/scenes/:sceneId/media", async (_request, reply) =>
-    notImplemented(reply, "upload_media"),
-  );
+  app.post<{
+    Params: { sceneId: string };
+    Body: { media_ids?: string[]; enable_stitch_fusion?: boolean };
+  }>("/api/scenes/:sceneId/panorama/stitch", async (request, reply) => {
+    try {
+      const job = await dependencies.panoramaJobs.create(
+        request.params.sceneId,
+        request.body?.media_ids ?? [],
+        request.body?.enable_stitch_fusion ?? false,
+      );
+      if (job === null) {
+        return reply.code(404).send({ status: "not_found", message: "Scene not found." });
+      }
+      return reply.code(202).send({ job_id: job.job_id });
+    } catch (error) {
+      return reply.code(400).send({
+        status: "invalid_request",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
 
   app.post("/api/scenes/:sceneId/analyze", async (_request, reply) =>
     notImplemented(reply, "analyze_scene"),
@@ -33,21 +167,122 @@ export function registerContractRoutes(app: FastifyInstance): void {
     notImplemented(reply, "register_world"),
   );
 
-  app.post("/api/scenes/:sceneId/world/generate", async (_request, reply) =>
-    notImplemented(reply, "generate_world"),
-  );
+  app.post<{
+    Params: { sceneId: string };
+    Body: { prompt?: string };
+  }>("/api/scenes/:sceneId/world/generate", async (request, reply) => {
+    try {
+      const job = await dependencies.worldJobs.create(request.params.sceneId, {
+        prompt: request.body?.prompt,
+      });
+      if (job === null) return reply.code(404).send({ status: "not_found" });
+      return reply.code(202).send({ job_id: job.job_id });
+    } catch (error) {
+      const unavailable = error instanceof MarbleProviderUnavailableError;
+      return reply.code(unavailable ? 503 : 400).send({
+        status: unavailable ? "provider_unavailable" : "invalid_request",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
 
   app.patch(
     "/api/scenes/:sceneId/memories/:memoryId/anchor",
     async (_request, reply) => notImplemented(reply, "persist_anchor"),
   );
 
-  app.post(
+  app.post<{
+    Params: { sceneId: string; memoryId: string };
+    Body: {
+      provider?: HeroProviderName;
+      image_urls?: string[];
+      media_ids?: string[];
+      version?: HeroGenerationVersion;
+      face_count?: number;
+      enable_pbr?: boolean;
+      ai_predict_size?: boolean;
+      confirm_external_processing?: boolean;
+    };
+  }>(
     "/api/scenes/:sceneId/memories/:memoryId/hero",
-    async (_request, reply) => notImplemented(reply, "create_hero_job"),
+    async (request, reply) => {
+      try {
+        if (!request.body?.provider) {
+          return reply.code(400).send({
+            status: "invalid_request",
+            message: "provider is required.",
+          });
+        }
+        const job = await dependencies.heroJobs.create(
+          request.params.sceneId,
+          request.params.memoryId,
+          {
+            provider: request.body.provider,
+            image_urls: request.body.image_urls ?? [],
+            media_ids: request.body.media_ids,
+            version: request.body.version,
+            face_count: request.body.face_count,
+            enable_pbr: request.body.enable_pbr,
+            ai_predict_size: request.body.ai_predict_size,
+            confirm_external_processing: request.body.confirm_external_processing,
+          },
+        );
+        if (job === null) return reply.code(404).send({ status: "not_found" });
+        return reply.code(202).send({ job_id: job.job_id });
+      } catch (error) {
+        const unavailable = error instanceof HeroProviderUnavailableError;
+        return reply.code(unavailable ? 503 : 400).send({
+          status: unavailable ? "provider_unavailable" : "invalid_request",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
   );
 
-  app.get("/api/jobs/:jobId", async (_request, reply) =>
-    notImplemented(reply, "get_job"),
+  app.get<{ Params: { jobId: string } }>(
+    "/api/jobs/:jobId",
+    async (request, reply) => {
+      const job =
+        (await dependencies.panoramaJobs.get(request.params.jobId)) ??
+        (await dependencies.worldJobs.get(request.params.jobId)) ??
+        (await dependencies.heroJobs.get(request.params.jobId));
+      if (job === null) return reply.code(404).send({ status: "not_found" });
+      return reply.send(job);
+    },
+  );
+
+  app.get<{ Params: { jobId: string } }>(
+    "/api/jobs/:jobId/output",
+    async (request, reply) => {
+      const panorama = await dependencies.panoramaJobs.getOutput(request.params.jobId);
+      if (panorama !== null) return reply.type("image/jpeg").send(Buffer.from(panorama));
+      const hero = await dependencies.heroJobs.getOutput(request.params.jobId);
+      if (hero !== null) return reply.type("model/gltf-binary").send(Buffer.from(hero));
+      return reply.code(404).send({ status: "not_found" });
+    },
+  );
+}
+
+function isMemoryRequestInput(value: unknown): value is MemoryRequestInput {
+  if (!value || typeof value !== "object") return false;
+  const body = value as Partial<MemoryRequestInput>;
+  if (
+    typeof body.panorama_name !== "string" ||
+    !body.panorama_name.trim() ||
+    typeof body.has_voice_recording !== "boolean" ||
+    !Array.isArray(body.media) ||
+    body.media.length < 1 ||
+    body.media.length > 12
+  ) {
+    return false;
+  }
+  return body.media.every(
+    (item) =>
+      item &&
+      typeof item === "object" &&
+      typeof item.name === "string" &&
+      Boolean(item.name.trim()) &&
+      typeof item.size === "string" &&
+      (item.kind === "照片" || item.kind === "视频" || item.kind === "声音"),
   );
 }

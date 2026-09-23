@@ -11,7 +11,11 @@
     "panorama_width": 4096,
     "panorama_height": 2048,
     "splat_url": "/local-world/world.spz",
-    "collider_url": "/local-world/collider.glb"
+    "collider_url": "/local-world/collider.glb",
+    "spawn": {
+      "position": [0, 0, 0],
+      "quaternion": [0, 0, 0, 1]
+    }
   },
   "media": [
     {
@@ -19,6 +23,24 @@
       "source_name": "fictional-cinema-ticket.txt",
       "type": "text",
       "url": "/demo/fictional-cinema-ticket.txt"
+    },
+    {
+      "id": "media_demo_photo_001",
+      "source_name": "photo-01.svg",
+      "type": "image",
+      "url": "/memory/photo-01.svg"
+    },
+    {
+      "id": "media_demo_photo_002",
+      "source_name": "poster-02.svg",
+      "type": "image",
+      "url": "/memory/poster-02.svg"
+    },
+    {
+      "id": "media_demo_photo_003",
+      "source_name": "poster-03.svg",
+      "type": "image",
+      "url": "/memory/poster-03.svg"
     }
   ],
   "memories": [
@@ -26,7 +48,11 @@
       "id": "memory_demo_001",
       "name": "Fictional cinema visits",
       "summary": "Synthetic fixture data for independent module development.",
-      "media_ids": ["media_demo_001"],
+      "media_ids": [
+        "media_demo_photo_001",
+        "media_demo_photo_002",
+        "media_demo_photo_003"
+      ],
       "reflection": null,
       "anchor": {
         "id": "anchor_demo_001",

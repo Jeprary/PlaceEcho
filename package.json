@@ -9,6 +9,9 @@
     "dev:api": "pnpm --filter @placeecho/api dev",
     "world:build-spz": "pnpm --filter @placeecho/web world:build-spz",
     "build": "pnpm --recursive --if-present build",
-    "typecheck": "pnpm --recursive --if-present typecheck"
+    "typecheck": "pnpm --recursive --if-present typecheck",
+    "test": "pnpm --recursive --if-present test",
+    "test:web": "pnpm --filter @placeecho/web test",
+    "verify": "pnpm typecheck && pnpm build && pnpm test"
   }
 }

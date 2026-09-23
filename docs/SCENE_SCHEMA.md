@@ -13,12 +13,26 @@ The Schema allows incomplete asynchronous states through nullable URLs, dimensio
 | Owner | Fields |
 | --- | --- |
 | Backend/application | `scene_id`, media IDs, Memory IDs, Anchor IDs, job IDs |
+| World pipeline | `world.spawn` candidate pose from the generated world |
 | Memory AI | media grouping, Memory name, summary, cue |
 | Spatial AI | `source_grounding`, `world_grounding` |
 | Web Geometry | `anchor.position`, `anchor.normal` |
 | GPU worker | Hero processing result and asset |
 
 AI models do not create authoritative system IDs and do not generate final 3D coordinates.
+
+## World Spawn
+
+`world.spawn` is nullable until a generated world has a verified entry pose. It
+contains a Three.js/Gaussian-world `position` and normalized quaternion for the
+camera eye, not avatar feet. A Scene is not enterable until its splat, Collider,
+and spawn are all present.
+
+The world pipeline may provide the candidate pose, but Web Geometry must validate
+it against the final Collider before motion begins and correct an intersection if
+necessary. For the measured Marble demo world, the generated panorama eye is
+`position: [0, 0, 0]` with identity quaternion `[0, 0, 0, 1]`; it must not receive
+an additional standing-eye-height offset.
 
 ## Scene Context
 

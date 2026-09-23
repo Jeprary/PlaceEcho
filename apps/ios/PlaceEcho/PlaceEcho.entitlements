@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	Personal Team builds cannot sign the Hotspot Configuration entitlement.
+	After joining the paid Apple Developer Program, uncomment the key below and
+	set PLACE_ECHO_AUTOMATIC_X5_WIFI=1 in the Run scheme to restore automatic
+	X5 Wi-Fi join/leave behavior.
+
+	<key>com.apple.developer.networking.HotspotConfiguration</key>
+	<true/>
+	-->
+</dict>
+</plist>

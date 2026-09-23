@@ -16,7 +16,6 @@ body,
   width: 100%;
   height: 100%;
   margin: 0;
-  overflow: hidden;
 }
 
 button {
@@ -27,6 +26,7 @@ button {
   position: relative;
   width: 100%;
   height: 100%;
+  overflow: hidden;
   isolation: isolate;
   background: #020504;
 }
@@ -214,6 +214,34 @@ button {
 
 .mobile-wind-gate {
   display: none;
+}
+
+.world-entry-return,
+.motion-access-retry {
+  position: absolute;
+  z-index: 6;
+  min-height: 2.5rem;
+  padding: 0.62rem 0.9rem;
+  border: 1px solid rgba(225, 239, 232, 0.2);
+  border-radius: 999px;
+  color: #e8f0eb;
+  background: rgba(6, 16, 13, 0.68);
+  font-weight: 650;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+}
+
+.world-entry-return {
+  top: max(1rem, env(safe-area-inset-top));
+  left: max(1rem, env(safe-area-inset-left));
+}
+
+.motion-access-retry {
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  border-color: rgba(255, 231, 181, 0.58);
+  color: #18201c;
+  background: #f0d39c;
 }
 
 .memory-overlay {

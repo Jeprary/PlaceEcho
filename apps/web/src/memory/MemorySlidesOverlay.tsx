@@ -1,20 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-
-type Slide = {
-  kind: "image" | "video";
-  src: string;
-  poster?: string;
-  ambient_src?: string;
-  duration_ms?: number;
-};
-type MemoryManifest = {
-  default_image_duration_ms?: number;
-  memories: Array<{ id: string; media: Slide[] }>;
-};
+import type {
+  MemoryPresentation,
+  MemoryPresentationSlide,
+} from "./memoryPresentation";
 
 type MemorySlidesOverlayProps = {
   active: boolean;
   memoryId: string;
+  presentation: MemoryPresentation | null;
   heroLayout?: boolean;
   audibleAutoplay?: boolean;
   preloadEnabled?: boolean;
@@ -27,73 +20,44 @@ const MIN_IMAGE_DURATION_MS = 250;
 export function MemorySlidesOverlay({
   active,
   memoryId,
+  presentation,
   heroLayout = false,
   audibleAutoplay = false,
   preloadEnabled = true,
   onFinished,
 }: MemorySlidesOverlayProps) {
-  const [manifest, setManifest] = useState<MemoryManifest | null>(null);
-  const [loadFailed, setLoadFailed] = useState(false);
   const [index, setIndex] = useState(0);
-  const [previousSlide, setPreviousSlide] = useState<Slide | null>(null);
+  const [previousSlide, setPreviousSlide] =
+    useState<MemoryPresentationSlide | null>(null);
   const [paused, setPaused] = useState(false);
   const [videoMuted, setVideoMuted] = useState(!audibleAutoplay);
   const [videoBuffering, setVideoBuffering] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
   const ambientVideoRef = useRef<HTMLVideoElement>(null);
-  const unavailableHandled = useRef(false);
-  const selectedMemory = manifest?.memories.find(
-    (memory) => memory.id === memoryId,
-  );
-  const slides = selectedMemory?.media ?? [];
+  const slides = presentation?.memoryId === memoryId ? presentation.slides : [];
   const slide = slides[index];
   const preparedVideo = slides.find((item) => item.kind === "video");
 
   useEffect(() => {
-    let cancelled = false;
-    void fetch("/memory/memory.json")
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`Memory manifest failed: ${response.status}`);
-        }
-        return response.json() as Promise<MemoryManifest>;
-      })
-      .then((nextManifest) => {
-        if (!cancelled) setManifest(nextManifest);
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setLoadFailed(true);
-          console.warn("PlaceEcho memory manifest could not be loaded.", error);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!manifest || !preloadEnabled) return;
+    if (!presentation || !preloadEnabled) return;
     const retainedMedia: Array<HTMLImageElement | HTMLVideoElement> = [];
     const imageSources = new Set<string>();
 
-    manifest.memories.forEach((memory) => {
-      memory.media.forEach((media) => {
-        if (media.kind === "image") imageSources.add(media.src);
-        if (media.poster) imageSources.add(media.poster);
+    presentation.slides.forEach((media) => {
+      if (media.kind === "image") imageSources.add(media.src);
+      if (media.poster) imageSources.add(media.poster);
 
-        const preloadVideo = (src: string) => {
-          const video = document.createElement("video");
-          video.preload = "auto";
-          video.muted = true;
-          video.playsInline = true;
-          video.src = src;
-          video.load();
-          retainedMedia.push(video);
-        };
-        if (media.kind === "video") preloadVideo(media.src);
-        if (media.ambient_src) preloadVideo(media.ambient_src);
-      });
+      const preloadVideo = (src: string) => {
+        const video = document.createElement("video");
+        video.preload = "auto";
+        video.muted = true;
+        video.playsInline = true;
+        video.src = src;
+        video.load();
+        retainedMedia.push(video);
+      };
+      if (media.kind === "video") preloadVideo(media.src);
+      if (media.ambientSrc) preloadVideo(media.ambientSrc);
     });
 
     imageSources.forEach((src) => {
@@ -112,10 +76,9 @@ export function MemorySlidesOverlay({
         }
       });
     };
-  }, [manifest, preloadEnabled]);
+  }, [presentation, preloadEnabled]);
 
   useEffect(() => {
-    unavailableHandled.current = false;
     if (!active) return;
     setIndex(0);
     setPreviousSlide(null);
@@ -125,12 +88,9 @@ export function MemorySlidesOverlay({
   }, [active, audibleAutoplay, memoryId]);
 
   useEffect(() => {
-    if (!active || unavailableHandled.current) return;
-    const manifestReadyWithoutSlides = manifest !== null && slides.length === 0;
-    if (!loadFailed && !manifestReadyWithoutSlides) return;
-    unavailableHandled.current = true;
+    if (!active || slides.length > 0) return;
     onFinished();
-  }, [active, loadFailed, manifest, onFinished, slides.length]);
+  }, [active, onFinished, slides.length]);
 
   const advance = useCallback(() => {
     if (index >= slides.length - 1) {
@@ -165,14 +125,14 @@ export function MemorySlidesOverlay({
   useEffect(() => {
     if (!active || !slide || paused || slide.kind !== "image") return;
     const durationMs = Math.max(
-      slide.duration_ms ??
-        manifest?.default_image_duration_ms ??
+      slide.durationMs ??
+        presentation?.defaultImageDurationMs ??
         DEFAULT_IMAGE_DURATION_MS,
       MIN_IMAGE_DURATION_MS,
     );
     const timer = window.setTimeout(advance, durationMs);
     return () => window.clearTimeout(timer);
-  }, [active, advance, manifest?.default_image_duration_ms, paused, slide]);
+  }, [active, advance, paused, presentation?.defaultImageDurationMs, slide]);
 
   useEffect(() => {
     if (!active || slide?.kind !== "video") return;
@@ -204,7 +164,7 @@ export function MemorySlidesOverlay({
 
   if (!active || !slide) return null;
 
-  const renderAmbient = (item: Slide) => {
+  const renderAmbient = (item: MemoryPresentationSlide) => {
     if (item.kind === "image") {
       return <img src={item.src} alt="" decoding="async" />;
     }
@@ -231,7 +191,7 @@ export function MemorySlidesOverlay({
           {renderAmbient(previousSlide)}
         </div>
       )}
-      {preparedVideo?.ambient_src && (
+      {preparedVideo?.ambientSrc && (
         <div
           className={`memory-ambient memory-ambient--prepared-video${
             slide.kind === "video" ? " is-active" : ""
@@ -241,7 +201,7 @@ export function MemorySlidesOverlay({
           <video
             ref={ambientVideoRef}
             className="memory-ambient-video memory-ambient-video--prepared"
-            src={preparedVideo.ambient_src}
+            src={preparedVideo.ambientSrc}
             poster={preparedVideo.poster}
             preload="auto"
             muted
@@ -250,7 +210,7 @@ export function MemorySlidesOverlay({
           />
         </div>
       )}
-      {(slide.kind !== "video" || !slide.ambient_src) && (
+      {(slide.kind !== "video" || !slide.ambientSrc) && (
         <div
           key={`ambient-current-${slide.src}`}
           className="memory-ambient memory-ambient--current"
