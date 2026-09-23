@@ -122,6 +122,7 @@ export default function SpatialExperience({
       setMotionStatus(enabled ? "active" : "denied");
     } catch {
       setMotionStatus("denied");
+      // The compact retry remains available without blocking desktop input.
     }
   };
 
@@ -154,9 +155,9 @@ export default function SpatialExperience({
       >
         <div className="world-loading-indicator">
           <p>
-            {worldProgress.phase === "opening" && "正在打开空间"}
-            {worldProgress.phase === "decoding" && "正在形成空间"}
-            {worldProgress.phase === "preparing" && "正在准备画面"}
+            {worldProgress.phase === "opening" && "打开空间"}
+            {worldProgress.phase === "decoding" && "形成空间"}
+            {worldProgress.phase === "preparing" && "准备第一视角"}
           </p>
           <div className="world-loading-track">
             <span style={{ transform: `scaleX(${worldProgress.value})` }} />
@@ -164,10 +165,12 @@ export default function SpatialExperience({
         </div>
       </div>
 
-      <p className={`proximity proximity--${snapshot.proximity}`}>
-        <span className="proximity__dot" />
-        {snapshot.proximity}
-      </p>
+      {debugOrigin && (
+        <p className={`proximity proximity--${snapshot.proximity}`}>
+          <span className="proximity__dot" />
+          {snapshot.proximity}
+        </p>
+      )}
 
       {debugOrigin && (
         <p className="debug-origin-label">
@@ -188,8 +191,9 @@ export default function SpatialExperience({
         className="world-entry-return"
         type="button"
         onClick={onReturnToManager}
+        aria-label="返回记忆空间"
       >
-        全部回忆
+        <span aria-hidden="true">…</span>
       </button>
     </main>
   );

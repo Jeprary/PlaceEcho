@@ -30,9 +30,12 @@ and spawn are all present.
 
 The world pipeline may provide the candidate pose, but Web Geometry must validate
 it against the final Collider before motion begins and correct an intersection if
-necessary. For the measured Marble demo world, the generated panorama eye is
-`position: [0, 0, 0]` with identity quaternion `[0, 0, 0, 1]`; it must not receive
-an additional standing-eye-height offset.
+necessary. For the separately measured Marble world
+`4907920b-f2b4-4362-a3ed-8e628869fd2c`, the generated panorama eye is
+`position: [0, 0, 0]`. Identity quaternion `[0, 0, 0, 1]` is its measured raw
+orientation; a product entry may rotate at that same eye position to face a
+clear travel direction. That origin result must not be copied onto a different
+SPZ/Collider pair such as the older `scene_demo/world` fixture.
 
 ## Scene Context
 

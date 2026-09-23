@@ -234,6 +234,22 @@ button {
 .world-entry-return {
   top: max(1rem, env(safe-area-inset-top));
   left: max(1rem, env(safe-area-inset-left));
+  width: 2.5rem;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 0.72rem;
+  color: rgba(232, 240, 235, 0.82);
+  background: rgba(6, 16, 13, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+
+.world-entry-return > span {
+  margin-top: -0.38rem;
+  font-size: 1.35rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.05em;
 }
 
 .motion-access-retry {

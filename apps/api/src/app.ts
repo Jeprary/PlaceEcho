@@ -1,4 +1,7 @@
 import Fastify from "fastify";
+import { BailianMemoryAnalyzer } from "./ai/memory/bailian.js";
+import { MemoryAnalysisService, type MemoryAnalyzer } from "./ai/memory/service.js";
+import { BailianWorldGrounder, WorldGroundingService, type WorldGrounder } from "./ai/grounding/service.js";
 import { HeroJobService } from "./jobs/hero-service.js";
 import { PanoramaJobService } from "./jobs/service.js";
 import { WorldJobService } from "./jobs/world-service.js";
@@ -28,6 +31,8 @@ export interface BuildAppOptions {
   gpuWorkerClient?: GpuWorkerClient;
   marbleClient?: MarbleClient;
   heroProviders?: HeroProvider[];
+  memoryAnalyzer?: MemoryAnalyzer;
+  worldGrounder?: WorldGrounder;
 }
 
 export function buildApp(options: BuildAppOptions = {}) {
@@ -64,6 +69,8 @@ export function buildApp(options: BuildAppOptions = {}) {
     mediaService,
     gpuWorker,
   );
+  const memoryAnalysis = new MemoryAnalysisService(sceneService, mediaService, panoramaJobs, options.memoryAnalyzer ?? new BailianMemoryAnalyzer());
+  const worldGrounding = new WorldGroundingService(sceneService, options.worldGrounder ?? new BailianWorldGrounder());
   const marble =
     options.marbleClient ??
     new HttpMarbleClient(
@@ -101,6 +108,8 @@ export function buildApp(options: BuildAppOptions = {}) {
     panoramaJobs,
     worldJobs,
     heroJobs,
+    memoryAnalysis,
+    worldGrounding,
   });
 
   return app;

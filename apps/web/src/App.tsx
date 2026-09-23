@@ -8,7 +8,6 @@ import {
   Suspense,
 } from "react";
 import demoSceneFixture from "../../../assets/demo/demo-scene.json";
-import previewScenesFixture from "../../../assets/demo/scene-manager-preview.json";
 import {
   MemoryManager,
   type MemoryRequestReceipt,
@@ -31,7 +30,6 @@ import {
 const SpatialExperience = lazy(() => import("./SpatialExperience"));
 
 const demoScene = demoSceneFixture as unknown as Scene;
-const previewScenes = previewScenesFixture as unknown as Scene[];
 type CaptureStatus =
   | { type: "idle" }
   | { type: "requesting" }
@@ -39,11 +37,15 @@ type CaptureStatus =
 
 export interface AppProps {
   initialScenes?: readonly Scene[];
+  sceneCoverUrls?: Readonly<Record<string, string>>;
 }
 
-export function App({ initialScenes }: AppProps) {
+export function App({
+  initialScenes = [demoScene],
+  sceneCoverUrls = {},
+}: AppProps) {
   const [iosCaptureAvailable] = useState(isIOSPanoramaCaptureAvailable);
-  const scenes = initialScenes ?? (iosCaptureAvailable ? previewScenes : [demoScene]);
+  const scenes = initialScenes;
   const [experience, dispatch] = useReducer(
     reduceExperience,
     iosCaptureAvailable,
@@ -196,6 +198,7 @@ export function App({ initialScenes }: AppProps) {
   return (
     <MemoryManager
       scenes={scenes}
+      sceneCoverUrls={sceneCoverUrls}
       openingMemoryId={openingMemoryId}
       captureState={captureStatus.type}
       onCapturePanorama={iosCaptureAvailable ? capturePanorama : undefined}

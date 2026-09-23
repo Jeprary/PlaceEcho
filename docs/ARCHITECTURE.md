@@ -85,9 +85,11 @@ Local-first and cloud deployments must retain the same high-level Web, AI, GPU, 
 
 ### Web
 
-Current responsibilities include the shared Memory manager/creation UI, panorama import, the Three.js/SparkJS world runtime, Collider runtime, Wind Mode, gyroscope input, Anchor runtime, Memory Reveal, and media playback. Production and preview render the same `App`; only injected Scene JSON and service configuration differ. Imperative world code belongs in `apps/web/src/world/`, not directly in React component state.
+Current responsibilities include the shared Memory manager/creation UI, panorama import, the Three.js/SparkJS world runtime, Collider runtime, Wind Mode, gyroscope input, Anchor runtime, Memory Reveal, and media playback. The Web has one `index.html`, one React bootstrap, and one `App`; manager, world, and reveal are React application states rather than separate HTML entries. Local preview and production use the same components and differ only at the data-source/configuration boundary (fixture JSON locally, authoritative API data in production). Imperative world code belongs in `apps/web/src/world/`, not directly in React component state.
 
 The Web must not care how a panorama was acquired. Both Web upload and a future native bridge produce a `PanoramaAsset` and call `importPanorama()`. Everything after that boundary is acquisition-independent.
+
+`tools/qwen-panorama-cleaner/` is an optional standalone preprocessing CLI for a full 2:1 panorama before that import boundary. It projects a nadir crop, requests a Qwen image edit, applies a user-supplied local mask, and inverse-maps the repair into the original panorama. It does not run in the Web or API process, change the Scene contract, or provide final-world geometry. Its source package is tracked without user media or generated outputs.
 
 ### API
 
@@ -131,6 +133,10 @@ API business modules access storage through a replaceable `StorageProvider`, not
 Memory AI owns media grouping, Memory names, summaries, and cues. Spatial AI owns source-panorama and final-world 2D grounding. One efficient multimodal request may combine the first semantic and spatial analysis, but code remains separated under `ai/memory/` and `ai/grounding/`.
 
 AI must never produce authoritative final 3D coordinates.
+
+The implemented API analysis service reads selected uploaded image bytes and the stitched panorama, calls a replaceable `MemoryAnalyzer`, validates the model's grouping and source pixels, then persists Memory groups. The default analyzer calls Bailian. Image-only API upload and a completed stitched panorama are current prerequisites; the standalone Python multimedia prototype is not the API runtime. Reanalysis replaces prior Memory groups.
+
+The implemented World Grounding service receives explicit final-world render images with stable view IDs and dimensions. A replaceable `WorldGrounder` finds cue pixels in those renders; the API validates and persists only `world_grounding`. Registering new world assets or recomputing grounding clears stale 3D geometry. Web Geometry remains solely responsible for raycast position and normal, sent through the Anchor persistence route. The API does not infer a 3D point from AI output.
 
 ## Source Grounding vs World Grounding
 
