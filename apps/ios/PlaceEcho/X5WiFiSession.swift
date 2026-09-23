@@ -8,9 +8,9 @@ enum X5WiFiSessionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .credentialsMissing:
-            return "Connect to the X5 Wi-Fi, or configure PLACE_ECHO_X5_SSID and PLACE_ECHO_X5_PASSWORD in the Xcode scheme."
+            return "请连接 X5 Wi-Fi，或在 Xcode Scheme 中配置 X5 的 Wi-Fi 名称和密码。"
         case .joinFailed(let message):
-            return "Could not temporarily join the X5 Wi-Fi: \(message)"
+            return "无法临时连接 X5 Wi-Fi：\(message)"
         }
     }
 }

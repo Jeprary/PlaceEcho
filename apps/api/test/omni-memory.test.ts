@@ -88,6 +88,7 @@ test("analysis accepts mixed media, excludes INSP, and supports single-image or 
         calls.push(input.media.map(({ asset }) => `${asset.id}:${asset.type}`));
         contexts.push(input.scene.scene_context.text);
         const omitLast = input.scene.scene_context.text === "Coverage recovery";
+        const invalidGrounding = input.scene.scene_context.text === "Invalid source recovery";
         return {
           memories: [{
             id: input.memoryIds[0]!,
@@ -97,7 +98,7 @@ test("analysis accepts mixed media, excludes INSP, and supports single-image or 
             name: input.media.length === 1 ? "Single Memory" : "Mixed Memory",
             summary: null,
             cue: null,
-            source_grounding: null,
+            source_grounding: invalidGrounding ? { x: 9_999, y: -1 } : null,
           }],
           unassigned_media_ids: [],
           scene_context_text: input.media.length === 1 ? "A quiet room described in the recording." : "A lived-in room.",
@@ -145,12 +146,27 @@ test("analysis accepts mixed media, excludes INSP, and supports single-image or 
     url: `/api/scenes/${sceneId}/analyze`,
     payload: {
       media_ids: ["media_image", "media_audio"],
+      context_media_ids: ["media_audio"],
       context_text: "Coverage recovery",
     },
   });
   assert.equal(recoveredCoverage.statusCode, 200, recoveredCoverage.body);
   assert.deepEqual(recoveredCoverage.json<Scene>().memories[0]?.media_ids, ["media_image"]);
   assert.ok(recoveredCoverage.json<Scene>().unassigned_media_ids.includes("media_audio"));
+
+  const recoveredSource = await app.inject({
+    method: "POST",
+    url: `/api/scenes/${sceneId}/analyze`,
+    payload: {
+      media_ids: ["media_image"],
+      context_text: "Invalid source recovery",
+    },
+  });
+  assert.equal(recoveredSource.statusCode, 200, recoveredSource.body);
+  assert.equal(
+    recoveredSource.json<Scene>().memories[0]?.anchor.source_grounding,
+    null,
+  );
 });
 
 test("Bailian uses official Qwen3.8 Omni multimodal parts and safely parses text-array JSON", async (t) => {
@@ -158,15 +174,18 @@ test("Bailian uses official Qwen3.8 Omni multimodal parts and safely parses text
     key: process.env.DASHSCOPE_API_KEY,
     base: process.env.DASHSCOPE_BASE_URL,
     model: process.env.DASHSCOPE_MODEL,
+    reasoningEffort: process.env.DASHSCOPE_REASONING_EFFORT,
     fetch: globalThis.fetch,
   };
   process.env.DASHSCOPE_API_KEY = "test-key";
   process.env.DASHSCOPE_BASE_URL = "https://workspace.cn-beijing.maas.aliyuncs.com/compatible-mode/v1";
   delete process.env.DASHSCOPE_MODEL;
+  process.env.DASHSCOPE_REASONING_EFFORT = "max";
   t.after(() => {
     if (previous.key === undefined) delete process.env.DASHSCOPE_API_KEY; else process.env.DASHSCOPE_API_KEY = previous.key;
     if (previous.base === undefined) delete process.env.DASHSCOPE_BASE_URL; else process.env.DASHSCOPE_BASE_URL = previous.base;
     if (previous.model === undefined) delete process.env.DASHSCOPE_MODEL; else process.env.DASHSCOPE_MODEL = previous.model;
+    if (previous.reasoningEffort === undefined) delete process.env.DASHSCOPE_REASONING_EFFORT; else process.env.DASHSCOPE_REASONING_EFFORT = previous.reasoningEffort;
     globalThis.fetch = previous.fetch;
   });
 
@@ -201,7 +220,7 @@ test("Bailian uses official Qwen3.8 Omni multimodal parts and safely parses text
   });
   assert.equal(result.scene_context_text, "A room.");
   assert.equal(requestBody?.model, "qwen3.8-omni-flash");
-  assert.equal(requestBody?.reasoning_effort, "none");
+  assert.equal(requestBody?.reasoning_effort, "max");
   assert.deepEqual(requestBody?.response_format, { type: "json_object" });
   const messages = requestBody?.messages as Array<{ content: Array<Record<string, unknown>> }>;
   const content = messages[1]!.content;

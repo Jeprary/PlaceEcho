@@ -1,9 +1,16 @@
+export type PanoramaAvailability = "device" | "durable";
+
 export interface PanoramaAsset {
   sceneId: string;
   url: string;
   width: number;
   height: number;
   source: "web_upload" | "ios_capture";
+  /**
+   * `device` is readable only inside the current app and still needs syncing.
+   * `durable` is already persisted behind an HTTPS/API URL.
+   */
+  availability: PanoramaAvailability;
 }
 
 export type PanoramaImportedListener = (asset: PanoramaAsset) => void;

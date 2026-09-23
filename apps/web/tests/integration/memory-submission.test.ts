@@ -125,6 +125,7 @@ test("memory submission imports a 2:1 panorama, uploads every medium, and runs a
     });
     assert.deepEqual(JSON.parse(String(calls[8]?.init.body)), {
       media_ids: ["media_1", "media_2", "media_3", "media_4", "media_5"],
+      context_media_ids: ["media_5"],
       context_text: "午后的风吹过窗边。",
     });
 
@@ -178,4 +179,54 @@ test("INSP panorama still uses the GPU stitch route", async () => {
 
   assert.ok(urls.some((url) => url.endsWith("/panorama/stitch")));
   assert.ok(!urls.some((url) => url.includes("/panorama/import?")));
+});
+
+test("device panorama and skipped voice stay deferred without faking persistence", async () => {
+  const calls: Array<{ url: string; init: RequestInit }> = [];
+  const fetchImplementation: typeof fetch = async (input, init = {}) => {
+    const url = String(input);
+    calls.push({ url, init });
+    if (url.endsWith("/memory-requests")) {
+      return Response.json({
+        request_id: "memory_request_device",
+        scene_id: "scene_device",
+        status: "processing",
+      }, { status: 202 });
+    }
+    return Response.json({}, { status: 404 });
+  };
+
+  const receipt = await submitNewMemoryRequest({
+    sceneId: "scene_device",
+    panorama: {
+      name: "Insta360 X5 空间全景.jpg",
+      file: null,
+      asset: {
+        sceneId: "scene_device",
+        url: "placeecho://capture/123e4567-e89b-12d3-a456-426614174000.jpg",
+        width: 8_600,
+        height: 4_300,
+        source: "ios_capture",
+        availability: "device",
+      },
+    },
+    media: [
+      { name: "演示照片.jpg", kind: "照片", size: "2.4 MB", file: null },
+    ],
+    voiceRecording: null,
+    contextText: null,
+  }, fetchImplementation);
+
+  assert.deepEqual(calls.map(({ url }) => url), [
+    "/api/scenes/scene_device/memory-requests",
+  ]);
+  assert.deepEqual(JSON.parse(String(calls[0]?.init.body)), {
+    panorama_name: "Insta360 X5 空间全景.jpg",
+    media: [{ name: "演示照片.jpg", kind: "照片", size: "2.4 MB" }],
+    has_voice_recording: false,
+    context_text: null,
+  });
+  assert.equal(receipt.panoramaJobId, null);
+  assert.equal(receipt.deferredInputCount, 1);
+  assert.equal(receipt.analysisCompleted, false);
 });

@@ -87,7 +87,14 @@ Local-first and cloud deployments must retain the same high-level Web, AI, GPU, 
 
 Current responsibilities include the shared Memory manager/creation UI, panorama import, the Three.js/SparkJS world runtime, Collider runtime, Wind Mode, gyroscope input, Anchor runtime, Memory Reveal, and media playback. The Web has one `index.html`, one React bootstrap, and one `App`; manager, world, and reveal are React application states rather than separate HTML entries. Local preview and production use the same components and differ only at the data-source/configuration boundary (fixture JSON locally, authoritative API data in production). Imperative world code belongs in `apps/web/src/world/`, not directly in React component state.
 
-The Web must not care how a panorama was acquired. Both Web upload and a future native bridge produce a `PanoramaAsset` and call `importPanorama()`. Everything after that boundary is acquisition-independent.
+The Web must not care how a panorama was acquired. Both Web upload and the
+native bridge produce a `PanoramaAsset` and call `importPanorama()`. Every asset
+declares `availability: "device" | "durable"`: a device asset is immediately
+readable inside the app but still awaiting persistence, while a durable asset is
+already backed by HTTPS/API storage. Everything after import remains
+acquisition-independent. The separate `PanoramaSyncPort` is the only Web
+boundary that may turn app-local bytes into an API panorama-import job; importing
+an asset never silently changes its availability or writes Scene JSON.
 
 `tools/qwen-panorama-cleaner/` is the optional preprocessing implementation for a
 full 2:1 panorama. It projects a nadir crop, requests a Qwen image edit, applies a
@@ -123,14 +130,21 @@ The FastAPI worker is the future boundary for PyTorch, NVIDIA CUDA, segmentation
 ### Optional iOS Capture Shell
 
 The thin shell hosts the same Web app in a WKWebView and supplies X5 preview,
-countdown, capture, local download, and Media SDK export. Durable upload remains
-pending. It must not reimplement the Web product or introduce a second home UI.
+countdown, capture, local download, and Media SDK export. It persists the export
+under app-private Application Support and exposes only that bounded capture
+directory through `placeecho://capture/<uuid>.jpg`. The bridge marks this result
+as `availability=device`, so Web can call `importPanorama()` immediately without
+mistaking local availability for completed cloud synchronization. All other
+custom, file, data, raw-base64, or malformed capture URLs are rejected. Durable
+persistence runs through the API panorama-import job and is represented
+separately from local availability. The shell must not reimplement the Web
+product, mutate Scene JSON, or introduce a second home UI.
 
 The application executable does not link the large Insta360 binaries. It embeds
 a signed `PlaceEchoCaptureKit` framework without linking it, and dynamically
 loads that framework only after the user opens X5 acquisition. The capture kit
 owns the SDK-linked provider and native capture controller; a process-local
-request/result bridge returns the staged panorama to the shell. This keeps SDK
+request/result bridge returns the device-local panorama to the shell. This keeps SDK
 class registration and media initialization out of the Web shell launch path.
 The shell prepares the dynamic framework on a dedicated background queue after
 that explicit action, then creates and presents UIKit controllers on the main
@@ -151,6 +165,13 @@ the same `/local-world`, `/local-marble`, and `/local-memory` URL namespace used
 by the development server; this is an offline packaging step, not a second asset
 contract. Source media, PLY/LOD intermediates, and other large generated files
 remain outside Git and outside the app.
+
+The internal resource handler accepts only the fixed `placeecho` scheme,
+`capture` host, UUID JPEG filename, and the app-owned capture directory. Native
+never exposes arbitrary `file://` paths or injects large base64 payloads into
+JavaScript. After network restoration, Web/API may upload the same JPEG and emit
+an `availability=durable` result with an HTTPS URL; authoritative Scene IDs and
+persistence remain API responsibilities.
 
 ## StorageProvider Abstraction
 
@@ -197,7 +218,10 @@ Audio and direct user text are global semantic evidence: they may disambiguate
 which visible panorama cue corresponds to a Memory and help produce the Scene
 Context summary. They cannot independently authorize a pixel or 3D location;
 `source_grounding` still requires visible evidence in the original panorama,
-and final position still requires Web Collider raycast.
+and final position still requires Web Collider raycast. The Web marks its live
+recording with `context_media_ids`; the provider receives the audio, while the
+backend guarantees that ID remains Scene Context rather than an individual
+Memory attachment. Separately uploaded audio remains eligible Memory media.
 
 The authoritative Memory title first exists when this analysis succeeds. Before
 then, `memory-requests/` records are only processing receipts and must use a
