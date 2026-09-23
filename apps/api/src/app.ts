@@ -15,6 +15,8 @@ import {
 } from "./services/gpu/client.js";
 import { HttpMarbleClient, type MarbleClient } from "./services/marble/client.js";
 import { AholoHeroProvider } from "./services/hero/aholo.js";
+import { TrellisHeroProvider } from "./services/hero/trellis.js";
+import { HttpTrellisWorkerClient } from "./services/hero/providers/trellis.js";
 import type { HeroProvider } from "./services/hero/provider.js";
 
 export interface BuildAppOptions {
@@ -76,7 +78,17 @@ export function buildApp(options: BuildAppOptions = {}) {
   const heroJobs = new HeroJobService(
     storage,
     sceneService,
-    options.heroProviders ?? [AholoHeroProvider.fromEnvironment()],
+    mediaService,
+    options.heroProviders ?? [
+      AholoHeroProvider.fromEnvironment(),
+      new TrellisHeroProvider(
+        storage,
+        workerStorage,
+        new HttpTrellisWorkerClient(
+          process.env.TRELLIS1_WORKER_URL ?? "http://127.0.0.1:8002",
+        ),
+      ),
+    ],
   );
 
   app.get("/health", async () => ({ status: "ok" }));

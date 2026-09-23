@@ -103,8 +103,10 @@ Worker requests use storage keys constrained below configured input/output roots
 Hero Object generation remains optional; failure must not block Memory Reveal. The intended A10 pipeline is SAM 3 for text/point/box-driven masks followed by a selectable TRELLIS or TRELLIS 2 image-to-3D backend. These model runtimes are isolated services and run one GPU job at a time. SAM 3D Objects remains an optional higher-memory backend and is not an A10 deployment target because its official minimum is 32 GB VRAM. No weights or checkpoints are committed.
 
 Hero generation is selected through a backend `HeroProvider` boundary. `aholo`
-uses the external Aholo Lux3D Open API, while `trellis` and `trellis2` are
-reserved for isolated local runtimes. External-provider requests require an
+uses the external Aholo Lux3D Open API. `trellis` is connected to the isolated
+loopback runtime through private storage keys; its source is a Scene media ID and
+its GLB is served through the job output route. `trellis2` remains reserved for
+the isolated higher-memory runtime. External-provider requests require an
 explicit per-request consent flag because they transmit the supplied image URLs
 to a third party and may consume paid credits. Provider credentials remain
 server-side environment variables; source image URLs are used only by the

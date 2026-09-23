@@ -3,6 +3,8 @@ import test from "node:test";
 import type { Scene } from "@placeecho/shared";
 import { buildApp } from "../src/app.js";
 import { AholoHeroProvider } from "../src/services/hero/aholo.js";
+import { TrellisHeroProvider } from "../src/services/hero/trellis.js";
+import type { TrellisWorkerClient } from "../src/services/hero/providers/trellis.js";
 import type {
   HeroGenerationInput,
   HeroProvider,
@@ -168,4 +170,94 @@ test("hero route requires explicit consent and completes through the selected pr
     job_id: jobId,
     asset_url: "https://assets.example.test/hero.glb",
   });
+});
+
+test("local TRELLIS hero uses Scene media and serves the generated GLB", async (t) => {
+  const storage = new InMemoryStorage();
+  const worker: TrellisWorkerClient = {
+    name: "trellis",
+    async health() {
+      return {
+        status: "ok",
+        provider: "trellis",
+        runtime_ready: true,
+        model_loaded: true,
+        cuda_available: true,
+        busy: false,
+      };
+    },
+    async generate(request) {
+      assert.equal(request.input_key.endsWith("/object.jpg"), true);
+      await storage.put(request.output_glb_key, Buffer.from("hero-glb"));
+      return {
+        provider: "trellis",
+        status: "completed",
+        input_key: request.input_key,
+        output_glb_key: request.output_glb_key,
+        output_ply_key: null,
+        seed: request.seed ?? 1,
+        elapsed_ms: 1,
+        cuda_enabled: true,
+      };
+    },
+  };
+  const provider = new TrellisHeroProvider(storage, storage, worker);
+  const app = buildApp({
+    logger: false,
+    storageProvider: storage,
+    heroProviders: [provider],
+  });
+  t.after(async () => app.close());
+
+  const created = await app.inject({ method: "POST", url: "/api/scenes" });
+  const sceneId = created.json<{ scene_id: string }>().scene_id;
+  const sceneKey = `scenes/${sceneId}/scene.json`;
+  const scene = JSON.parse(
+    new TextDecoder().decode(await storage.get(sceneKey) ?? new Uint8Array()),
+  ) as Scene;
+  scene.memories.push({
+    id: "memory_local",
+    name: "Local object",
+    summary: null,
+    media_ids: [],
+    reflection: null,
+    anchor: {
+      id: "anchor_local",
+      cue: { label: "object" },
+      source_grounding: null,
+      world_grounding: null,
+      position: null,
+      normal: null,
+      hero: { status: "not_requested", job_id: null, asset_url: null },
+    },
+  });
+  await storage.put(sceneKey, new TextEncoder().encode(JSON.stringify(scene)));
+
+  const upload = await app.inject({
+    method: "POST",
+    url: `/api/scenes/${sceneId}/media?filename=object.jpg`,
+    headers: { "content-type": "application/octet-stream" },
+    payload: Buffer.from("jpeg"),
+  });
+  assert.equal(upload.statusCode, 201);
+  const mediaId = upload.json<{ media_id: string }>().media_id;
+
+  const queued = await app.inject({
+    method: "POST",
+    url: `/api/scenes/${sceneId}/memories/memory_local/hero`,
+    payload: { provider: "trellis", media_ids: [mediaId] },
+  });
+  assert.equal(queued.statusCode, 202);
+  const jobId = queued.json<{ job_id: string }>().job_id;
+  let job = await app.inject({ method: "GET", url: `/api/jobs/${jobId}` });
+  for (let attempt = 0; attempt < 20 && job.json().status !== "completed"; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    job = await app.inject({ method: "GET", url: `/api/jobs/${jobId}` });
+  }
+
+  assert.equal(job.json().status, "completed");
+  assert.equal(job.json().asset_url, `/api/jobs/${jobId}/output`);
+  const output = await app.inject({ method: "GET", url: `/api/jobs/${jobId}/output` });
+  assert.equal(output.headers["content-type"], "model/gltf-binary");
+  assert.deepEqual(output.rawPayload, Buffer.from("hero-glb"));
 });

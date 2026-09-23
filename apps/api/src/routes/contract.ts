@@ -68,11 +68,11 @@ export function registerContractRoutes(
     if (!Buffer.isBuffer(request.body) || request.body.length === 0) {
       return reply.code(400).send({
         status: "invalid_request",
-        message: "Send a non-empty .insp file as application/octet-stream.",
+        message: "Send a non-empty INSP, JPG, PNG, or WebP file as application/octet-stream.",
       });
     }
     try {
-      const stored = await dependencies.mediaService.uploadInsp(
+      const stored = await dependencies.mediaService.uploadMedia(
         request.params.sceneId,
         request.query.filename,
         request.body,
@@ -168,6 +168,7 @@ export function registerContractRoutes(
     Body: {
       provider?: HeroProviderName;
       image_urls?: string[];
+      media_ids?: string[];
       version?: HeroGenerationVersion;
       face_count?: number;
       enable_pbr?: boolean;
@@ -190,6 +191,7 @@ export function registerContractRoutes(
           {
             provider: request.body.provider,
             image_urls: request.body.image_urls ?? [],
+            media_ids: request.body.media_ids,
             version: request.body.version,
             face_count: request.body.face_count,
             enable_pbr: request.body.enable_pbr,
@@ -224,9 +226,11 @@ export function registerContractRoutes(
   app.get<{ Params: { jobId: string } }>(
     "/api/jobs/:jobId/output",
     async (request, reply) => {
-      const output = await dependencies.panoramaJobs.getOutput(request.params.jobId);
-      if (output === null) return reply.code(404).send({ status: "not_found" });
-      return reply.type("image/jpeg").send(Buffer.from(output));
+      const panorama = await dependencies.panoramaJobs.getOutput(request.params.jobId);
+      if (panorama !== null) return reply.type("image/jpeg").send(Buffer.from(panorama));
+      const hero = await dependencies.heroJobs.getOutput(request.params.jobId);
+      if (hero !== null) return reply.type("model/gltf-binary").send(Buffer.from(hero));
+      return reply.code(404).send({ status: "not_found" });
     },
   );
 }

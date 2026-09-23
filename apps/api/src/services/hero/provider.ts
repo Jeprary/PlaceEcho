@@ -5,6 +5,8 @@ export type HeroGenerationVersion = "G1" | "G1-Turbo";
 
 export interface HeroGenerationInput {
   image_urls: string[];
+  input_keys?: string[];
+  output_glb_key?: string;
   version: HeroGenerationVersion;
   face_count: number;
   enable_pbr: boolean;
@@ -13,6 +15,7 @@ export interface HeroGenerationInput {
 
 export interface HeroAssetUrls {
   glb_url: string;
+  glb_key?: string;
 }
 
 export interface HeroProviderStatus {

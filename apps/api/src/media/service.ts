@@ -15,12 +15,12 @@ export class MediaService {
     private readonly scenes: SceneService,
   ) {}
 
-  async uploadInsp(
+  async uploadMedia(
     sceneId: string,
     sourceName: string,
     data: Uint8Array,
   ): Promise<StoredMedia | null> {
-    const filename = sanitizeInspFilename(sourceName);
+    const filename = sanitizeMediaFilename(sourceName);
     const mediaId = `media_${randomUUID()}`;
     const storageKey = this.storageKey(sceneId, mediaId, filename);
     const media: MediaAsset = {
@@ -51,14 +51,14 @@ export class MediaService {
   storageKey(sceneId: string, mediaId: string, sourceName: string): string {
     if (!/^scene_[a-zA-Z0-9_-]+$/.test(sceneId)) throw new Error("Invalid Scene ID.");
     if (!/^media_[a-zA-Z0-9_-]+$/.test(mediaId)) throw new Error("Invalid Media ID.");
-    return `scenes/${sceneId}/media/${mediaId}/${sanitizeInspFilename(sourceName)}`;
+    return `scenes/${sceneId}/media/${mediaId}/${sanitizeMediaFilename(sourceName)}`;
   }
 }
 
-function sanitizeInspFilename(sourceName: string): string {
+function sanitizeMediaFilename(sourceName: string): string {
   const filename = path.basename(sourceName.trim());
-  if (!filename || !/^[a-zA-Z0-9._-]+\.insp$/i.test(filename)) {
-    throw new Error("Media filename must be a safe .insp filename.");
+  if (!filename || !/^[a-zA-Z0-9._-]+\.(insp|jpe?g|png|webp)$/i.test(filename)) {
+    throw new Error("Media filename must be a safe INSP, JPG, PNG, or WebP filename.");
   }
   return filename;
 }

@@ -98,6 +98,16 @@ the supplied image URLs to Aholo and may consume credits, so the public route
 requires `confirm_external_processing: true` on every submission. Contract tests
 use an injected fake provider and never upload media or create a paid task.
 
+## Local TRELLIS Hero Objects
+
+The API registers the `trellis` Hero provider by default and calls the private
+worker at `TRELLIS1_WORKER_URL` (default `http://127.0.0.1:8002`). Upload one
+JPG, PNG, or WebP through the Scene media endpoint and submit its `media_id` to
+the Hero route. With the standard ECS layout, API storage and the worker roots
+all resolve below `/opt/placeecho/data`; remote storage deployments stage the
+source and result through `WORKER_DATA_DIR`. Local TRELLIS does not transmit the
+image to a third party and does not require the Aholo consent flag.
+
 ## End-to-end smoke test
 
 From the ECS host, pass one or more private `.insp` paths to:

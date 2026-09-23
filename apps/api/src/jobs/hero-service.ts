@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { SceneService } from "../scenes/service.js";
+import type { MediaService } from "../media/service.js";
 import type {
   HeroGenerationInput,
   HeroGenerationVersion,
@@ -19,6 +20,7 @@ export interface HeroJob {
   source_image_count: number;
   version: HeroGenerationVersion;
   asset_url: string | null;
+  asset_key: string | null;
   assets: { glb_url: string } | null;
   error: string | null;
 }
@@ -26,6 +28,7 @@ export interface HeroJob {
 export interface CreateHeroJobOptions {
   provider: HeroProviderName;
   image_urls: string[];
+  media_ids?: string[];
   version?: HeroGenerationVersion;
   face_count?: number;
   enable_pbr?: boolean;
@@ -44,6 +47,7 @@ export class HeroJobService {
   constructor(
     private readonly storage: StorageProvider,
     private readonly scenes: SceneService,
+    private readonly media: MediaService,
     providers: HeroProvider[],
     private readonly pollIntervalMs = 15_000,
   ) {
@@ -58,7 +62,7 @@ export class HeroJobService {
     const scene = await this.scenes.get(sceneId);
     const memory = scene?.memories.find((candidate) => candidate.id === memoryId);
     if (!scene || !memory) return null;
-    if (options.confirm_external_processing !== true) {
+    if (options.provider === "aholo" && options.confirm_external_processing !== true) {
       throw new Error(
         "confirm_external_processing must be true before sending images to an external provider.",
       );
@@ -69,18 +73,29 @@ export class HeroJobService {
         `Hero provider is not configured: ${options.provider}`,
       );
     }
-    const input = normalizeInput(options);
+    const jobId = `job_${randomUUID()}`;
+    const inputKeys = (options.media_ids ?? []).map((mediaId) => {
+      const selected = scene.media.find((candidate) => candidate.id === mediaId);
+      if (!selected) throw new Error("Every hero media ID must belong to the target Scene.");
+      return this.media.storageKey(sceneId, selected.id, selected.source_name);
+    });
+    const input = normalizeInput(
+      options,
+      inputKeys,
+      `scenes/${sceneId}/heroes/${jobId}.glb`,
+    );
     const job: HeroJob = {
-      job_id: `job_${randomUUID()}`,
+      job_id: jobId,
       type: "hero_generate",
       scene_id: sceneId,
       memory_id: memoryId,
       status: "queued",
       provider: provider.name,
       provider_task_id: null,
-      source_image_count: input.image_urls.length,
+      source_image_count: input.image_urls.length || input.input_keys?.length || 0,
       version: input.version,
       asset_url: null,
+      asset_key: null,
       assets: null,
       error: null,
     };
@@ -102,6 +117,12 @@ export class HeroJobService {
     return parsed.type === "hero_generate" ? (parsed as HeroJob) : null;
   }
 
+  async getOutput(jobId: string): Promise<Uint8Array | null> {
+    const job = await this.get(jobId);
+    if (job?.status !== "completed" || !job.asset_key) return null;
+    return this.storage.get(job.asset_key);
+  }
+
   private async run(
     job: HeroJob,
     provider: HeroProvider,
@@ -121,8 +142,11 @@ export class HeroJobService {
         const result = await provider.getStatus(job.provider_task_id, job.version);
         if (result.status === "completed" && result.assets) {
           job.status = "completed";
-          job.assets = result.assets;
-          job.asset_url = result.assets.glb_url;
+          job.asset_key = result.assets.glb_key ?? null;
+          job.asset_url = job.asset_key
+            ? `/api/jobs/${job.job_id}/output`
+            : result.assets.glb_url;
+          job.assets = { glb_url: job.asset_url };
           break;
         }
         if (result.status === "failed") {
@@ -156,11 +180,12 @@ export class HeroJobService {
   }
 }
 
-function normalizeInput(options: CreateHeroJobOptions): HeroGenerationInput {
-  if (!Array.isArray(options.image_urls) || options.image_urls.length < 1 || options.image_urls.length > 8) {
-    throw new Error("Hero generation requires between 1 and 8 image URLs.");
-  }
-  const imageUrls = options.image_urls.map((value) => {
+function normalizeInput(
+  options: CreateHeroJobOptions,
+  inputKeys: string[],
+  outputGlbKey: string,
+): HeroGenerationInput {
+  const imageUrls = (options.image_urls ?? []).map((value) => {
     if (typeof value !== "string" || value.length > 4096) {
       throw new Error("Every hero image URL must be a valid HTTPS URL.");
     }
@@ -172,12 +197,20 @@ function normalizeInput(options: CreateHeroJobOptions): HeroGenerationInput {
       throw new Error("Every hero image URL must be a valid HTTPS URL.");
     }
   });
+  if (options.provider === "aholo" && (imageUrls.length < 1 || imageUrls.length > 8)) {
+    throw new Error("Aholo hero generation requires between 1 and 8 image URLs.");
+  }
+  if (options.provider !== "aholo" && inputKeys.length !== 1) {
+    throw new Error("Local hero generation requires exactly one media ID.");
+  }
   const faceCount = options.face_count ?? 200_000;
   if (!Number.isInteger(faceCount) || faceCount < 10_000 || faceCount > 300_000) {
     throw new Error("face_count must be an integer between 10000 and 300000.");
   }
   return {
     image_urls: imageUrls,
+    input_keys: inputKeys,
+    output_glb_key: outputGlbKey,
     version: options.version ?? "G1-Turbo",
     face_count: faceCount,
     enable_pbr: options.enable_pbr ?? true,

@@ -43,9 +43,9 @@ Returns the current Scene manifest. A missing Scene returns HTTP 404:
 
 ## Media
 
-### `POST /api/scenes/:sceneId/media?filename=<name.insp>` — Implemented for INSP
+### `POST /api/scenes/:sceneId/media?filename=<name>` — Implemented
 
-Accepts one `.insp` file as `application/octet-stream`, persists it through `StorageProvider`, adds it to the Scene, and returns an application-generated `media_id` plus media record with HTTP 201. The initial body limit is 64 MiB. A future direct-to-OSS upload flow must preserve the higher-level media and job contracts.
+Accepts one `.insp`, `.jpg`, `.jpeg`, `.png`, or `.webp` file as `application/octet-stream`, persists it through `StorageProvider`, adds it to the Scene, and returns an application-generated `media_id` plus media record with HTTP 201. INSP media is used by panorama stitching; ordinary images may also be selected as local Hero Object inputs. The initial body limit is 64 MiB. A future direct-to-OSS upload flow must preserve the higher-level media and job contracts.
 
 ### `GET /api/scenes/:sceneId/media/:mediaId` — Implemented
 
@@ -158,12 +158,20 @@ Will persist authoritative geometry computed by the Web runtime:
 
 ## Hero Object
 
-### `POST /api/scenes/:sceneId/memories/:memoryId/hero` — Implemented for Aholo Lux3D
+### `POST /api/scenes/:sceneId/memories/:memoryId/hero` — Implemented for TRELLIS and Aholo Lux3D
 
 Creates an optional asynchronous Hero Object job through the selected provider.
-The current external provider is `aholo`; `trellis` and `trellis2` are reserved
-provider names until their isolated runtimes are connected to this public job
-boundary. Aholo accepts one to eight HTTPS image URLs and defaults to G1-Turbo.
+The local `trellis` provider accepts exactly one Scene `media_id`, runs entirely
+on the private loopback worker, and returns a GLB through the job output route:
+
+```json
+{
+  "provider": "trellis",
+  "media_ids": ["media_001"]
+}
+```
+
+The external `aholo` provider accepts one to eight HTTPS image URLs and defaults to G1-Turbo.
 `confirm_external_processing` must be exactly `true`, because submitting this
 request sends the source URLs to Aholo and may consume provider credits:
 
@@ -188,20 +196,26 @@ HTTP 202 with an application-generated ID:
 { "job_id": "job_001" }
 ```
 
-An unconfigured provider returns HTTP 503. Validation or missing consent returns
-HTTP 400. A completed Aholo job sets `Memory.anchor.hero.asset_url` to the HTTPS
-GLB. Hero failure sets Hero state to `failed` and does not invalidate the Anchor
-or block Memory Reveal.
+An unconfigured provider returns HTTP 503. Validation or missing Aholo consent
+returns HTTP 400. A completed Aholo job sets `Memory.anchor.hero.asset_url` to
+the provider HTTPS GLB; a completed TRELLIS job sets it to the private
+`/api/jobs/:jobId/output` GLB route. Hero failure sets Hero state to `failed` and
+does not invalidate the Anchor or block Memory Reveal. `trellis2` remains
+reserved until its higher-memory runtime passes the deployment probe.
 
 ### `GET /api/jobs/:jobId` — Implemented for panorama, Marble world, and Hero jobs
 
 Reports `queued`, `running`, `completed`, or `failed`. Completed panorama jobs include `output_url`, dimensions, elapsed worker time, and whether CUDA was enabled. Completed Marble jobs include `world_id`, `world_marble_url`, and the provider asset manifest. Failed jobs include a bounded error message.
 
-Hero jobs include the selected provider, external provider task ID, source image
-count, model version, and (when completed) the GLB `asset_url`. Source image URLs
-and provider credentials are never returned by the job endpoint.
+Hero jobs include the selected provider, provider task ID, source image count,
+model version, and (when completed) the GLB `asset_url`. Source image URLs and
+provider credentials are never returned by the job endpoint.
 
 ### `GET /api/jobs/:jobId/output` — Implemented
+
+Returns a completed panorama as `image/jpeg` or a completed local Hero Object as
+`model/gltf-binary`. External-provider Hero jobs keep their HTTPS `asset_url` and
+do not proxy bytes through this route.
 
 Returns the completed panorama as `image/jpeg`. Returns HTTP 404 while the output is unavailable.
 
