@@ -95,3 +95,34 @@ test("Wind preserves a Scene-specific camera roll during Anchor capture", () => 
   const rotation = new Euler().setFromQuaternion(camera.quaternion, "YXZ");
   assert.ok(Math.abs(Math.abs(rotation.z) - Math.PI) < 0.000001);
 });
+
+test("mobile travel throttle controls forward, stop, and reverse independently", () => {
+  const canvas = {
+    dataset: {},
+    addEventListener() {},
+    removeEventListener() {},
+  } as unknown as HTMLCanvasElement;
+  const camera = new PerspectiveCamera();
+  const controller = new WindController(camera, canvas, {
+    startsActive: true,
+    manualTravel: true,
+  });
+
+  for (let frame = 0; frame < 60; frame += 1) controller.update(1 / 60);
+  assert.deepEqual(camera.position.toArray(), [0, 0, 0]);
+
+  controller.setTravelThrottle(1);
+  for (let frame = 0; frame < 60; frame += 1) controller.update(1 / 60);
+  const forwardZ = camera.position.z;
+  assert.ok(forwardZ < -0.3);
+
+  controller.setTravelThrottle(0);
+  for (let frame = 0; frame < 180; frame += 1) controller.update(1 / 60);
+  const stoppedZ = camera.position.z;
+  controller.update(1 / 60);
+  assert.ok(Math.abs(camera.position.z - stoppedZ) < 0.0001);
+
+  controller.setTravelThrottle(-1);
+  for (let frame = 0; frame < 60; frame += 1) controller.update(1 / 60);
+  assert.ok(camera.position.z > stoppedZ + 0.3);
+});

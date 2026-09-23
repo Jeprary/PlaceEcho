@@ -90,6 +90,7 @@ export interface SpatialRuntimeOptions {
   onWorldStatus?: (status: WorldLoadStatus) => void;
   onWorldProgress?: (progress: WorldLoadProgress) => void;
   orientationSource?: WindOrientationSource;
+  manualTravel?: boolean;
   thresholds?: ProximityThresholds;
   reachedPresentationControl?: "timed" | "external";
   targetMemoryId?: string;
@@ -216,7 +217,9 @@ export class SpatialRuntime {
     this.renderer.domElement.tabIndex = 0;
     this.renderer.domElement.setAttribute(
       "aria-label",
-      "PlaceEcho Wind Mode. Use a trackpad or drag to turn while gliding.",
+      options.manualTravel
+        ? "PlaceEcho 空间。倾斜手机或拖动画面转向，使用移动摇杆前进或后退。"
+        : "PlaceEcho 空间。使用触控板或拖动画面转向。",
     );
     this.container.append(this.renderer.domElement);
 
@@ -242,6 +245,7 @@ export class SpatialRuntime {
     this.windController = new WindController(this.camera, this.renderer.domElement, {
       orientationSource: options.orientationSource,
       startsActive: false,
+      manualTravel: options.manualTravel,
       resolvePosition: this.resolveCameraCollision,
       onSteeringInput: this.requestInitialGlide,
     });
@@ -266,6 +270,11 @@ export class SpatialRuntime {
       throw new Error("Gyroscope movement is disabled in localization mode.");
     }
     return this.windController.enableGyroscope();
+  }
+
+  setTravelThrottle(throttle: number): void {
+    if (this.mode !== "experience") return;
+    this.windController.setTravelThrottle(throttle);
   }
 
   async prepareGrounding(

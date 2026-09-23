@@ -22,6 +22,7 @@ export interface WindControllerOptions {
   gyroscopeYawRate?: number;
   gyroscopePitchRate?: number;
   startsActive?: boolean;
+  manualTravel?: boolean;
   onSteeringInput?: () => void;
   resolvePosition?: (proposedPosition: Vector3) => Vector3 | null;
 }
@@ -67,6 +68,8 @@ export class WindController {
   private lastPointerY = 0;
   private orientationActive = false;
   private glideActive: boolean;
+  private manualTravel: boolean;
+  private travelThrottle = 0;
   private speedScale = 1;
   private currentSpeed = 0;
   private windTime = 0;
@@ -103,6 +106,7 @@ export class WindController {
     this.resolvePosition = options.resolvePosition;
     this.onSteeringInput = options.onSteeringInput;
     this.glideActive = options.startsActive ?? true;
+    this.manualTravel = options.manualTravel ?? false;
     this.rotation.setFromQuaternion(camera.quaternion, "YXZ");
     this.targetRotation.copy(this.rotation);
     this.baseRoll = this.rotation.z;
@@ -147,10 +151,19 @@ export class WindController {
     this.speedScale = MathUtils.clamp(scale, 0, 1);
   }
 
+  setTravelThrottle(throttle: number): void {
+    this.manualTravel = true;
+    this.travelThrottle = this.inputLocked
+      ? 0
+      : MathUtils.clamp(throttle, -1, 1);
+    if (Math.abs(this.travelThrottle) > 0.02) this.onSteeringInput?.();
+  }
+
   setInputLocked(locked: boolean): void {
     this.inputLocked = locked;
     this.canvas.dataset.inputLocked = String(locked);
     if (!locked) return;
+    this.travelThrottle = 0;
     this.dragPointerId = null;
     this.canvas.dataset.dragging = "false";
   }
@@ -325,15 +338,28 @@ export class WindController {
       0.88 +
       Math.sin(this.windTime * 0.72) * 0.09 +
       Math.sin(this.windTime * 1.91) * 0.03;
+    const travelRequest = this.manualTravel ? this.travelThrottle : 1;
     const targetSpeed =
-      this.glideSpeed * this.speedScale * this.collisionSpeedScale * gust;
+      this.glideSpeed * this.speedScale * this.collisionSpeedScale * gust
+      * travelRequest;
     this.currentSpeed = MathUtils.damp(
       this.currentSpeed,
       targetSpeed,
-      2.4,
+      this.manualTravel ? 7.5 : 2.4,
       deltaSeconds,
     );
+    if (
+      Math.abs(this.currentSpeed) < 0.0001 &&
+      Math.abs(targetSpeed) < 0.0001
+    ) {
+      this.currentSpeed = 0;
+      return;
+    }
     this.camera.getWorldDirection(this.forward);
+    const travelDirection = Math.sign(this.currentSpeed)
+      || Math.sign(targetSpeed)
+      || 1;
+    this.forward.multiplyScalar(travelDirection);
     if (!this.captureActive && this.resolvePosition) {
       this.probePosition
         .copy(this.camera.position)
@@ -342,12 +368,12 @@ export class WindController {
       if (probeNormal) {
         this.collisionActive = this.updateCollisionResponse(
           probeNormal,
-          !userYawSteeringActive,
+          !this.manualTravel && !userYawSteeringActive,
         );
         this.collisionClearSeconds = 0;
       }
     }
-    const proposedStep = this.currentSpeed * deltaSeconds;
+    const proposedStep = Math.abs(this.currentSpeed) * deltaSeconds;
     this.proposedPosition.copy(this.camera.position).addScaledVector(
       this.forward,
       proposedStep,
@@ -363,8 +389,9 @@ export class WindController {
         this.collisionSpeedScale,
         COLLISION_GLIDE_SCALE,
       );
-      this.currentSpeed = Math.min(
+      this.currentSpeed = MathUtils.clamp(
         this.currentSpeed,
+        -this.glideSpeed * COLLISION_SPEED_CAP,
         this.glideSpeed * COLLISION_SPEED_CAP,
       );
     } else if (this.collisionActive) {
@@ -466,10 +493,10 @@ export class WindController {
 
   private readonly handlePointerDown = (event: PointerEvent): void => {
     if (
-      event.pointerType === "touch" ||
       this.orientationActive ||
       this.inputLocked
     ) return;
+    event.preventDefault();
     this.canvas.focus({ preventScroll: true });
     this.canvas.setPointerCapture(event.pointerId);
     this.dragPointerId = event.pointerId;
@@ -480,6 +507,7 @@ export class WindController {
 
   private readonly handlePointerMove = (event: PointerEvent): void => {
     if (this.inputLocked || event.pointerId !== this.dragPointerId) return;
+    event.preventDefault();
     const deltaX = event.clientX - this.lastPointerX;
     const deltaY = event.clientY - this.lastPointerY;
     if (Math.hypot(deltaX, deltaY) > 0) this.onSteeringInput?.();

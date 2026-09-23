@@ -216,6 +216,79 @@ button {
   display: none;
 }
 
+.mobile-travel-control-shell {
+  position: absolute;
+  z-index: 6;
+  left: max(1.15rem, env(safe-area-inset-left));
+  bottom: max(1.25rem, env(safe-area-inset-bottom));
+  display: grid;
+  justify-items: center;
+  gap: 0.45rem;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.mobile-travel-control__hint {
+  color: rgba(232, 240, 235, 0.66);
+  font-size: 0.62rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-shadow: 0 1px 0.8rem rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+
+.mobile-travel-control {
+  position: relative;
+  width: 6.75rem;
+  height: 6.75rem;
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  place-items: center;
+  padding: 0.55rem 0;
+  border: 1px solid rgba(225, 239, 232, 0.2);
+  border-radius: 50%;
+  color: rgba(232, 240, 235, 0.66);
+  background:
+    radial-gradient(circle, rgba(225, 239, 232, 0.04) 0 47%, transparent 48%),
+    rgba(6, 16, 13, 0.34);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.025),
+    0 0.7rem 2rem rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(12px);
+  touch-action: none;
+  cursor: ns-resize;
+}
+
+.mobile-travel-control:focus-visible {
+  outline: 1px solid rgba(240, 211, 156, 0.78);
+  outline-offset: 3px;
+}
+
+.mobile-travel-control__direction {
+  font-size: 0.82rem;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.mobile-travel-control__thumb {
+  position: absolute;
+  top: calc(50% - 1.55rem);
+  left: calc(50% - 1.55rem);
+  width: 3.1rem;
+  height: 3.1rem;
+  border: 1px solid rgba(240, 222, 184, 0.56);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 38% 32%, rgba(255, 247, 224, 0.3), transparent 38%),
+    rgba(207, 181, 130, 0.36);
+  box-shadow:
+    0 0.5rem 1.4rem rgba(0, 0, 0, 0.32),
+    inset 0 0 1rem rgba(255, 236, 196, 0.08);
+  transition: transform 65ms linear;
+  pointer-events: none;
+  will-change: transform;
+}
+
 .world-entry-return,
 .motion-access-retry {
   position: absolute;

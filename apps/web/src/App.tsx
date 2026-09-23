@@ -29,6 +29,7 @@ import {
   demoMediaPresentationOverrides,
 } from "./memory/memoryPresentation";
 import { DeviceOrientationSource } from "./world/DeviceOrientationSource";
+import { MobileTravelControl } from "./world/MobileTravelControl";
 import {
   installIOSPanoramaBridge,
   isIOSPanoramaCaptureAvailable,
@@ -63,6 +64,14 @@ const initialWorldProgress: WorldLoadProgress = {
   phase: "opening",
   value: 0.02,
 };
+
+function shouldUseMobileTravelControl(): boolean {
+  return (
+    window.matchMedia?.("(pointer: coarse)").matches === true ||
+    navigator.maxTouchPoints > 0 ||
+    window.innerWidth <= 760
+  );
+}
 
 type CaptureStatus =
   | { type: "idle" }
@@ -234,6 +243,7 @@ function SpatialWorld({
   const [audioUnlocked, setAudioUnlocked] = useState(true);
   const [motionStatus, setMotionStatus] = useState(windMode);
   const [heroPreviewDismissed, setHeroPreviewDismissed] = useState(false);
+  const [mobileTravel] = useState(shouldUseMobileTravelControl);
   const presentation = useMemo(
     () =>
       buildMemoryPresentation(
@@ -274,6 +284,7 @@ function SpatialWorld({
       onWorldStatus: setWorldStatus,
       onWorldProgress: setWorldProgress,
       orientationSource: orientationSource ?? new DeviceOrientationSource(),
+      manualTravel: mobileTravel,
       reachedPresentationControl: "external",
     });
     runtimeRef.current = runtime;
@@ -282,7 +293,11 @@ function SpatialWorld({
       runtimeRef.current = null;
       runtime.dispose();
     };
-  }, [handleSnapshot, memoryId, orientationSource, scene]);
+  }, [handleSnapshot, memoryId, mobileTravel, orientationSource, scene]);
+
+  const handleTravelThrottle = useCallback((throttle: number) => {
+    runtimeRef.current?.setTravelThrottle(throttle);
+  }, []);
 
   useEffect(() => {
     setMotionStatus(windMode);
@@ -365,6 +380,9 @@ function SpatialWorld({
         >
           启用体感控制
         </button>
+      )}
+      {mobileTravel && (
+        <MobileTravelControl onThrottleChange={handleTravelThrottle} />
       )}
       <button
         className="world-entry-return"

@@ -51,6 +51,7 @@ export class DeviceOrientationSource implements WindOrientationSource {
     }
 
     window.addEventListener("deviceorientation", this.handleOrientation, true);
+    window.addEventListener("orientationchange", this.handleScreenOrientationChange);
     this.connected = true;
     return true;
   }
@@ -58,6 +59,10 @@ export class DeviceOrientationSource implements WindOrientationSource {
   disconnect(): void {
     if (!this.connected) return;
     window.removeEventListener("deviceorientation", this.handleOrientation, true);
+    window.removeEventListener(
+      "orientationchange",
+      this.handleScreenOrientationChange,
+    );
     this.connected = false;
     this.hasBaseline = false;
     this.orientation = null;
@@ -66,6 +71,11 @@ export class DeviceOrientationSource implements WindOrientationSource {
   getOrientation(): WindOrientation | null {
     return this.orientation;
   }
+
+  private readonly handleScreenOrientationChange = (): void => {
+    this.hasBaseline = false;
+    this.orientation = null;
+  };
 
   private readonly handleOrientation = (event: DeviceOrientationEvent): void => {
     if (event.alpha === null || event.beta === null || event.gamma === null) return;
