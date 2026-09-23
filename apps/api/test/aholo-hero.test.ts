@@ -73,6 +73,53 @@ test("Aholo provider maps G1-Turbo creation and completed GLB output", async () 
   });
 });
 
+test("Aholo provider omits the unsupported enablePbr field for G1", async () => {
+  const requests: unknown[] = [];
+  const provider = AholoHeroProvider.forTesting({
+    imgTo3d: {
+      async create(request) {
+        requests.push(request);
+        return 43;
+      },
+    },
+    tasks: {
+      async retrieve() {
+        return {
+          taskId: 43,
+          status: 3 as const,
+          outputs: [
+            { content: "https://assets.example.test/result.zip" },
+            { content: "https://assets.example.test/result.glb" },
+          ],
+        };
+      },
+    },
+  });
+  const input: HeroGenerationInput = {
+    image_urls: ["https://images.example.test/chair.jpg"],
+    version: "G1",
+    face_count: 200_000,
+    enable_pbr: true,
+    ai_predict_size: true,
+  };
+
+  const taskId = await provider.start(input);
+  const status = await provider.getStatus(taskId, input.version);
+
+  assert.deepEqual(requests, [{
+    img: "https://images.example.test/chair.jpg",
+    version: "G1",
+    faceCount: 200_000,
+    outputFormat: ["glb"],
+    aiPredictSize: true,
+  }]);
+  assert.deepEqual(status, {
+    status: "completed",
+    assets: { glb_url: "https://assets.example.test/result.glb" },
+    error: null,
+  });
+});
+
 test("Aholo provider is unavailable without an environment API key", () => {
   assert.equal(AholoHeroProvider.fromEnvironment({}).isConfigured(), false);
 });

@@ -187,6 +187,10 @@ request sends the source URLs to Aholo and may consume provider credits:
 }
 ```
 
+`enable_pbr` is forwarded only for `G1-Turbo`. Aholo `G1` does not accept the
+corresponding provider field, so PlaceEcho omits it even if the request uses the
+shared default value.
+
 The API key is read only from server-side `AHOLO_API_KEY`; `AHOLO_REGION` may be
 `cn` (default) or `com`. The browser never sends a key. PlaceEcho does not
 persist the submitted image URLs in the job record. A configured job returns

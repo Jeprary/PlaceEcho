@@ -13,7 +13,7 @@ interface AholoImgTo3dRequest {
   version: HeroGenerationVersion;
   faceCount: number;
   outputFormat: ["glb"];
-  enablePbr: boolean;
+  enablePbr?: boolean;
   aiPredictSize: boolean;
 }
 
@@ -63,7 +63,7 @@ export class AholoHeroProvider implements HeroProvider {
         version: input.version,
         faceCount: input.face_count,
         outputFormat: ["glb"],
-        enablePbr: input.enable_pbr,
+        ...(input.version === "G1-Turbo" ? { enablePbr: input.enable_pbr } : {}),
         aiPredictSize: input.ai_predict_size,
       });
       return String(taskId);
