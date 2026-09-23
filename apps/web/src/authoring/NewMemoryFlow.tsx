@@ -1,28 +1,34 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import type { MemoryItem } from "../memory/fixtures";
-
 type NewMemoryFlowProps = {
+  sceneId: string;
   onCancel: () => void;
-  onCreate: (memory: MemoryItem) => void;
+  onCreate: (request: NewMemoryRequest) => void;
 };
 
 type SelectedMedia = {
-  id: string;
+  clientKey: string;
   name: string;
   kind: "照片" | "视频" | "声音";
   size: string;
 };
 
+export type NewMemoryRequest = {
+  sceneId: string;
+  panoramaName: string;
+  media: Array<Omit<SelectedMedia, "clientKey">>;
+  hasVoiceRecording: boolean;
+};
+
 const demoMedia: SelectedMedia[] = [
-  { id: "demo-1", name: "窗边合影.jpg", kind: "照片", size: "2.4 MB" },
-  { id: "demo-2", name: "夏日晚餐.mov", kind: "视频", size: "18.7 MB" },
-  { id: "demo-3", name: "阳台植物.jpg", kind: "照片", size: "3.1 MB" },
-  { id: "demo-4", name: "雨声.m4a", kind: "声音", size: "1.8 MB" },
-  { id: "demo-5", name: "搬家第一天.jpg", kind: "照片", size: "2.8 MB" },
-  { id: "demo-6", name: "深夜厨房.jpg", kind: "照片", size: "2.2 MB" },
+  { clientKey: "demo-1", name: "窗边合影.jpg", kind: "照片", size: "2.4 MB" },
+  { clientKey: "demo-2", name: "夏日晚餐.mov", kind: "视频", size: "18.7 MB" },
+  { clientKey: "demo-3", name: "阳台植物.jpg", kind: "照片", size: "3.1 MB" },
+  { clientKey: "demo-4", name: "雨声.m4a", kind: "声音", size: "1.8 MB" },
+  { clientKey: "demo-5", name: "搬家第一天.jpg", kind: "照片", size: "2.8 MB" },
+  { clientKey: "demo-6", name: "深夜厨房.jpg", kind: "照片", size: "2.2 MB" },
 ];
 
-export function NewMemoryFlow({ onCancel, onCreate }: NewMemoryFlowProps) {
+export function NewMemoryFlow({ sceneId, onCancel, onCreate }: NewMemoryFlowProps) {
   const [step, setStep] = useState<0 | 1 | 2>(0);
   const [panoramaName, setPanoramaName] = useState<string | null>(null);
   const [voiceState, setVoiceState] = useState<"idle" | "requesting" | "recording" | "recorded" | "error">("idle");
@@ -31,6 +37,7 @@ export function NewMemoryFlow({ onCancel, onCreate }: NewMemoryFlowProps) {
   const [media, setMedia] = useState<SelectedMedia[]>([]);
   const panoramaInput = useRef<HTMLInputElement>(null);
   const mediaInput = useRef<HTMLInputElement>(null);
+  const mediaClientKeySequence = useRef(0);
   const streamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -62,29 +69,26 @@ export function NewMemoryFlow({ onCancel, onCreate }: NewMemoryFlowProps) {
 
   function chooseMedia(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
-    setMedia((current) => [
-      ...current,
-      ...files.map((file, index): SelectedMedia => ({
-        id: `local-${Date.now()}-${index}`,
+    const selectedFiles = files.map((file): SelectedMedia => {
+      mediaClientKeySequence.current += 1;
+      return {
+        clientKey: `selected-media-${mediaClientKeySequence.current}`,
         name: file.name || "未命名文件",
         kind: file.type.startsWith("video") ? "视频" : file.type.startsWith("audio") ? "声音" : "照片",
         size: formatFileSize(file.size),
-      })),
-    ]);
+      };
+    });
+    setMedia((current) => [...current, ...selectedFiles]);
     event.target.value = "";
   }
 
   function createMemory() {
     releaseAudioResources();
     onCreate({
-      id: `new-memory-${Date.now()}`,
-      title: "新的回忆",
-      summary: "正在根据全景图、相关媒体与空间说明生成回忆内容。",
-      reflection: null,
-      mediaCount: media.length,
+      sceneId,
       panoramaName: panoramaName ?? "演示空间全景.jpg",
-      status: "waiting-ai",
-      tone: "moss",
+      media: media.map(({ name, kind, size }) => ({ name, kind, size })),
+      hasVoiceRecording: Boolean(recordedAudioRef.current),
     });
   }
 
@@ -238,10 +242,10 @@ export function NewMemoryFlow({ onCancel, onCreate }: NewMemoryFlowProps) {
                 <div className="selected-media-list">
                   <div className="selected-media-heading"><strong role="status" aria-live="polite">已选择 {media.length} 项</strong><button type="button" onClick={() => mediaInput.current?.click()}>继续添加</button></div>
                   {media.map((item) => (
-                    <div className="selected-media-row" key={item.id}>
+                    <div className="selected-media-row" key={item.clientKey}>
                       <span className="file-icon"><FileIcon kind={item.kind} /></span>
                       <span><strong>{item.name}</strong><small>{item.kind} · {item.size}</small></span>
-                      <button type="button" onClick={() => setMedia((current) => current.filter((entry) => entry.id !== item.id))} aria-label={`移除 ${item.name}`}>移除</button>
+                      <button type="button" onClick={() => setMedia((current) => current.filter((entry) => entry.clientKey !== item.clientKey))} aria-label={`移除 ${item.name}`}>移除</button>
                     </div>
                   ))}
                 </div>

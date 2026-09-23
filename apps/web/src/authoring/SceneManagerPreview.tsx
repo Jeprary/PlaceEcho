@@ -1,31 +1,38 @@
-import { useState } from "react";
-import { NewMemoryFlow } from "./NewMemoryFlow";
-import { MemoryCollection, MemoryDetail } from "../memory/MemoryCollection";
-import { initialMemories, type MemoryItem } from "../memory/fixtures";
+import { useRef, useState } from "react";
+import { NewMemoryFlow, type NewMemoryRequest } from "./NewMemoryFlow";
+import { MemoryCollection } from "../memory/MemoryCollection";
+import { initialMemories, previewScene, type MemoryItem, type MemoryOpenIntent } from "../memory/fixtures";
 
-type View = "dashboard" | "create" | "detail";
+type View = "dashboard" | "create";
 
-export function SceneManagerPreview() {
+type SceneManagerPreviewProps = {
+  onOpenMemory?: (intent: MemoryOpenIntent) => void;
+};
+
+export function SceneManagerPreview({ onOpenMemory = dispatchOpenMemoryIntent }: SceneManagerPreviewProps) {
   const [view, setView] = useState<View>("dashboard");
   const [memories, setMemories] = useState<MemoryItem[]>(initialMemories);
-  const [selectedMemory, setSelectedMemory] = useState<MemoryItem | null>(null);
+  const pendingRequestSequence = useRef(0);
 
-  function openMemory(memory: MemoryItem) {
-    setSelectedMemory(memory);
-    setView("detail");
-  }
-
-  function createMemory(memory: MemoryItem) {
-    setMemories((current) => [memory, ...current]);
+  function createMemory(request: NewMemoryRequest) {
+    pendingRequestSequence.current += 1;
+    setMemories((current) => [{
+      uiKey: `pending-request-${pendingRequestSequence.current}`,
+      sceneId: request.sceneId,
+      memoryId: null,
+      title: "新的回忆",
+      summary: "正在整理你选择的内容",
+      mediaCount: request.media.length,
+      panoramaName: request.panoramaName,
+      status: "processing",
+      canEnterSpace: false,
+      tone: "moss",
+    }, ...current]);
     setView("dashboard");
   }
 
   if (view === "create") {
-    return <NewMemoryFlow onCancel={() => setView("dashboard")} onCreate={createMemory} />;
-  }
-
-  if (view === "detail" && selectedMemory) {
-    return <MemoryDetail memory={selectedMemory} onBack={() => setView("dashboard")} />;
+    return <NewMemoryFlow sceneId={previewScene.scene_id} onCancel={() => setView("dashboard")} onCreate={createMemory} />;
   }
 
   return (
@@ -52,12 +59,16 @@ export function SceneManagerPreview() {
 
         <MemoryCollection
           memories={memories}
-          onOpen={openMemory}
+          onOpenMemory={onOpenMemory}
         />
       </main>
 
     </div>
   );
+}
+
+function dispatchOpenMemoryIntent(intent: MemoryOpenIntent) {
+  window.dispatchEvent(new CustomEvent<MemoryOpenIntent>("placeecho:open-memory", { detail: intent }));
 }
 
 function LogoMark() {
