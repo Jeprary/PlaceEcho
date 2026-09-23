@@ -256,6 +256,7 @@ test("local TRELLIS hero uses Scene media and serves the generated GLB", async (
   }
 
   assert.equal(job.json().status, "completed");
+  assert.equal(job.json().version, null);
   assert.equal(job.json().asset_url, `/api/jobs/${jobId}/output`);
   const output = await app.inject({ method: "GET", url: `/api/jobs/${jobId}/output` });
   assert.equal(output.headers["content-type"], "model/gltf-binary");

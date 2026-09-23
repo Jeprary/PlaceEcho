@@ -208,8 +208,10 @@ reserved until its higher-memory runtime passes the deployment probe.
 Reports `queued`, `running`, `completed`, or `failed`. Completed panorama jobs include `output_url`, dimensions, elapsed worker time, and whether CUDA was enabled. Completed Marble jobs include `world_id`, `world_marble_url`, and the provider asset manifest. Failed jobs include a bounded error message.
 
 Hero jobs include the selected provider, provider task ID, source image count,
-model version, and (when completed) the GLB `asset_url`. Source image URLs and
-provider credentials are never returned by the job endpoint.
+the external model version when applicable, and (when completed) the GLB
+`asset_url`. Local TRELLIS jobs report `version: null`; G1/G1-Turbo are Aholo
+version names only. Source image URLs and provider credentials are never returned
+by the job endpoint.
 
 ### `GET /api/jobs/:jobId/output` — Implemented
 

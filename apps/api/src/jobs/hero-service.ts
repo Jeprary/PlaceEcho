@@ -18,7 +18,7 @@ export interface HeroJob {
   provider: HeroProviderName;
   provider_task_id: string | null;
   source_image_count: number;
-  version: HeroGenerationVersion;
+  version: HeroGenerationVersion | null;
   asset_url: string | null;
   asset_key: string | null;
   assets: { glb_url: string } | null;
@@ -93,7 +93,7 @@ export class HeroJobService {
       provider: provider.name,
       provider_task_id: null,
       source_image_count: input.image_urls.length || input.input_keys?.length || 0,
-      version: input.version,
+      version: options.provider === "aholo" ? input.version : null,
       asset_url: null,
       asset_key: null,
       assets: null,
@@ -139,7 +139,7 @@ export class HeroJobService {
       job.provider_task_id = await provider.start(input);
       await this.save(job);
       for (let attempt = 0; attempt < 60; attempt += 1) {
-        const result = await provider.getStatus(job.provider_task_id, job.version);
+        const result = await provider.getStatus(job.provider_task_id, input.version);
         if (result.status === "completed" && result.assets) {
           job.status = "completed";
           job.asset_key = result.assets.glb_key ?? null;
