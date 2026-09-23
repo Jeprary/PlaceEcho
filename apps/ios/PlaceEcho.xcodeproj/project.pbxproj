@@ -15,6 +15,7 @@
 		10A000000000000000000006 /* X5CaptureViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000009 /* X5CaptureViewController.swift */; };
 		10A000000000000000000007 /* CapturePluginTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000010 /* CapturePluginTypes.swift */; };
 		10A000000000000000000008 /* PlaceEchoCapturePluginFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000015 /* PlaceEchoCapturePluginFactory.swift */; };
+		10A000000000000000000009 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000017 /* Assets.xcassets */; };
 		10A000000000000000000011 /* INSCameraSDK.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000011 /* INSCameraSDK.xcframework */; };
 		10A000000000000000000012 /* INSCameraServiceSDK.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000012 /* INSCameraServiceSDK.xcframework */; };
 		10A000000000000000000013 /* INSCoreMedia.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000013 /* INSCoreMedia.xcframework */; };
@@ -71,6 +72,7 @@
 		10B000000000000000000014 /* SSZipArchive.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = SSZipArchive.xcframework; sourceTree = "<group>"; };
 		10B000000000000000000015 /* PlaceEchoCapturePluginFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceEchoCapturePluginFactory.swift; sourceTree = "<group>"; };
 		10B000000000000000000016 /* PlaceEchoCaptureKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = PlaceEchoCaptureKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		10B000000000000000000017 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -107,6 +109,7 @@
 		10D000000000000000000002 /* PlaceEcho */ = {
 			isa = PBXGroup;
 			children = (
+				10B000000000000000000017 /* Assets.xcassets */,
 				10B000000000000000000001 /* PlaceEchoApp.swift */,
 				10B000000000000000000002 /* PlaceEchoWebView.swift */,
 				10B000000000000000000003 /* PanoramaCaptureProvider.swift */,
@@ -224,6 +227,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				10A000000000000000000009 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -327,6 +331,7 @@
 		110000000000000000000003 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = PlaceEcho/PlaceEcho.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -362,6 +367,7 @@
 		110000000000000000000004 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = PlaceEcho/PlaceEcho.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;

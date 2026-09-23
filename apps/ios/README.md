@@ -145,6 +145,65 @@ current manual mode, the user also switches back to normal Wi-Fi after capture.
 `PLACE_ECHO_MOCK_PANORAMA_URL`, `PLACE_ECHO_MOCK_PANORAMA_WIDTH`, and
 `PLACE_ECHO_MOCK_PANORAMA_HEIGHT` select the mock provider for bridge testing.
 
+## Demo archive and IPA
+
+The shared `PlaceEcho` Scheme uses the Release configuration for Archive and
+already embeds the Web production bundle, the local demo scenes, the capture
+kit, and the Insta360 device frameworks. Build a signed demo archive with:
+
+```sh
+apps/ios/scripts/package-demo.sh
+```
+
+The output is written under the ignored `.local-build/ios/<timestamp>/`
+directory. The script uses team `K42T8795ZN` by default. Override it without
+editing the project when another Apple team owns the package:
+
+```sh
+PLACE_ECHO_DEVELOPMENT_TEAM=YOUR_TEAM_ID apps/ios/scripts/package-demo.sh
+```
+
+To ask Xcode to export a development-signed IPA for devices included in the
+provisioning profile:
+
+```sh
+apps/ios/scripts/package-demo.sh ipa
+```
+
+If the delivery platform accepts only `.7z`, build the submission wrapper with:
+
+```sh
+apps/ios/scripts/package-demo.sh submission
+```
+
+The timestamped output folder then contains all three useful forms:
+
+- `PlaceEcho-iOS-Demo.7z` — upload this file to the submission platform;
+- `Submission/PlaceEcho.ipa` — the installable, development-signed app;
+- `PlaceEcho-Demo.xcarchive` — the Xcode master for later re-signing/export.
+
+The `.7z` intentionally contains only the IPA and a short README. Duplicating the
+`.xcarchive` inside it would make the upload much larger without helping install
+the demo.
+
+This uses `ExportOptions-Debugging.plist` and automatic signing. If a Personal
+Team cannot export the IPA, the archive is still retained; open it in Xcode
+Organizer and install/run the app on the connected development iPhone. Wider
+device distribution and TestFlight require an eligible paid developer team.
+
+The equivalent Xcode UI flow is:
+
+1. Open `apps/ios/PlaceEcho.xcodeproj`.
+2. Select the `PlaceEcho` Scheme and `Any iOS Device (arm64)` as destination.
+3. Choose **Product > Archive**.
+4. In Organizer, select the new archive and choose **Distribute App**.
+5. Use **Debugging** for a registered development device, or use
+   **TestFlight & App Store** after switching to a paid team.
+
+The archive is device-only because the Insta360 SDK does not contain the
+required simulator slices. Do not enable the Hotspot entitlement while signing
+with a Personal Team.
+
 ## Pending device validation
 
 - sign with the Personal Team and install on an iPhone;
