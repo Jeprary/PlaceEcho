@@ -88,6 +88,7 @@ test("analysis accepts mixed media, excludes INSP, and supports single-image or 
         calls.push(input.media.map(({ asset }) => `${asset.id}:${asset.type}`));
         contexts.push(input.scene.scene_context.text);
         const omitLast = input.scene.scene_context.text === "Coverage recovery";
+        const invalidGrounding = input.scene.scene_context.text === "Invalid source recovery";
         return {
           memories: [{
             id: input.memoryIds[0]!,
@@ -97,7 +98,7 @@ test("analysis accepts mixed media, excludes INSP, and supports single-image or 
             name: input.media.length === 1 ? "Single Memory" : "Mixed Memory",
             summary: null,
             cue: null,
-            source_grounding: null,
+            source_grounding: invalidGrounding ? { x: 9_999, y: -1 } : null,
           }],
           unassigned_media_ids: [],
           scene_context_text: input.media.length === 1 ? "A quiet room described in the recording." : "A lived-in room.",
@@ -152,6 +153,20 @@ test("analysis accepts mixed media, excludes INSP, and supports single-image or 
   assert.equal(recoveredCoverage.statusCode, 200, recoveredCoverage.body);
   assert.deepEqual(recoveredCoverage.json<Scene>().memories[0]?.media_ids, ["media_image"]);
   assert.ok(recoveredCoverage.json<Scene>().unassigned_media_ids.includes("media_audio"));
+
+  const recoveredSource = await app.inject({
+    method: "POST",
+    url: `/api/scenes/${sceneId}/analyze`,
+    payload: {
+      media_ids: ["media_image"],
+      context_text: "Invalid source recovery",
+    },
+  });
+  assert.equal(recoveredSource.statusCode, 200, recoveredSource.body);
+  assert.equal(
+    recoveredSource.json<Scene>().memories[0]?.anchor.source_grounding,
+    null,
+  );
 });
 
 test("Bailian uses official Qwen3.8 Omni multimodal parts and safely parses text-array JSON", async (t) => {

@@ -82,13 +82,16 @@ export class MemoryAnalysisService {
             text: normalizedContextText,
           },
         };
-    const result = completeMissingCoverage(forceContextMediaUnassigned(await this.analyzer.analyze({
-      scene: analysisScene,
-      panorama,
-      media: material,
-      memoryIds,
-      contextMediaIds,
-    }), contextMediaIds), selected);
+    const result = sanitizeSourceGroundings(completeMissingCoverage(
+      forceContextMediaUnassigned(await this.analyzer.analyze({
+        scene: analysisScene,
+        panorama,
+        media: material,
+        memoryIds,
+        contextMediaIds,
+      }), contextMediaIds),
+      selected,
+    ), scene.world.panorama_width, scene.world.panorama_height);
     validateAnalysis(result, selected, memoryIds, scene.world.panorama_width, scene.world.panorama_height);
     const memories: Memory[] = result.memories.map((group) => ({
       id: group.id,
@@ -120,6 +123,37 @@ export class MemoryAnalysisService {
       sceneContextAudioUrl ?? undefined,
     );
   }
+}
+
+function sanitizeSourceGroundings(
+  result: AnalysisResult,
+  width: number,
+  height: number,
+): AnalysisResult {
+  if (!result || !Array.isArray(result.memories)) return result;
+  return {
+    ...result,
+    memories: result.memories.map((memory) => {
+      const cue = typeof memory.cue === "string" && memory.cue.trim()
+        ? memory.cue
+        : null;
+      const point = memory.source_grounding;
+      const validPoint =
+        cue !== null &&
+        point !== null &&
+        Number.isInteger(point?.x) &&
+        Number.isInteger(point?.y) &&
+        point.x >= 0 &&
+        point.x < width &&
+        point.y >= 0 &&
+        point.y < height;
+      return {
+        ...memory,
+        cue,
+        source_grounding: validPoint ? point : null,
+      };
+    }),
+  };
 }
 
 function forceContextMediaUnassigned(
