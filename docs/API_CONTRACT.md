@@ -133,7 +133,7 @@ Will register existing or generated splat, Collider, and related world metadata.
 
 ### `POST /api/scenes/:sceneId/world/generate` — Implemented for Marble
 
-Creates an asynchronous Marble World API job from the Scene's completed 2:1 panorama. The World Labs key remains server-side in `WLT_API_KEY`; it must never be sent to the browser or committed. An optional prompt may guide the reconstruction:
+Creates an asynchronous Marble World API job from the Scene's completed 2:1 panorama. The World Labs key remains server-side in `WLT_API_KEY`; it must never be sent to the browser or committed. The server defaults to the current `marble-1.1-plus` model; deployments may override it with `MARBLE_MODEL`. An optional prompt may guide the reconstruction:
 
 ```json
 { "prompt": "Preserve the room layout and major furniture." }

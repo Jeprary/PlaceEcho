@@ -78,7 +78,7 @@ It does not change any security-group rule. If the OSS console reports `NoPermis
 
 ## Marble activation
 
-The API implements the asynchronous World Labs boundary at `POST /api/scenes/:sceneId/world/generate`. Put `WLT_API_KEY` only in `/etc/placeecho/api.env` with mode `0600`; never commit it. `MARBLE_API_BASE_URL` and `MARBLE_MODEL` are optional overrides. The ECS only needs outbound HTTPS access—no inbound security-group rule is required.
+The API implements the asynchronous World Labs boundary at `POST /api/scenes/:sceneId/world/generate`. Put `WLT_API_KEY` only in `/etc/placeecho/api.env` with mode `0600`; never commit it. The default model is `marble-1.1-plus`; `MARBLE_API_BASE_URL` and `MARBLE_MODEL` are optional overrides. Legacy names such as `Marble 0.1-mini` are deprecated and must not be used for new deployments. The ECS only needs outbound HTTPS access—no inbound security-group rule is required.
 
 ## Aholo Lux3D Hero Objects
 

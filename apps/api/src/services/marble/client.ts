@@ -27,7 +27,7 @@ export class HttpMarbleClient implements MarbleClient {
   constructor(
     private readonly apiKey: string,
     private readonly baseUrl = "https://api.worldlabs.ai/marble/v1",
-    private readonly model = "Marble 0.1-mini",
+    private readonly model = "marble-1.1-plus",
   ) {}
 
   isConfigured(): boolean {
