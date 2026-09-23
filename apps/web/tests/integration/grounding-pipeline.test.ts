@@ -56,6 +56,7 @@ function groundedScene(viewId: string): Scene {
       panorama_height: null,
       splat_url: "https://example.com/world.spz",
       collider_url: "https://example.com/collider.glb",
+      asset_transform: null,
       spawn: { position: [0, 0, 5], quaternion: [0, 0, 0, 1] },
     },
     media: [],

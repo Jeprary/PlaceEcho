@@ -61,6 +61,8 @@
         "panorama_height",
         "splat_url",
         "collider_url",
+        "thumbnail_url",
+        "asset_transform",
         "spawn"
       ],
       "properties": {
@@ -69,6 +71,10 @@
         "panorama_height": { "$ref": "#/$defs/nullableNonNegativeInteger" },
         "splat_url": { "$ref": "#/$defs/nullableString" },
         "collider_url": { "$ref": "#/$defs/nullableString" },
+        "thumbnail_url": { "$ref": "#/$defs/nullableString" },
+        "asset_transform": {
+          "oneOf": [{ "$ref": "#/$defs/quaternion" }, { "type": "null" }]
+        },
         "spawn": {
           "oneOf": [{ "$ref": "#/$defs/worldSpawn" }, { "type": "null" }]
         }

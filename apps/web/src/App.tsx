@@ -66,12 +66,10 @@ type CaptureStatus =
 
 export interface AppProps {
   initialScenes?: readonly Scene[];
-  sceneCoverUrls?: Readonly<Record<string, string>>;
 }
 
 export function App({
   initialScenes = [demoScene],
-  sceneCoverUrls = {},
 }: AppProps) {
   const scenes = initialScenes;
   const [iosCaptureAvailable] = useState(isIOSPanoramaCaptureAvailable);
@@ -206,7 +204,6 @@ export function App({
   return (
     <MemoryManager
       scenes={scenes}
-      sceneCoverUrls={sceneCoverUrls}
       openingMemoryId={openingMemoryId}
       captureState={captureStatus.type}
       onCapturePanorama={iosCaptureAvailable ? capturePanorama : undefined}
@@ -340,11 +337,7 @@ function SpatialWorld({
         aria-hidden={worldStatus !== "loading"}
       >
         <div className="world-loading-indicator">
-          <p>
-            {worldProgress.phase === "opening" && "打开空间"}
-            {worldProgress.phase === "decoding" && "形成空间"}
-            {worldProgress.phase === "preparing" && "准备第一视角"}
-          </p>
+          <p>正在打开空间</p>
           <div className="world-loading-track">
             <span style={{ transform: `scaleX(${worldProgress.value})` }} />
           </div>

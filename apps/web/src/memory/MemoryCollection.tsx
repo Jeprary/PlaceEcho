@@ -32,7 +32,6 @@ export function MemoryCollection({
             ) : (
               <div className="scene-manager-panorama-lines"><i /><i /><i /></div>
             )}
-            <span>{memory.panoramaName}</span>
           </div>
           <div className="scene-manager-memory-card-body">
             {memory.status === "processing" && <StatusPill />}

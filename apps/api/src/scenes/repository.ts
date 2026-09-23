@@ -30,6 +30,10 @@ export class SceneRepository {
     }
 
     const scene = JSON.parse(decoder.decode(data)) as Scene;
+    // Backfill v0.1 manifests written before world presentation metadata moved
+    // into the Scene contract. New saves always serialize both fields.
+    scene.world.thumbnail_url ??= null;
+    scene.world.asset_transform ??= null;
     if (scene.scene_id !== sceneId) {
       throw new Error(`Stored Scene ID does not match key: ${sceneId}`);
     }

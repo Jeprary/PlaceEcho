@@ -17,7 +17,6 @@ export type MemoryRequestReceipt = {
 
 type MemoryManagerProps = {
   scenes: readonly Scene[];
-  sceneCoverUrls?: Readonly<Record<string, string>>;
   openingMemoryId?: string | null;
   onOpenMemory: (intent: MemoryOpenIntent) => void;
   onBeginCreate: () => Promise<{ sceneId: string }>;
@@ -28,7 +27,6 @@ type MemoryManagerProps = {
 
 export function MemoryManager({
   scenes,
-  sceneCoverUrls = {},
   onOpenMemory,
   openingMemoryId = null,
   onBeginCreate,
@@ -38,7 +36,7 @@ export function MemoryManager({
 }: MemoryManagerProps) {
   const [view, setView] = useState<View>("dashboard");
   const [memories, setMemories] = useState<MemoryItem[]>(() =>
-    buildMemoryItems(scenes, sceneCoverUrls),
+    buildMemoryItems(scenes),
   );
   const [requestError, setRequestError] = useState<string | null>(null);
   const [draftSceneId, setDraftSceneId] = useState<string | null>(null);
@@ -89,7 +87,6 @@ export function MemoryManager({
       title: "新的回忆",
       summary: "正在整理你选择的内容",
       mediaCount: request.media.length,
-      panoramaName: request.panoramaName,
       status: "processing",
       canEnterSpace: false,
       coverUrl: null,

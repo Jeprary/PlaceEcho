@@ -102,8 +102,17 @@ block upload or stitching, and no private inputs or generated outputs are tracke
 Current responsibilities include Scene lifecycle and listing, authoritative
 system-ID generation, persistence, local/mounted/OSS storage, stitch/clean
 panorama jobs, Memory analysis, final-world 2D grounding, Marble world jobs,
-world registration, Anchor persistence, and Hero provider jobs. Development and
-Alibaba deployments retain the same HTTP and Scene contracts.
+world registration, Anchor persistence, and Hero provider jobs. The world
+pipeline also selects and persists each Scene's management thumbnail; Web never
+owns a parallel cover-image registry. Development and Alibaba deployments retain
+the same HTTP and Scene contracts.
+
+World registration persists one coherent bundle in `scene.json`: SPZ URL,
+Collider URL, management `thumbnail_url`, provider-to-canonical
+`asset_transform`, and canonical camera-eye spawn. Provider adapters own this
+metadata. Web applies the exact same transform to the visual world and Collider,
+then performs navigation and Anchor geometry in a right-handed Y-up frame. The
+manager never shows storage filenames as product copy.
 
 The backend/application—not AI models—generates `scene_id`, `media_id`, `memory_id`, `anchor_id`, and `job_id`. Models may only return IDs supplied to them.
 
@@ -133,6 +142,13 @@ Memory AI owns media grouping, Memory names, summaries, and cues. Spatial AI own
 AI must never produce authoritative final 3D coordinates.
 
 The implemented API analysis service reads selected uploaded image bytes and the stitched panorama, calls a replaceable `MemoryAnalyzer`, validates the model's grouping and source pixels, then persists Memory groups. The default analyzer calls Bailian. Image-only API upload and a completed stitched panorama are current prerequisites; the standalone Python multimedia prototype is not the API runtime. Reanalysis replaces prior Memory groups.
+
+The authoritative Memory title first exists when this analysis succeeds. Before
+then, `memory-requests/` records are only processing receipts and must use a
+generic pending presentation. Management cards render the persisted
+`Scene.memories[].name`; Web, world generation, filenames, and thumbnails never
+derive or overwrite that title. Demo fixture titles are seeded sample data and
+must not be represented as model output.
 
 The implemented World Grounding service receives explicit final-world render images with stable view IDs and dimensions. A replaceable `WorldGrounder` finds cue pixels in those renders; the API validates and persists only `world_grounding`. Registering new world assets or recomputing grounding clears stale 3D geometry. Web Geometry remains solely responsible for raycast position and normal, sent through the Anchor persistence route. The API does not infer a 3D point from AI output.
 

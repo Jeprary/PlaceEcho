@@ -7,18 +7,12 @@ import "./styles.css";
 
 type LocalPreviewConfig = {
   scenes: Scene[];
-  manager: {
-    cover_urls: Record<string, string>;
-  };
 };
 
 const previewConfig = previewConfigFixture as unknown as LocalPreviewConfig;
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App
-      initialScenes={previewConfig.scenes}
-      sceneCoverUrls={previewConfig.manager.cover_urls}
-    />
+    <App initialScenes={previewConfig.scenes} />
   </StrictMode>,
 );

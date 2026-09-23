@@ -55,6 +55,7 @@ import {
   selectLocalizationMemory,
   selectRuntimeMemory,
 } from "./runtimeTarget";
+import { getWorldAssetTransform } from "./worldCoordinates";
 import { getWorldSpawnTransform } from "./worldSpawn";
 
 export type WorldLoadStatus = "loading" | "ready" | "fallback";
@@ -395,6 +396,7 @@ export class SpatialRuntime {
         );
       },
     });
+    splat.quaternion.fromArray(getWorldAssetTransform(this.sourceScene));
     splat.opacity = 1;
     splat.visible = false;
     this.splatMesh = splat;
@@ -574,6 +576,7 @@ export class SpatialRuntime {
   private async loadCollider(url: string): Promise<void> {
     const gltf = await new GLTFLoader().loadAsync(url);
     if (this.disposed) return;
+    gltf.scene.quaternion.fromArray(getWorldAssetTransform(this.sourceScene));
     gltf.scene.updateMatrixWorld(true);
     this.colliderBounds
       .setFromObject(gltf.scene)

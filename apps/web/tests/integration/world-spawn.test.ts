@@ -4,10 +4,16 @@ import test from "node:test";
 import type { Scene } from "@placeecho/shared";
 import { Euler, PerspectiveCamera, Vector3 } from "three";
 import { WindController } from "../../src/world/WindController.ts";
+import { getWorldAssetTransform } from "../../src/world/worldCoordinates.ts";
 import { getWorldSpawnTransform } from "../../src/world/worldSpawn.ts";
 
 const fixturePath = new URL(
   "../../../../assets/demo/demo-scene.json",
+  import.meta.url,
+);
+
+const managerFixturePath = new URL(
+  "../../../../assets/demo/scene-manager-preview.json",
   import.meta.url,
 );
 
@@ -22,6 +28,22 @@ test("the local fixture keeps the spawn verified for its own SPZ and Collider", 
       0.9826852423841214,
     ],
   });
+});
+
+test("the Marble fixture maps its asset frame into canonical Y-up coordinates", async () => {
+  const fixture = JSON.parse(await readFile(managerFixturePath, "utf8")) as {
+    scenes: Scene[];
+  };
+  const scene = fixture.scenes.find(
+    (candidate) => candidate.scene_id === "scene_marble_origin",
+  );
+  assert.ok(scene);
+  assert.deepEqual(getWorldAssetTransform(scene), [1, 0, 0, 0]);
+  const spawn = getWorldSpawnTransform(scene);
+  assert.deepEqual(spawn.position, [0, 0, 0]);
+  assert.ok(Math.abs(spawn.quaternion[1] - Math.SQRT1_2) < 1e-12);
+  assert.ok(Math.abs(spawn.quaternion[3] - Math.SQRT1_2) < 1e-12);
+  assert.ok((scene.memories[0]?.anchor.normal?.[1] ?? 0) > 0.98);
 });
 
 test("Wind remains stationary until real steering input", () => {

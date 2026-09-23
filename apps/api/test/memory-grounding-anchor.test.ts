@@ -17,7 +17,7 @@ test("analyzes selected media, grounds final views, and persists Web geometry", 
   const scene: Scene = {
     schema_version: "0.1", scene_id: sceneId, status: "draft",
     scene_context: { text: "A room", audio_url: null },
-    world: { panorama_url: "/api/jobs/job_test/output", panorama_width: 8600, panorama_height: 4300, splat_url: null, collider_url: null },
+    world: { panorama_url: "/api/jobs/job_test/output", panorama_width: 8600, panorama_height: 4300, splat_url: null, collider_url: null, asset_transform: null, spawn: null },
     media: ["media_a", "media_b"].map((id) => ({ id, source_name: `${id}.jpg`, type: "image" as const, url: `/api/scenes/${sceneId}/media/${id}` })).concat([{ id: "media_capture", source_name: "capture.insp", type: "image" as const, url: `/api/scenes/${sceneId}/media/media_capture` }]),
     memories: [], unassigned_media_ids: ["media_a", "media_b", "media_capture"],
   };
@@ -54,9 +54,11 @@ test("analyzes selected media, grounds final views, and persists Web geometry", 
 
   const beforeWorld = await app.inject({ method: "POST", url: `/api/scenes/${sceneId}/world-grounding`, payload: { views: [] } });
   assert.equal(beforeWorld.statusCode, 400);
-  const register = await app.inject({ method: "PATCH", url: `/api/scenes/${sceneId}/world`, payload: { splat_url: "https://example.com/world.spz", collider_url: "https://example.com/collider.glb", spawn: { position: [0, 0, 0], quaternion: [0, 0, 0, 1] } } });
+  const register = await app.inject({ method: "PATCH", url: `/api/scenes/${sceneId}/world`, payload: { splat_url: "https://example.com/world.spz", collider_url: "https://example.com/collider.glb", thumbnail_url: "https://example.com/world.webp", asset_transform: [1, 0, 0, 0], spawn: { position: [0, 0, 0], quaternion: [0, 0, 0, 1] } } });
   assert.equal(register.statusCode, 200);
   assert.deepEqual(register.json<Scene>().world.spawn, { position: [0, 0, 0], quaternion: [0, 0, 0, 1] });
+  assert.equal(register.json<Scene>().world.thumbnail_url, "https://example.com/world.webp");
+  assert.deepEqual(register.json<Scene>().world.asset_transform, [1, 0, 0, 0]);
   const ground = await app.inject({ method: "POST", url: `/api/scenes/${sceneId}/world-grounding`, payload: { views: [{ view_id: "front", width: 100, height: 100, image_data_url: "data:image/png;base64,YQ==" }] } });
   assert.equal(ground.statusCode, 200, ground.body);
   current = ground.json<Scene>();

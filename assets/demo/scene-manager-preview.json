@@ -1,9 +1,4 @@
 {
-  "manager": {
-    "cover_urls": {
-      "scene_marble_origin": "/local-marble/thumbnail.webp"
-    }
-  },
   "scenes": [
   {
     "schema_version": "0.1",
@@ -16,6 +11,8 @@
       "panorama_height": 2048,
       "splat_url": "/local-world/world.spz",
       "collider_url": "/local-world/collider.glb",
+      "thumbnail_url": "/memory/photo-01.svg",
+      "asset_transform": null,
       "spawn": {
         "position": [-1.12, 1.55, 1.3],
         "quaternion": [-0.0981450082, -0.1563756777, -0.0156179125, 0.9826852424]
@@ -59,26 +56,28 @@
       "panorama_height": 4300,
       "splat_url": "/local-marble/splat-full.spz",
       "collider_url": "/local-marble/collider.glb",
+      "thumbnail_url": "/local-marble/thumbnail.webp",
+      "asset_transform": [1, 0, 0, 0],
       "spawn": {
         "position": [0, 0, 0],
-        "quaternion": [0.7071067812, 0, 0.7071067812, 0]
+        "quaternion": [0, 0.7071067812, 0, 0.7071067812]
       }
     },
     "media": [],
     "memories": [
       {
         "id": "memory_marble_origin",
-        "name": "新世界原点入口（测试）",
-        "summary": "从 Marble 原点向床面进入，使用独立 Collider 射线命中的锚点验证第二个空间。",
+        "name": "窗边那束光",
+        "summary": "从窗边照进来的光，落在熟悉的房间里。",
         "media_ids": [],
-        "reflection": "这是本地测试配置，不是 Memory AI 的正式命名结果。",
+        "reflection": "窗边、房间和光线来自测试场景的可见内容；这个名称是演示配置，不是一次真实模型调用的结果。",
         "anchor": {
           "id": "anchor_marble_origin",
           "cue": { "label": "床面中央" },
           "source_grounding": { "x": 3460, "y": 3000 },
           "world_grounding": null,
-          "position": [-2.006887302, 0.9030992859, 0],
-          "normal": [0.1431431029, -0.9861203941, 0.0841226507],
+          "position": [-2.006887302, -0.9030992859, 0],
+          "normal": [0.1431431029, 0.9861203941, -0.0841226507],
           "hero": { "status": "not_requested", "job_id": null, "asset_url": null }
         }
       }
@@ -91,11 +90,13 @@
     "status": "processing",
     "scene_context": { "text": "A fictional balcony garden used only for preview content.", "audio_url": null },
     "world": {
-      "panorama_url": "/demo/balcony-360.jpg",
+      "panorama_url": null,
       "panorama_width": 4096,
       "panorama_height": 2048,
       "splat_url": null,
       "collider_url": null,
+      "thumbnail_url": null,
+      "asset_transform": null,
       "spawn": null
     },
     "media": [

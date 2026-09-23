@@ -39,21 +39,28 @@ function validVector(value: unknown): value is Vector3 {
   return Array.isArray(value) && value.length === 3 && value.every((axis) => typeof axis === "number" && Number.isFinite(axis));
 }
 
+function validQuaternion(value: unknown): value is WorldSpawn["quaternion"] {
+  if (
+    !Array.isArray(value) ||
+    value.length !== 4 ||
+    !value.every((axis) => typeof axis === "number" && Number.isFinite(axis))
+  ) {
+    return false;
+  }
+  const length = Math.hypot(...value);
+  return length >= 0.999 && length <= 1.001;
+}
+
 function validSpawn(value: unknown): value is WorldSpawn {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<WorldSpawn>;
   if (
     !validVector(candidate.position) ||
-    !Array.isArray(candidate.quaternion) ||
-    candidate.quaternion.length !== 4 ||
-    !candidate.quaternion.every(
-      (axis) => typeof axis === "number" && Number.isFinite(axis),
-    )
+    !validQuaternion(candidate.quaternion)
   ) {
     return false;
   }
-  const length = Math.hypot(...candidate.quaternion);
-  return length >= 0.999 && length <= 1.001;
+  return true;
 }
 
 function isAssetUrl(value: unknown): value is string {
@@ -272,16 +279,35 @@ export function registerContractRoutes(
     },
   );
 
-  app.patch<{ Params: { sceneId: string }; Body: { splat_url?: string; collider_url?: string; spawn?: WorldSpawn | null } }>(
+  app.patch<{ Params: { sceneId: string }; Body: { splat_url?: string; collider_url?: string; thumbnail_url?: string | null; asset_transform?: WorldSpawn["quaternion"] | null; spawn?: WorldSpawn | null } }>(
     "/api/scenes/:sceneId/world", async (request, reply) => {
-      const { splat_url: splatUrl, collider_url: colliderUrl, spawn = null } = request.body ?? {};
-      if (!isAssetUrl(splatUrl) || !isAssetUrl(colliderUrl) || (spawn !== null && !validSpawn(spawn))) {
+      const {
+        splat_url: splatUrl,
+        collider_url: colliderUrl,
+        thumbnail_url: thumbnailUrl = null,
+        asset_transform: assetTransform = null,
+        spawn = null,
+      } = request.body ?? {};
+      if (
+        !isAssetUrl(splatUrl) ||
+        !isAssetUrl(colliderUrl) ||
+        (thumbnailUrl !== null && !isAssetUrl(thumbnailUrl)) ||
+        (assetTransform !== null && !validQuaternion(assetTransform)) ||
+        (spawn !== null && !validSpawn(spawn))
+      ) {
         return reply.code(400).send({
           status: "invalid_request",
-          message: "splat_url and collider_url must be safe asset URLs; spawn must be null or a finite position and normalized quaternion.",
+          message: "World URLs must be safe; asset_transform and spawn quaternions must be normalized.",
         });
       }
-      const scene = await dependencies.sceneService.setWorldAssets(request.params.sceneId, splatUrl, colliderUrl, spawn);
+      const scene = await dependencies.sceneService.setWorldAssets(
+        request.params.sceneId,
+        splatUrl,
+        colliderUrl,
+        spawn,
+        assetTransform,
+        thumbnailUrl,
+      );
       return scene ? reply.send(scene) : reply.code(404).send({ status: "not_found" });
     },
   );

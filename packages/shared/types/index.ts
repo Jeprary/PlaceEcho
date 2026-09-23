@@ -25,6 +25,9 @@ export interface WorldAssets {
   panorama_height: number | null;
   splat_url: string | null;
   collider_url: string | null;
+  thumbnail_url: string | null;
+  /** Rotates provider asset coordinates into PlaceEcho's canonical Y-up frame. */
+  asset_transform: Quaternion | null;
   spawn: WorldSpawn | null;
 }
 

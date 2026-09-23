@@ -274,6 +274,7 @@ test("submits a completed panorama to Marble as an asynchronous world job", asyn
         assets: {
           splats: { spz_urls: { "500k": "https://example.test/world-500k.spz", full_res: "https://example.test/world.spz" } },
           mesh: { collider_mesh_url: "https://example.test/collider.glb" },
+          thumbnail_url: "https://example.test/world-thumbnail.webp",
         },
       };
     },
@@ -323,11 +324,15 @@ test("submits a completed panorama to Marble as an asynchronous world job", asyn
   assert.equal(job.json().world_id, "world_one");
   assert.equal(job.json().splat_url, "https://example.test/world-500k.spz");
   assert.equal(job.json().collider_url, "https://example.test/collider.glb");
+  assert.equal(job.json().thumbnail_url, "https://example.test/world-thumbnail.webp");
+  assert.deepEqual(job.json().asset_transform, [1, 0, 0, 0]);
   assert.deepEqual(job.json().spawn, { position: [0, 0, 0], quaternion: [0, 0, 0, 1] });
   assert.deepEqual(Buffer.from(marbleInputs[0] ?? []), Buffer.from("panorama-jpeg"));
   const registered = await app.inject({ method: "GET", url: `/api/scenes/${sceneId}` });
   const registeredScene = registered.json<Scene>();
   assert.equal(registeredScene.world.splat_url, "https://example.test/world-500k.spz");
   assert.equal(registeredScene.world.collider_url, "https://example.test/collider.glb");
+  assert.equal(registeredScene.world.thumbnail_url, "https://example.test/world-thumbnail.webp");
+  assert.deepEqual(registeredScene.world.asset_transform, [1, 0, 0, 0]);
   assert.deepEqual(registeredScene.world.spawn, { position: [0, 0, 0], quaternion: [0, 0, 0, 1] });
 });

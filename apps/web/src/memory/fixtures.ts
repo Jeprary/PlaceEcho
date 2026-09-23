@@ -12,7 +12,6 @@ export type MemoryItem = {
   title: string;
   summary: string;
   mediaCount: number;
-  panoramaName: string;
   coverUrl: string | null;
   status: "ready" | "processing";
   canEnterSpace: boolean;
@@ -33,12 +32,9 @@ function hasRuntimeAnchor(memory: Memory) {
 
 export function buildMemoryItems(
   scenes: readonly Scene[],
-  sceneCoverUrls: Readonly<Record<string, string>> = {},
 ): MemoryItem[] {
   let toneIndex = 0;
   return scenes.flatMap((scene) => {
-    const panoramaName =
-      scene.world.panorama_url?.split("/").at(-1) ?? "空间全景";
     return scene.memories.map((memory) => {
       const canEnterSpace = hasRuntimeWorld(scene) && hasRuntimeAnchor(memory);
       const tone = tones[toneIndex % tones.length] ?? "forest";
@@ -50,8 +46,7 @@ export function buildMemoryItems(
         title: memory.name,
         summary: memory.summary ?? "这段回忆还没有摘要",
         mediaCount: memory.media_ids.length,
-        panoramaName,
-        coverUrl: sceneCoverUrls[scene.scene_id] ?? null,
+        coverUrl: scene.world.thumbnail_url ?? scene.world.panorama_url,
         status: canEnterSpace ? "ready" : "processing",
         canEnterSpace,
         tone,

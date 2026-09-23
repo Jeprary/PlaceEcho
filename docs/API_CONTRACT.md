@@ -139,6 +139,13 @@ continues to use the Media route.
 
 Body: `{ "media_ids": ["media_..."] }` (optional; defaults to uploaded JPG, PNG, and WebP media, excluding INSP captures). Requires 2–12 distinct uploaded image assets and a completed panorama stitch. Uses Bailian (`DASHSCOPE_API_KEY`, optional `DASHSCOPE_BASE_URL` and `DASHSCOPE_MODEL`; legacy `BAILIAN_API_KEY`, `BAILIAN_HOST`/`BAILIAN_API_HOST`, and `BAILIAN_MODEL` aliases are accepted) to group images and identify source-panorama cues. A bare workspace host copied from the console is normalized to its HTTPS OpenAI-compatible base path. The backend supplies Memory IDs, validates that every selected media ID appears exactly once in a group or `unassigned_media_ids`, and checks source pixels against the original panorama dimensions. Unselected Scene media remains unassigned. Returns the updated Scene. Analysis replaces the previous Memory groups; clients should only rerun it when that loss is intended. The current API media upload supports images only. Missing provider configuration returns 503; invalid input or model output returns 400.
 
+This analysis call is the only point at which the model creates the authoritative
+`memory.name`, `summary`, and cue. A processing Memory request has no final
+Memory name. After analysis, the backend persists those fields in `scene.json`
+and management clients render `Scene.memories[].name` verbatim. Panorama/world
+generation and frontend fixtures must not rename a Memory or present an
+unexecuted fixture title as a live model result.
+
 ## Final World Grounding
 
 ### `POST /api/scenes/:sceneId/world-grounding` — Implemented
@@ -175,7 +182,12 @@ automatic action or an end-user Revisit control.
 ### `PATCH /api/scenes/:sceneId/world` — Implemented for existing assets
 
 Body contains safe existing `splat_url` and `collider_url` values plus optional
-`spawn: { position, quaternion }`. A supplied quaternion must be normalized.
+`thumbnail_url`, `asset_transform`, and
+`spawn: { position, quaternion }`. Supplied quaternions must be normalized.
+`thumbnail_url` is persisted in the Scene and is the sole management-card image
+contract; Web does not maintain a parallel cover map. `asset_transform` rotates
+the raw SPZ and Collider into PlaceEcho's canonical Y-up frame, while spawn and
+Anchor geometry are already expressed in that canonical frame.
 Registering different assets clears stale world grounding and 3D Anchor geometry;
 omitting `spawn` clears the previous pose. This route does not upload or inspect
 the assets.
@@ -186,8 +198,9 @@ Creates an asynchronous Marble job from the active completed PlaceEcho panorama.
 A missing `WLT_API_KEY` returns `503`; successful creation returns `202` with a
 `job_id`. On completion the backend selects `assets.splats.spz_urls[500k]` by
 default (configurable through `MARBLE_SPZ_VARIANT`), registers
-`assets.mesh.collider_mesh_url`, and stores the Marble input-camera convention as
-candidate eye spawn `{ position: [0,0,0], quaternion: [0,0,0,1] }`. Web Geometry
+`assets.mesh.collider_mesh_url`, persists `assets.thumbnail_url`, normalizes the
+provider assets to canonical Y-up coordinates, and stores candidate eye spawn
+`{ position: [0,0,0], quaternion: [0,0,0,1] }`. Web Geometry
 must still validate that candidate against the matching Collider before entry.
 The job retains the provider response and the registered URLs for diagnostics.
 

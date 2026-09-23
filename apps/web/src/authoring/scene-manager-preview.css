@@ -72,7 +72,6 @@ svg { width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-li
 .scene-manager-panorama-lines i { position: absolute; height: 1px; left: 2%; right: 2%; top: 50%; background: rgba(232,237,233,.11); }
 .scene-manager-panorama-lines i:nth-child(2) { transform: rotate(13deg); }
 .scene-manager-panorama-lines i:nth-child(3) { transform: rotate(-13deg); }
-.scene-manager-memory-cover > span { position: absolute; right: 16px; bottom: 10px; left: 16px; overflow: hidden; color: var(--text); font-size: 9px; text-shadow: 0 1px 3px rgba(0,0,0,.7); white-space: nowrap; text-overflow: ellipsis; }
 .scene-manager-memory-card-hit:focus-visible { outline: 2px solid var(--gold); outline-offset: -3px; }
 .scene-manager-memory-card-body { padding: 21px 22px 20px; }
 .scene-manager-status-pill { display: inline-flex; align-items: center; gap: 5px; width: fit-content; padding: 5px 8px; border-radius: 999px; color: var(--gold); background: rgba(172,128,60,.18); font-size: 9px; font-weight: 650; white-space: nowrap; }

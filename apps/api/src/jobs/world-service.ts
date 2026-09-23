@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { WorldSpawn } from "@placeecho/shared";
+import type { Quaternion, WorldSpawn } from "@placeecho/shared";
 import type { SceneService } from "../scenes/service.js";
 import type { MarbleClient, MarbleWorld } from "../services/marble/client.js";
 import type { StorageProvider } from "../storage/provider.js";
@@ -17,6 +17,8 @@ export interface WorldJob {
   assets: Record<string, unknown> | null;
   splat_url: string | null;
   collider_url: string | null;
+  thumbnail_url: string | null;
+  asset_transform: Quaternion | null;
   spawn: WorldSpawn | null;
   error: string | null;
 }
@@ -68,6 +70,8 @@ export class WorldJobService {
       assets: null,
       splat_url: null,
       collider_url: null,
+      thumbnail_url: null,
+      asset_transform: null,
       spawn: null,
       error: null,
     };
@@ -117,12 +121,16 @@ export class WorldJobService {
       const registered = worldAssets(world, this.splatVariant);
       job.splat_url = registered.splatUrl;
       job.collider_url = registered.colliderUrl;
+      job.thumbnail_url = registered.thumbnailUrl;
+      job.asset_transform = registered.assetTransform;
       job.spawn = registered.spawn;
       const scene = await this.scenes.setWorldAssets(
         job.scene_id,
         registered.splatUrl,
         registered.colliderUrl,
         registered.spawn,
+        registered.assetTransform,
+        registered.thumbnailUrl,
       );
       if (scene === null) throw new Error("Scene disappeared before Marble world registration.");
     } catch (error) {
@@ -143,7 +151,13 @@ export class WorldJobService {
 function worldAssets(
   world: MarbleWorld,
   preferredVariant: string,
-): { splatUrl: string; colliderUrl: string; spawn: WorldSpawn } {
+): {
+  splatUrl: string;
+  colliderUrl: string;
+  thumbnailUrl: string | null;
+  assetTransform: Quaternion;
+  spawn: WorldSpawn;
+} {
   const urls = world.assets?.splats?.spz_urls;
   const splatUrl = urls?.[preferredVariant] ?? urls?.["500k"] ?? urls?.full_res ?? urls?.["100k"];
   const colliderUrl = world.assets?.mesh?.collider_mesh_url ?? undefined;
@@ -153,6 +167,12 @@ function worldAssets(
   return {
     splatUrl,
     colliderUrl,
+    thumbnailUrl: safeHttpsAsset(world.assets?.thumbnail_url)
+      ? world.assets.thumbnail_url
+      : null,
+    // Marble assets are Y-down. Rotate the provider assets into PlaceEcho's
+    // canonical Y-up frame before any Web Geometry raycast or navigation.
+    assetTransform: [1, 0, 0, 0],
     // Marble's official Spark viewer starts each generated world at the input
     // camera centre. This remains a candidate pose until Web Geometry validates
     // the eye sphere against the downloaded Collider.
