@@ -10,6 +10,7 @@ export interface MemoryRequestInput {
     size: string;
   }>;
   has_voice_recording: boolean;
+  context_text?: string | null;
 }
 
 export interface StoredMemoryRequest extends MemoryRequestInput {
@@ -42,6 +43,7 @@ export class MemoryRequestService {
       panorama_name: input.panorama_name,
       media: input.media,
       has_voice_recording: input.has_voice_recording,
+      context_text: input.context_text?.trim() || null,
       created_at: new Date().toISOString(),
     };
     await this.storage.put(

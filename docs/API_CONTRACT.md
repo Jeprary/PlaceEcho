@@ -131,7 +131,8 @@ Request:
   "media": [
     { "name": "window.jpg", "kind": "照片", "size": "2.4 MB" }
   ],
-  "has_voice_recording": false
+  "has_voice_recording": false,
+  "context_text": "午后的风吹过窗边。"
 }
 ```
 
@@ -147,6 +148,7 @@ Response (`202 Accepted`):
     { "name": "window.jpg", "kind": "照片", "size": "2.4 MB" }
   ],
   "has_voice_recording": false,
+  "context_text": "午后的风吹过窗边。",
   "created_at": "2026-09-23T00:00:00.000Z"
 }
 ```
@@ -160,8 +162,12 @@ continues to use the Media route.
 
 ### `POST /api/scenes/:sceneId/analyze` — Implemented for multimodal media
 
-Body: `{ "media_ids": ["media_..."] }` (optional; defaults to uploaded JPG,
-PNG, WebP, M4A, WAV, WebM, MP4, and MOV media, excluding INSP captures).
+Body: `{ "media_ids": ["media_..."], "context_text": "..." }`. Both fields
+are optional; media defaults to uploaded JPG, PNG, WebP, M4A, WAV, WebM, MP4,
+and MOV assets, excluding INSP captures. `context_text` accepts 1–4000
+characters of direct user description and enters the same request as
+Scene-level semantic evidence. It is not presented as a transcript and cannot
+independently authorize a source pixel or final 3D coordinate.
 Requires 1–12 distinct supported uploaded image/audio/video assets and a
 completed panorama stitch. Uses Bailian (`DASHSCOPE_API_KEY`, optional
 `DASHSCOPE_BASE_URL` and `DASHSCOPE_MODEL`; legacy `BAILIAN_API_KEY`,

@@ -287,10 +287,17 @@ export function registerContractRoutes(
     }
   });
 
-  app.post<{ Params: { sceneId: string }; Body: { media_ids?: string[] } }>(
+  app.post<{
+    Params: { sceneId: string };
+    Body: { media_ids?: string[]; context_text?: string | null };
+  }>(
     "/api/scenes/:sceneId/analyze", async (request, reply) => {
       try {
-        const scene = await dependencies.memoryAnalysis.analyze(request.params.sceneId, request.body?.media_ids);
+        const scene = await dependencies.memoryAnalysis.analyze(
+          request.params.sceneId,
+          request.body?.media_ids,
+          request.body?.context_text,
+        );
         return scene ? reply.send(scene) : reply.code(404).send({ status: "not_found" });
       } catch (error) {
         const unavailable = error instanceof BailianUnavailableError;
@@ -541,6 +548,11 @@ function isMemoryRequestInput(value: unknown): value is MemoryRequestInput {
     typeof body.panorama_name !== "string" ||
     !body.panorama_name.trim() ||
     typeof body.has_voice_recording !== "boolean" ||
+    (body.context_text !== undefined &&
+      body.context_text !== null &&
+      (typeof body.context_text !== "string" ||
+        !body.context_text.trim() ||
+        body.context_text.trim().length > 4_000)) ||
     !Array.isArray(body.media) ||
     body.media.length < 1 ||
     body.media.length > 12

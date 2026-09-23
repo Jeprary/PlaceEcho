@@ -79,12 +79,14 @@ test("analysis accepts mixed media, excludes INSP, and supports single-image or 
   }
 
   const calls: string[][] = [];
+  const contexts: Array<string | null> = [];
   const app = buildApp({
     logger: false,
     storageProvider: storage,
     memoryAnalyzer: {
       async analyze(input) {
         calls.push(input.media.map(({ asset }) => `${asset.id}:${asset.type}`));
+        contexts.push(input.scene.scene_context.text);
         return {
           memories: [{
             id: input.memoryIds[0]!,
@@ -102,9 +104,14 @@ test("analysis accepts mixed media, excludes INSP, and supports single-image or 
   });
   t.after(async () => app.close());
 
-  const mixed = await app.inject({ method: "POST", url: `/api/scenes/${sceneId}/analyze`, payload: {} });
+  const mixed = await app.inject({
+    method: "POST",
+    url: `/api/scenes/${sceneId}/analyze`,
+    payload: { context_text: "  The recording describes the window.  " },
+  });
   assert.equal(mixed.statusCode, 200, mixed.body);
   assert.deepEqual(calls[0], ["media_image:image", "media_audio:audio", "media_video:video"]);
+  assert.equal(contexts[0], "The recording describes the window.");
   assert.equal(mixed.json<Scene>().scene_context.text, "A lived-in room.");
   assert.equal(mixed.json<Scene>().scene_context.audio_url, `/api/scenes/${sceneId}/media/media_audio`);
   assert.deepEqual(mixed.json<Scene>().unassigned_media_ids, ["media_insp"]);

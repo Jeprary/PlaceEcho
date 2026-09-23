@@ -35,9 +35,14 @@ export class MemoryAnalysisService {
     private readonly analyzer: MemoryAnalyzer,
   ) {}
 
-  async analyze(sceneId: string, mediaIds?: string[]): Promise<Scene | null> {
+  async analyze(
+    sceneId: string,
+    mediaIds?: string[],
+    contextText?: string | null,
+  ): Promise<Scene | null> {
     const scene = await this.scenes.get(sceneId);
     if (!scene) return null;
+    const normalizedContextText = normalizeContextText(contextText);
     const selected = mediaIds ?? scene.media.filter(isAnalyzableMedia).map((item) => item.id);
     if (selected.length < 1 || selected.length > 12 || new Set(selected).size !== selected.length) {
       throw new Error("Select 1–12 distinct media IDs.");
@@ -57,7 +62,21 @@ export class MemoryAnalysisService {
       return { asset, bytes };
     }));
     const memoryIds = Array.from({ length: 3 }, () => `memory_${randomUUID()}`);
-    const result = await this.analyzer.analyze({ scene, panorama, media: material, memoryIds });
+    const analysisScene = normalizedContextText === undefined
+      ? scene
+      : {
+          ...scene,
+          scene_context: {
+            ...scene.scene_context,
+            text: normalizedContextText,
+          },
+        };
+    const result = await this.analyzer.analyze({
+      scene: analysisScene,
+      panorama,
+      media: material,
+      memoryIds,
+    });
     validateAnalysis(result, selected, memoryIds, scene.world.panorama_width, scene.world.panorama_height);
     const memories: Memory[] = result.memories.map((group) => ({
       id: group.id,
@@ -85,10 +104,20 @@ export class MemoryAnalysisService {
       sceneId,
       memories,
       [...result.unassigned_media_ids, ...unselected],
-      result.scene_context_text ?? undefined,
+      result.scene_context_text ?? normalizedContextText ?? undefined,
       sceneContextAudioUrl ?? undefined,
     );
   }
+}
+
+function normalizeContextText(value: string | null | undefined): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const normalized = value.trim();
+  if (!normalized || normalized.length > 4_000) {
+    throw new Error("Scene Context text must contain 1–4000 characters when provided.");
+  }
+  return normalized;
 }
 
 function validateAnalysis(result: AnalysisResult, selected: string[], allowedIds: string[], width: number, height: number): void {

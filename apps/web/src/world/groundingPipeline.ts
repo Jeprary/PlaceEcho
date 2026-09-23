@@ -385,7 +385,9 @@ async function readSceneResponse(response: Response): Promise<PlaceEchoScene> {
   const payload = (await response.json()) as
     | Partial<PlaceEchoScene>
     | { scene?: Partial<PlaceEchoScene> };
-  const scene = "scene" in payload ? payload.scene : payload;
+  const wrapped = payload as { scene?: Partial<PlaceEchoScene> };
+  const scene: Partial<PlaceEchoScene> = wrapped.scene ??
+    (payload as Partial<PlaceEchoScene>);
   if (!scene.scene_id || !Array.isArray(scene.memories)) {
     throw new Error("PlaceEcho API returned an invalid Scene.");
   }

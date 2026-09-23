@@ -173,9 +173,12 @@ must not be represented as model output.
 
 The Web creation boundary carries the actual panorama `File`, selected media
 `File` objects, recorded audio `Blob`, and optional typed context. Web uploads
-supported binaries sequentially through the Media route before creating the
-processing receipt. Typed context remains Scene-level semantic evidence and is
-never represented as an uploaded or transcribed binary.
+supported Memory binaries sequentially through the Media route, imports an
+already-stitched 2:1 JPEG/PNG panorama directly or starts the INSP stitch job,
+persists the processing receipt, waits for panorama readiness, and starts
+Memory analysis. Typed context is stored on the processing receipt and passed
+to analysis as Scene-level semantic evidence; it is never represented as an
+uploaded or transcribed binary.
 
 A completed optional Hero asset is currently rendered as a transparent Three.js
 turntable beside the Memory Reveal. This presentation renderer is intentionally
