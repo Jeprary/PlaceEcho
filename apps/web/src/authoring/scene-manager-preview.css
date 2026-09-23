@@ -107,6 +107,7 @@ svg { width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-li
 .stepper li.active span { border-color: var(--green); background: var(--green); color: #0c1712; }
 .stepper li.complete::before, .stepper li.active::before { border-color: var(--green-deep); }
 .create-panel { max-width: 860px; margin: 0 auto; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: rgba(13,27,22,.92); box-shadow: var(--shadow); }
+.local-panorama-sync-note { width: fit-content; max-width: calc(100% - 48px); margin: -8px auto 14px; color: #91a49a; font-size: 10px; line-height: 1.5; }
 .panel-content { min-height: 480px; padding: 42px 46px 35px; animation: scene-manager-step-enter .34s cubic-bezier(.22,.8,.24,1) both; }
 .panel-title h2 { margin: 0 0 8px; font-family: Georgia, "Songti SC", serif; font-size: 29px; font-weight: 400; }
 .panel-title p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.7; }

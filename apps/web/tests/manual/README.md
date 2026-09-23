@@ -50,12 +50,18 @@ the Runtime.
    Safari; there must not be a second iOS-only home implementation.
 2. Choose “创建新回忆”, start X5 capture, inspect the live spherical preview,
    and verify the three-second countdown, cancel, retry, and capture paths.
-3. Confirm `panorama_staged` does not call `importPanorama()` while the result is
-   only in the app sandbox.
-4. Restore normal networking and deliver a durable `panorama_ready` URL.
+3. Deliver `panorama_ready` with `availability: "device"` and an exact
+   `placeecho://capture/<uuid>.jpg` URL. Confirm the shared flow immediately
+   advances to media selection and shows “已保存在本机，待网络恢复后同步”.
+4. Confirm `file://`, `data:`, raw base64, arbitrary custom schemes, a wrong
+   `placeecho` host/path, and availability/URL mismatches are rejected.
+5. Restore normal networking and sync the device asset through
+   `POST /api/scenes/:sceneId/panorama/import`; only the completed API-backed
+   result may later be announced as `availability: "durable"` with HTTPS.
 
-Expected: only `panorama_ready` advances the shared creation flow. A failed or
-staged capture remains actionable and never creates a formal Memory ID.
+Expected: both device-readable and durable `panorama_ready` results enter the
+same `importPanorama()` flow. Device availability advances authoring without
+pretending cloud persistence succeeded; sync never writes Scene JSON directly.
 
 ## Memory Reveal and audio
 
@@ -69,6 +75,19 @@ staged capture remains actionable and never creates a formal Memory ID.
 Expected: media comes from the Scene media registry, presentation-only timing
 and poster settings come from the internal adapter, and completing/skipping the
 Reveal resumes the same Runtime and selected Anchor.
+
+## Optional creation voice note
+
+1. Enter the third creation step and do not touch the recording button. Confirm
+   no microphone permission prompt appears and “创建回忆” remains available.
+2. Tap recording once and confirm only that gesture requests microphone access.
+3. Start recording, then go back, cancel creation, and create/leave the step;
+   inspect the browser device indicator and confirm every audio track stops.
+4. Deny microphone access and confirm the UI says it can be skipped and still
+   permits Memory creation with `has_voice_recording: false`.
+
+Expected: voice is always optional, permission is just in time, and no live
+stream survives navigation or submission.
 
 ## Collision feel
 

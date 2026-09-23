@@ -1,3 +1,5 @@
+import type { PanoramaAsset } from "../world/panorama";
+
 export type MemoryInputKind = "照片" | "视频" | "声音";
 
 export type SelectedMemoryMedia = {
@@ -10,6 +12,7 @@ export type SelectedMemoryMedia = {
 export type SelectedPanorama = {
   name: string;
   file: File | null;
+  asset?: PanoramaAsset | null;
 };
 
 export type NewMemoryRequest = {
@@ -52,6 +55,13 @@ export async function submitNewMemoryRequest(
   fetchImpl: FetchLike = fetch,
 ): Promise<MemorySubmissionReceipt> {
   const panoramaFile = request.panorama.file;
+  const panoramaAsset = request.panorama.asset ?? null;
+  if (panoramaFile && panoramaAsset) {
+    throw new Error("全景图不能同时来自文件和 App 拍摄。");
+  }
+  if (panoramaAsset && panoramaAsset.sceneId !== request.sceneId) {
+    throw new Error("拍摄的全景图不属于当前空间。");
+  }
   if (panoramaFile && !panoramaExtension.test(panoramaFile.name)) {
     throw new Error("当前全景上传仅支持 INSP、JPG 或 PNG 文件。");
   }
@@ -177,7 +187,7 @@ export async function submitNewMemoryRequest(
     sceneId: receipt.scene_id,
     uploadedMediaIds,
     panoramaJobId,
-    deferredInputCount: 0,
+    deferredInputCount: panoramaAsset?.availability === "device" ? 1 : 0,
     analysisCompleted,
   };
 }

@@ -87,7 +87,14 @@ Local-first and cloud deployments must retain the same high-level Web, AI, GPU, 
 
 Current responsibilities include the shared Memory manager/creation UI, panorama import, the Three.js/SparkJS world runtime, Collider runtime, Wind Mode, gyroscope input, Anchor runtime, Memory Reveal, and media playback. The Web has one `index.html`, one React bootstrap, and one `App`; manager, world, and reveal are React application states rather than separate HTML entries. Local preview and production use the same components and differ only at the data-source/configuration boundary (fixture JSON locally, authoritative API data in production). Imperative world code belongs in `apps/web/src/world/`, not directly in React component state.
 
-The Web must not care how a panorama was acquired. Both Web upload and a future native bridge produce a `PanoramaAsset` and call `importPanorama()`. Everything after that boundary is acquisition-independent.
+The Web must not care how a panorama was acquired. Both Web upload and the
+native bridge produce a `PanoramaAsset` and call `importPanorama()`. Every asset
+declares `availability: "device" | "durable"`: a device asset is immediately
+readable inside the app but still awaiting persistence, while a durable asset is
+already backed by HTTPS/API storage. Everything after import remains
+acquisition-independent. The separate `PanoramaSyncPort` is the only Web
+boundary that may turn app-local bytes into an API panorama-import job; importing
+an asset never silently changes its availability or writes Scene JSON.
 
 `tools/qwen-panorama-cleaner/` is the optional preprocessing implementation for a
 full 2:1 panorama. It projects a nadir crop, requests a Qwen image edit, applies a
@@ -123,8 +130,12 @@ The FastAPI worker is the future boundary for PyTorch, NVIDIA CUDA, segmentation
 ### Optional iOS Capture Shell
 
 The thin shell hosts the same Web app in a WKWebView and supplies X5 preview,
-countdown, capture, local download, and Media SDK export. Durable upload remains
-pending. It must not reimplement the Web product or introduce a second home UI.
+countdown, capture, local download, and Media SDK export. An exact
+`placeecho://capture/<uuid>.jpg` resource-handler URL may enter Web as a
+device-available panorama immediately; all other custom, file, data, and raw
+base64 URLs are rejected. Durable persistence still runs through the API
+panorama-import job and is represented separately from local availability. The
+shell must not reimplement the Web product or introduce a second home UI.
 
 The application executable does not link the large Insta360 binaries. It embeds
 a signed `PlaceEchoCaptureKit` framework without linking it, and dynamically

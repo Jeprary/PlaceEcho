@@ -141,6 +141,7 @@ export function App({ initialScenes = [demoScene] }: AppProps) {
     }
     const body = (await response.json()) as { scene_id?: string };
     if (!body.scene_id) throw new Error("Scene creation response was invalid.");
+    setCaptureStatus({ type: "idle" });
     return { sceneId: body.scene_id };
   };
 
@@ -187,6 +188,9 @@ export function App({ initialScenes = [demoScene] }: AppProps) {
       scenes={scenes}
       openingMemoryId={openingMemoryId}
       captureState={captureStatus.type}
+      capturedPanorama={
+        captureStatus.type === "ready" ? captureStatus.asset : null
+      }
       onCapturePanorama={iosCaptureAvailable ? capturePanorama : undefined}
       onBeginCreate={beginMemoryRequest}
       onCreateRequest={persistMemoryRequest}

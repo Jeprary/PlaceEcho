@@ -3,10 +3,13 @@ import type {
   NewMemoryRequest,
   SelectedMemoryMedia,
 } from "./memorySubmission";
+import { requestVoiceRecordingStream } from "./voiceCapture";
+import type { PanoramaAsset } from "../world/panorama";
 
 type NewMemoryFlowProps = {
   sceneId: string;
   captureState?: "idle" | "requesting" | "staged" | "ready" | "failed";
+  capturedPanorama?: PanoramaAsset | null;
   onCapturePanorama?: () => void;
   onCancel: () => void;
   onCreate: (request: NewMemoryRequest) => void;
@@ -30,6 +33,7 @@ const demoMedia: SelectedMedia[] = [
 export function NewMemoryFlow({
   sceneId,
   captureState = "idle",
+  capturedPanorama = null,
   onCapturePanorama,
   onCancel,
   onCreate,
@@ -39,6 +43,7 @@ export function NewMemoryFlow({
   const [step, setStep] = useState<0 | 1 | 2>(0);
   const [panoramaName, setPanoramaName] = useState<string | null>(null);
   const [panoramaFile, setPanoramaFile] = useState<File | null>(null);
+  const [panoramaAsset, setPanoramaAsset] = useState<PanoramaAsset | null>(null);
   const [contextText, setContextText] = useState("");
   const [voiceState, setVoiceState] = useState<"idle" | "requesting" | "recording" | "saving" | "recorded" | "error">("idle");
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -61,10 +66,18 @@ export function NewMemoryFlow({
     stepHeadingRef.current?.focus();
   }, [step]);
   useEffect(() => {
-    if (captureState === "ready" && step === 0) {
-      completePanorama("Insta360 X5 空间全景.jpg");
+    if (
+      captureState === "ready" &&
+      capturedPanorama?.sceneId === sceneId &&
+      step === 0
+    ) {
+      completePanorama(
+        "Insta360 X5 空间全景.jpg",
+        null,
+        capturedPanorama,
+      );
     }
-  }, [captureState, step]);
+  }, [captureState, capturedPanorama, sceneId, step]);
 
   function choosePanorama(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -72,14 +85,25 @@ export function NewMemoryFlow({
     event.target.value = "";
   }
 
-  function completePanorama(name: string, file: File | null = null) {
+  function completePanorama(
+    name: string,
+    file: File | null = null,
+    asset: PanoramaAsset | null = null,
+  ) {
     setPanoramaName(name);
     setPanoramaFile(file);
+    setPanoramaAsset(asset);
     setStep(1);
   }
 
   function goToPreviousStep() {
+    releaseAudioResources();
     setStep((current) => (current === 2 ? 1 : 0));
+  }
+
+  function cancelCreation() {
+    releaseAudioResources();
+    onCancel();
   }
 
   function chooseMedia(event: ChangeEvent<HTMLInputElement>) {
@@ -105,6 +129,7 @@ export function NewMemoryFlow({
       panorama: {
         name: panoramaName ?? "演示空间全景.jpg",
         file: panoramaFile,
+        asset: panoramaAsset,
       },
       media: media.map(({ name, kind, size, file }) => ({
         name,
@@ -124,7 +149,7 @@ export function NewMemoryFlow({
     setRecordingSeconds(0);
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await requestVoiceRecordingStream();
       const audioContext = new AudioContext();
       const analyser = audioContext.createAnalyser();
       const source = audioContext.createMediaStreamSource(stream);
@@ -211,14 +236,14 @@ export function NewMemoryFlow({
   return (
     <div className="create-app">
       <header className="create-topbar">
-        <button className="brand" type="button" onClick={onCancel} aria-label="返回记忆空间">
+        <button className="brand" type="button" onClick={cancelCreation} aria-label="返回记忆空间">
           <LogoMark /><span><strong>PlaceEcho</strong><small>创建新回忆</small></span>
         </button>
-        <button className="cancel-button" type="button" onClick={onCancel}>退出创建</button>
+        <button className="cancel-button" type="button" onClick={cancelCreation}>退出创建</button>
       </header>
 
       <header className="mobile-create-toolbar">
-        <button className="toolbar-exit" type="button" onClick={step === 0 ? onCancel : goToPreviousStep} aria-label={step === 0 ? "退出创建回忆" : "返回上一步"}>
+        <button className="toolbar-exit" type="button" onClick={step === 0 ? cancelCreation : goToPreviousStep} aria-label={step === 0 ? "退出创建回忆" : "返回上一步"}>
           {step === 0 ? <CloseIcon /> : <ChevronLeftIcon />}
         </button>
         <div className="mobile-create-title">
@@ -242,6 +267,12 @@ export function NewMemoryFlow({
             </li>
           ))}
         </ol>
+
+        {panoramaAsset?.availability === "device" && step > 0 && (
+          <p className="local-panorama-sync-note" role="status">
+            已保存在本机，待网络恢复后同步
+          </p>
+        )}
 
         <section className="create-panel">
           {step === 0 && (
@@ -303,10 +334,10 @@ export function NewMemoryFlow({
 
           {step === 2 && (
             <div className="panel-content voice-step" key="voice-step">
-              <div className="panel-title"><h2 ref={stepHeadingRef} tabIndex={-1}>说说这个空间</h2><p>它是什么地方？你为什么想把它留下？</p></div>
+              <div className="panel-title"><h2 ref={stepHeadingRef} tabIndex={-1}>说说这个空间</h2><p>选填：可以录音、写几句话，或直接跳过</p></div>
               <div className={`voice-recorder voice-recorder-${voiceState}`}>
                 <strong>{formatDuration(recordingSeconds)}</strong>
-                <small role={voiceState === "error" ? "alert" : "status"} aria-live={voiceState === "error" ? "assertive" : "polite"}>{voiceState === "requesting" ? "正在连接麦克风" : voiceState === "recording" ? "正在录音" : voiceState === "saving" ? "正在保存录音" : voiceState === "recorded" ? "录音已完成" : voiceState === "error" ? "请允许麦克风访问" : "最长 60 秒"}</small>
+                <small role={voiceState === "error" ? "alert" : "status"} aria-live={voiceState === "error" ? "assertive" : "polite"}>{voiceState === "requesting" ? "正在连接麦克风" : voiceState === "recording" ? "正在录音" : voiceState === "saving" ? "正在保存录音" : voiceState === "recorded" ? "录音已完成" : voiceState === "error" ? "麦克风未授权，可跳过" : "可跳过 · 最长 60 秒"}</small>
                 <div className="voice-wave" aria-hidden="true">{waveform.map((height, index) => <i style={{ height }} key={index} />)}</div>
                 {voiceState === "recorded" ? (
                   <span className="record-button record-complete" aria-hidden="true"><CheckIcon /></span>
