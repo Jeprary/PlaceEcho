@@ -175,15 +175,31 @@ export class WorldGroundingService {
       }),
     );
     const result = await this.grounder.ground(scene, views, groundingMedia);
+    const heroRecommendation = normalizeHeroRecommendation(
+      result.hero_recommendation,
+    );
     validateGroundings(scene, views, result.groundings);
-    validateHeroRecommendation(scene, result.hero_recommendation);
+    validateHeroRecommendation(scene, heroRecommendation);
     const persisted = await this.scenes.setWorldGroundings(
       sceneId,
       result.groundings,
     );
     if (!persisted) return null;
-    return { scene: persisted, hero_recommendation: result.hero_recommendation };
+    return { scene: persisted, hero_recommendation: heroRecommendation };
   }
+}
+
+function normalizeHeroRecommendation(
+  recommendation: HeroRecommendation,
+): HeroRecommendation {
+  if (recommendation?.action !== "skip") return recommendation;
+  return {
+    ...recommendation,
+    memory_id: null,
+    object_name: null,
+    observations: [],
+    reconstruction_mode: null,
+  };
 }
 
 function validateViews(views: RenderView[]): void {
