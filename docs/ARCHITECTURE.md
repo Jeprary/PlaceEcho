@@ -123,6 +123,9 @@ loads that framework only after the user opens X5 acquisition. The capture kit
 owns the SDK-linked provider and native capture controller; a process-local
 request/result bridge returns the staged panorama to the shell. This keeps SDK
 class registration and media initialization out of the Web shell launch path.
+The shell prepares the dynamic framework on a dedicated background queue after
+that explicit action, then creates and presents UIKit controllers on the main
+thread, so first-use SDK loading cannot block Web gestures or manager animation.
 
 The iOS build embeds the production Web bundle and serves it through an internal
 resource handler, so changing temporarily to X5 Wi-Fi does not remove the home

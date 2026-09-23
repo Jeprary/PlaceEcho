@@ -79,9 +79,24 @@ if [[ "${PLACE_ECHO_EMBED_LOCAL_SCENES:-1}" == "1" ]]; then
   embed_local_asset \
     "${marble_directory}/collider.glb" \
     "${bundle_destination}/local-marble/collider.glb"
-  embed_local_asset \
-    "${marble_directory}/thumbnail.webp" \
-    "${bundle_destination}/local-marble/thumbnail.webp"
+  marble_thumbnail_source="${marble_directory}/thumbnail.webp"
+  marble_thumbnail_destination="${bundle_destination}/local-marble/thumbnail.webp"
+  if [[ -f "${marble_thumbnail_source}" ]]; then
+    # This WebP variant fails to decode in WKWebView on the current test phone.
+    # Keep its route stable, but package JPEG bytes and let the scheme handler
+    # advertise the content type from the file signature.
+    /bin/mkdir -p "${marble_thumbnail_destination:h}"
+    thumbnail_jpeg="${marble_thumbnail_destination}.jpg"
+    /usr/bin/sips \
+      -s format jpeg \
+      -s formatOptions 82 \
+      "${marble_thumbnail_source}" \
+      --out "${thumbnail_jpeg}" >/dev/null
+    /bin/mv "${thumbnail_jpeg}" "${marble_thumbnail_destination}"
+  else
+    echo "warning: Skipping missing local PlaceEcho asset: ${marble_thumbnail_source}"
+    missing_local_assets=1
+  fi
 
   if [[ "${missing_local_assets}" == "0" ]]; then
     echo "Embedded the two local PlaceEcho Revisit spaces."

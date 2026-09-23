@@ -27,10 +27,11 @@ protocol PanoramaCaptureProviding {
 }
 
 protocol PanoramaCaptureViewControllerProviding: PanoramaCaptureProviding {
-    func makeCaptureViewController(
+    func prepareCaptureViewController(
         sceneID: String,
-        completion: @escaping (Result<CapturedPanorama, Error>) -> Void
-    ) throws -> UIViewController
+        captureCompletion: @escaping (Result<CapturedPanorama, Error>) -> Void,
+        preparationCompletion: @escaping (Result<UIViewController, Error>) -> Void
+    )
 }
 
 enum PanoramaCaptureProviderFactory {
@@ -74,6 +75,10 @@ final class Insta360CapturePluginProvider: PanoramaCaptureViewControllerProvidin
     private static let sceneIDDefaultsKey = "dev.placeecho.x5.pending-scene-id"
     private static let requestIDDefaultsKey = "dev.placeecho.x5.pending-request-id"
 
+    private let preparationQueue = DispatchQueue(
+        label: "dev.placeecho.capture-plugin-preparation",
+        qos: .userInitiated
+    )
     private var pluginBundle: Bundle?
     private var observations: [String: NSObjectProtocol] = [:]
 
@@ -84,11 +89,40 @@ final class Insta360CapturePluginProvider: PanoramaCaptureViewControllerProvidin
         completion(.failure(Insta360CapturePluginError.directCaptureUnsupported))
     }
 
-    func makeCaptureViewController(
+    func prepareCaptureViewController(
+        sceneID: String,
+        captureCompletion: @escaping (Result<CapturedPanorama, Error>) -> Void,
+        preparationCompletion: @escaping (Result<UIViewController, Error>) -> Void
+    ) {
+        preparationQueue.async { [weak self] in
+            guard let self else { return }
+            do {
+                try self.loadPluginBundle()
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    do {
+                        preparationCompletion(.success(
+                            try self.makeLoadedCaptureViewController(
+                                sceneID: sceneID,
+                                completion: captureCompletion
+                            )
+                        ))
+                    } catch {
+                        preparationCompletion(.failure(error))
+                    }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    preparationCompletion(.failure(error))
+                }
+            }
+        }
+    }
+
+    private func makeLoadedCaptureViewController(
         sceneID: String,
         completion: @escaping (Result<CapturedPanorama, Error>) -> Void
     ) throws -> UIViewController {
-        let bundle = try loadPluginBundle()
         guard
             let factoryType = NSClassFromString(Self.factoryClassName) as? NSObject.Type
         else {
@@ -128,14 +162,12 @@ final class Insta360CapturePluginProvider: PanoramaCaptureViewControllerProvidin
             throw Insta360CapturePluginError.invalidPlugin
         }
 
-        // Retain the successfully loaded bundle for the lifetime of the provider.
-        pluginBundle = bundle
         return controller
     }
 
-    private func loadPluginBundle() throws -> Bundle {
+    private func loadPluginBundle() throws {
         if let pluginBundle, pluginBundle.isLoaded {
-            return pluginBundle
+            return
         }
         guard
             let frameworkURL = Bundle.main.privateFrameworksURL?
@@ -151,7 +183,8 @@ final class Insta360CapturePluginProvider: PanoramaCaptureViewControllerProvidin
                 error.localizedDescription
             )
         }
-        return bundle
+        // Keep the dynamically loaded framework alive for the provider lifetime.
+        pluginBundle = bundle
     }
 
     private func removeObservation(requestID: String) {

@@ -40,11 +40,15 @@ final class X5CaptureViewController: UIViewController {
     private let activityIndicator = UIActivityIndicatorView(style: .medium)
 
     private var previewPlayer: INSCameraSessionPlayer?
+    private weak var previewRenderView: UIView?
+    private var previewFrameTimeout: DispatchWorkItem?
+    private var windowCropInfo: INSWindowCropInfo?
     private var countdownTimer: Timer?
     private var countdownValue = 3
     private var connectionAttemptsRemaining = 30
     private var isPreviewReady = false
     private var didFinish = false
+    private var didAnimateEntrance = false
 
     private static func chromeEffect(interactive: Bool) -> UIVisualEffect {
         if #available(iOS 26.0, *) {
@@ -81,12 +85,15 @@ final class X5CaptureViewController: UIViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         beginPreviewConnection()
+        animateEntranceIfNeeded()
     }
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         countdownTimer?.invalidate()
         countdownTimer = nil
+        previewFrameTimeout?.cancel()
+        previewFrameTimeout = nil
         previewPlayer?.stopRunning(completion: nil)
         previewPlayer = nil
     }
@@ -120,11 +127,15 @@ final class X5CaptureViewController: UIViewController {
         closeButton.accessibilityLabel = "关闭拍摄"
         closeButton.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
         closeChrome.contentView.addSubview(closeButton)
+        closeChrome.alpha = 0
+        closeChrome.transform = CGAffineTransform(translationX: -14, y: 0)
 
         statusChrome.translatesAutoresizingMaskIntoConstraints = false
         statusChrome.clipsToBounds = true
         statusChrome.layer.cornerRadius = 18
         statusChrome.layer.cornerCurve = .continuous
+        statusChrome.alpha = 0
+        statusChrome.transform = CGAffineTransform(translationX: 0, y: -10)
         view.addSubview(statusChrome)
 
         statusLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -166,7 +177,11 @@ final class X5CaptureViewController: UIViewController {
         shutterButton.layer.shadowOffset = CGSize(width: 0, height: 4)
         shutterButton.accessibilityLabel = "拍摄全景图"
         shutterButton.isEnabled = false
-        shutterButton.alpha = 0.45
+        shutterButton.alpha = 0
+        shutterButton.transform = CGAffineTransform(
+            translationX: 0,
+            y: 24
+        ).scaledBy(x: 0.94, y: 0.94)
         shutterButton.addTarget(self, action: #selector(shutterTouchDown), for: .touchDown)
         shutterButton.addTarget(
             self,
@@ -226,6 +241,8 @@ final class X5CaptureViewController: UIViewController {
     }
 
     private func beginPreviewConnection() {
+        previewFrameTimeout?.cancel()
+        previewFrameTimeout = nil
         connectionAttemptsRemaining = 30
         showStatus("正在连接 X5…", spinning: true)
         setShutterEnabled(false)
@@ -262,7 +279,9 @@ final class X5CaptureViewController: UIViewController {
 
         let renderView = player.renderView
         renderView.translatesAutoresizingMaskIntoConstraints = false
+        renderView.alpha = 0
         previewHost.addSubview(renderView)
+        previewRenderView = renderView
         NSLayoutConstraint.activate([
             renderView.topAnchor.constraint(equalTo: previewHost.topAnchor),
             renderView.leadingAnchor.constraint(equalTo: previewHost.leadingAnchor),
@@ -270,29 +289,81 @@ final class X5CaptureViewController: UIViewController {
             renderView.bottomAnchor.constraint(equalTo: previewHost.bottomAnchor),
         ])
 
-        let optionTypes = [NSNumber(value: INSCameraOptionsType.videoEncode.rawValue)]
-        INSCameraManager.shared().commandManager.getOptionsWithTypes(optionTypes) { [weak self, weak player] _, options, _ in
-            guard let self, let player, !self.didFinish else { return }
-            if let options {
+        let optionTypes = [
+            NSNumber(value: INSCameraOptionsType.videoEncode.rawValue),
+            NSNumber(value: INSCameraOptionsType.videoResolution.rawValue),
+            NSNumber(value: INSCameraOptionsType.windowCropInfo.rawValue),
+        ]
+        INSCameraManager.shared().commandManager.getOptionsWithTypes(optionTypes) {
+            [weak self, weak player] error, options, _ in
+            DispatchQueue.main.async {
+                guard let self, let player, !self.didFinish else { return }
+                guard let options else {
+                    self.showPreviewError(
+                        error?.localizedDescription ?? "无法读取 X5 预览参数"
+                    )
+                    return
+                }
+
+                self.windowCropInfo = options.windowCropInfo
                 player.videoStreamEncode = options.videoEncode
-            }
-            player.startRunning { [weak self] error in
-                DispatchQueue.main.async {
-                    guard let self, !self.didFinish else { return }
-                    if let error {
-                        self.showPreviewError(error.localizedDescription)
-                        return
+                player.expectedVideoResolution = options.videoResolution
+                player.previewStreamType = .main
+
+                let cameraName = self.cameraManager.currentCamera?.name ?? "unknown"
+                let cameraType = self.cameraManager.currentCamera?.cameraType ?? "unknown"
+                print("PlaceEcho X5 preview: camera=\(cameraName), type=\(cameraType)")
+
+                player.startRunning { [weak self] error in
+                    DispatchQueue.main.async {
+                        guard let self, !self.didFinish else { return }
+                        if let error {
+                            self.showPreviewError(error.localizedDescription)
+                            return
+                        }
+                        INSCameraManager.shared().commandManager.requestIFrame { error in
+                            if let error {
+                                print("PlaceEcho X5 preview: I-frame request failed: \(error)")
+                            }
+                        }
+                        self.showStatus("正在等待实时画面…", spinning: true)
+                        self.schedulePreviewFrameTimeout()
                     }
-                    INSCameraManager.shared().commandManager.requestIFrame { _ in }
-                    self.isPreviewReady = true
-                    self.setShutterEnabled(true)
-                    self.hideStatus()
                 }
             }
         }
     }
 
+    private func schedulePreviewFrameTimeout() {
+        previewFrameTimeout?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self, !self.didFinish, !self.isPreviewReady else { return }
+            self.showPreviewError("已连接相机，但没有收到实时画面")
+        }
+        previewFrameTimeout = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 12, execute: workItem)
+    }
+
+    private func markPreviewReady() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !self.didFinish, !self.isPreviewReady else { return }
+            self.previewFrameTimeout?.cancel()
+            self.previewFrameTimeout = nil
+            self.isPreviewReady = true
+            self.setShutterEnabled(true)
+            self.hideStatus()
+            if let renderView = self.previewRenderView {
+                UIView.animate(withDuration: 0.32) {
+                    renderView.alpha = 1
+                }
+            }
+            print("PlaceEcho X5 preview: first frame rendered")
+        }
+    }
+
     private func showPreviewError(_ message: String) {
+        previewFrameTimeout?.cancel()
+        previewFrameTimeout = nil
         isPreviewReady = false
         print("PlaceEcho X5 preview failed: \(message)")
         showStatus("预览不可用 · 点按快门重试", spinning: false)
@@ -316,6 +387,7 @@ final class X5CaptureViewController: UIViewController {
         countdownValue = 3
         countdownLabel.text = String(countdownValue)
         countdownLabel.isHidden = false
+        animateCountdownValue()
         hideStatus(animated: false)
         setShutterEnabled(false)
         closeButton.isEnabled = false
@@ -334,7 +406,41 @@ final class X5CaptureViewController: UIViewController {
                 return
             }
             self.countdownLabel.text = String(self.countdownValue)
+            self.animateCountdownValue()
             UISelectionFeedbackGenerator().selectionChanged()
+        }
+    }
+
+    private func animateCountdownValue() {
+        countdownLabel.layer.removeAllAnimations()
+        countdownLabel.alpha = 0
+        countdownLabel.transform = CGAffineTransform(scaleX: 0.62, y: 0.62)
+        UIView.animate(
+            withDuration: 0.44,
+            delay: 0,
+            usingSpringWithDamping: 0.58,
+            initialSpringVelocity: 0.8
+        ) {
+            self.countdownLabel.alpha = 1
+            self.countdownLabel.transform = .identity
+        }
+    }
+
+    private func animateEntranceIfNeeded() {
+        guard !didAnimateEntrance else { return }
+        didAnimateEntrance = true
+        UIView.animate(
+            withDuration: 0.5,
+            delay: 0.08,
+            usingSpringWithDamping: 0.82,
+            initialSpringVelocity: 0.2
+        ) {
+            self.closeChrome.alpha = 1
+            self.closeChrome.transform = .identity
+            self.statusChrome.alpha = 1
+            self.statusChrome.transform = .identity
+            self.shutterButton.alpha = 0.45
+            self.shutterButton.transform = .identity
         }
     }
 
@@ -402,6 +508,8 @@ final class X5CaptureViewController: UIViewController {
     }
 
     private func stopPreview(completion: @escaping () -> Void) {
+        previewFrameTimeout?.cancel()
+        previewFrameTimeout = nil
         guard let player = previewPlayer else {
             completion()
             return
@@ -410,6 +518,7 @@ final class X5CaptureViewController: UIViewController {
             DispatchQueue.main.async {
                 player?.renderView.removeFromSuperview()
                 self?.previewPlayer = nil
+                self?.previewRenderView = nil
                 self?.isPreviewReady = false
                 completion()
             }
@@ -425,6 +534,8 @@ final class X5CaptureViewController: UIViewController {
         didFinish = true
         countdownTimer?.invalidate()
         countdownTimer = nil
+        previewFrameTimeout?.cancel()
+        previewFrameTimeout = nil
         stopPreview { [weak self] in
             guard let self else { return }
             self.dismiss(animated: true) {
@@ -435,6 +546,17 @@ final class X5CaptureViewController: UIViewController {
 }
 
 extension X5CaptureViewController: INSCameraSessionPlayerDelegate, INSCameraSessionPlayerDataSource {
+    func updateOffset(to player: INSCameraSessionPlayer) -> String? {
+        let settings = cameraManager.currentCamera?.settings
+        if let mediaOffsetV6 = settings?.mediaOffsetV6, !mediaOffsetV6.isEmpty {
+            return mediaOffsetV6
+        }
+        if let mediaOffset = settings?.mediaOffset, !mediaOffset.isEmpty {
+            return mediaOffset
+        }
+        return nil
+    }
+
     func updateRenderModelType(
         to player: INSCameraSessionPlayer,
         renderModelType: INSRenderModelType
@@ -445,8 +567,75 @@ extension X5CaptureViewController: INSCameraSessionPlayerDelegate, INSCameraSess
         renderModelType.isSelfieVideo = false
         renderModelType.touchMode = false
         renderModelType.opticalFlowType = .disflow
+        renderModelType.isHalfFisheyeBulletTime = false
         renderModelType.contentMode = .fitScreen
+        renderModelType.preferDynamicVertex = false
+        renderModelType.aiFlowBottomPercision = .unknown
+        renderModelType.dynamicAlphaFlag = false
+        renderModelType.usingFisheyeMask = false
+        if
+            let windowCropInfo,
+            windowCropInfo.srcWidth > 0,
+            windowCropInfo.srcHeight > 0,
+            windowCropInfo.dstWidth > 0,
+            windowCropInfo.dstHeight > 0
+        {
+            renderModelType.cropInfo = INSCropInfo()
+            renderModelType.cropInfo.srcWidth = Int32(windowCropInfo.srcWidth)
+            renderModelType.cropInfo.srcHeight = Int32(windowCropInfo.srcHeight)
+            renderModelType.cropInfo.dstWidth = Int32(windowCropInfo.dstWidth)
+            renderModelType.cropInfo.dstHeight = Int32(windowCropInfo.dstHeight)
+        }
+        renderModelType.aiFlowVersion = 1
+        renderModelType.expandFlowWorkRegion = true
+        renderModelType.aiFlowFrameInterval = 2
+        renderModelType.colorFusion = true
+        renderModelType.dynamicStitchType = .dynamicVideo
+        renderModelType.cameraType = cameraManager.currentCamera?.cameraType ?? ""
         return renderModelType
+    }
+
+    func updateStabilizerParam(
+        to player: INSCameraSessionPlayer
+    ) -> INSRealtimeStabilizerParam {
+        let parameter = INSRealtimeStabilizerParam()
+        if let offset = updateOffset(to: player) {
+            parameter.offset = offset
+        }
+        parameter.preferredStabMode = .still
+        parameter.isSelfie = false
+        parameter.isLiteGyro = false
+        parameter.maxFilterAngleDegree = 25
+        parameter.windSize = 3
+        parameter.fps = 30
+        return parameter
+    }
+
+    func updateStabilizerDynamicParam(
+        to player: INSCameraSessionPlayer,
+        dynamicParam: INSStabilizerDynamicParam
+    ) -> INSStabilizerDynamicParam {
+        dynamicParam.onlineFilterType = .pathPlanSlidingWin
+        return dynamicParam
+    }
+
+    func playerDidSetup(_ player: INSCameraSessionPlayer) {
+        markPreviewReady()
+    }
+
+    func playerPrepared(
+        _ player: INSCameraSessionPlayer,
+        sampleGroup: INSSampleGroup
+    ) {
+        markPreviewReady()
+    }
+
+    func playerPreviewer(
+        _ player: INSCameraSessionPlayer,
+        sampleGroup: INSSampleGroup,
+        projectionInfo: INSProjectionInfo
+    ) {
+        markPreviewReady()
     }
 
     func player(_ player: INSCameraSessionPlayer, didOccurWithError error: Error) {

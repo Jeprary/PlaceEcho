@@ -89,6 +89,7 @@ struct PlaceEchoWebView: UIViewRepresentable {
         private weak var recoveryCaptureButton: UIButton?
         private var recoveryWorkItem: DispatchWorkItem?
         private var isNativeRecoveryCapture = false
+        private var isPreparingCapture = false
         private var didRetryTerminatedWebContent = false
 
         init(captureProvider: PanoramaCaptureProviding) {
@@ -106,7 +107,7 @@ struct PlaceEchoWebView: UIViewRepresentable {
 
             let label = UILabel()
             label.translatesAutoresizingMaskIntoConstraints = false
-            label.text = "PlaceEcho"
+            label.text = "正在启动 PlaceEcho…"
             label.textColor = .secondaryLabel
             label.font = .preferredFont(forTextStyle: .body)
             label.textAlignment = .center
@@ -154,7 +155,6 @@ struct PlaceEchoWebView: UIViewRepresentable {
             recoveryWorkItem?.cancel()
             let workItem = DispatchWorkItem { [weak self, weak recoveryButton] in
                 guard let self, self.loadingView != nil else { return }
-                self.loadingLabel?.text = "页面启动较慢，你仍可直接完成 X5 拍摄。"
                 recoveryButton?.isHidden = false
             }
             recoveryWorkItem = workItem
@@ -205,7 +205,7 @@ struct PlaceEchoWebView: UIViewRepresentable {
         }
 
         @objc private func openNativeCaptureRecovery() {
-            guard captureViewController == nil else { return }
+            guard captureViewController == nil, !isPreparingCapture else { return }
             isNativeRecoveryCapture = true
             presentX5Capture(sceneID: "scene_manager_window")
         }
@@ -224,7 +224,7 @@ struct PlaceEchoWebView: UIViewRepresentable {
                 return
             }
 
-            guard captureViewController == nil else {
+            guard captureViewController == nil, !isPreparingCapture else {
                 send([
                     "type": "capture_failed",
                     "scene_id": sceneID,
@@ -241,41 +241,47 @@ struct PlaceEchoWebView: UIViewRepresentable {
         }
 
         private func presentX5Capture(sceneID: String) {
-            guard
-                let webView,
-                let presenter = webView.nearestViewController
-            else {
-                send([
-                    "type": "capture_failed",
-                    "scene_id": sceneID,
-                    "message": "Could not present the X5 capture screen.",
-                ])
-                return
-            }
-
             guard let capturePresenter = captureProvider as? PanoramaCaptureViewControllerProviding else {
                 runCapture(sceneID: sceneID)
                 return
             }
 
-            let controller: UIViewController
-            do {
-                controller = try capturePresenter.makeCaptureViewController(
-                    sceneID: sceneID
-                ) { [weak self] result in
+            isPreparingCapture = true
+            capturePresenter.prepareCaptureViewController(
+                sceneID: sceneID,
+                captureCompletion: { [weak self] result in
                     self?.captureViewController = nil
                     self?.handle(result, fallbackSceneID: sceneID)
+                },
+                preparationCompletion: { [weak self] result in
+                    guard let self else { return }
+                    self.isPreparingCapture = false
+                    switch result {
+                    case .success(let controller):
+                        guard
+                            let webView = self.webView,
+                            let presenter = webView.nearestViewController
+                        else {
+                            self.isNativeRecoveryCapture = false
+                            self.send([
+                                "type": "capture_failed",
+                                "scene_id": sceneID,
+                                "message": "Could not present the X5 capture screen.",
+                            ])
+                            return
+                        }
+                        self.captureViewController = controller
+                        presenter.present(controller, animated: true)
+                    case .failure(let error):
+                        self.isNativeRecoveryCapture = false
+                        self.send([
+                            "type": "capture_failed",
+                            "scene_id": sceneID,
+                            "message": error.localizedDescription,
+                        ])
+                    }
                 }
-            } catch {
-                send([
-                    "type": "capture_failed",
-                    "scene_id": sceneID,
-                    "message": error.localizedDescription,
-                ])
-                return
-            }
-            captureViewController = controller
-            presenter.present(controller, animated: true)
+            )
         }
 
         private func runCapture(sceneID: String) {
@@ -393,7 +399,7 @@ fileprivate final class BundledWebAppSchemeHandler: NSObject, WKURLSchemeHandler
             let data = try Data(contentsOf: fileURL, options: .mappedIfSafe)
             let response = URLResponse(
                 url: requestURL,
-                mimeType: Self.mimeType(for: fileURL.pathExtension),
+                mimeType: Self.mimeType(for: fileURL.pathExtension, data: data),
                 expectedContentLength: data.count,
                 textEncodingName: Self.textEncoding(for: fileURL.pathExtension)
             )
@@ -408,8 +414,13 @@ fileprivate final class BundledWebAppSchemeHandler: NSObject, WKURLSchemeHandler
 
     func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
 
-    private static func mimeType(for pathExtension: String) -> String {
-        switch pathExtension.lowercased() {
+    private static func mimeType(for pathExtension: String, data: Data) -> String {
+        // Development thumbnails are transcoded to JPEG for older iOS WebKit
+        // decoders while retaining the stable Web route used by the product.
+        if data.count >= 3, data[0] == 0xFF, data[1] == 0xD8, data[2] == 0xFF {
+            return "image/jpeg"
+        }
+        return switch pathExtension.lowercased() {
         case "html": "text/html"
         case "css": "text/css"
         case "js", "mjs": "text/javascript"
