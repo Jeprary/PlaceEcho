@@ -22,10 +22,12 @@ html { min-width: 320px; background: var(--bg); }
 body { margin: 0; min-width: 320px; min-height: 100vh; min-height: 100dvh; background: radial-gradient(circle at 85% 0%, rgba(62, 96, 79, .22), transparent 32rem), var(--bg); }
 button, input, textarea, select { font: inherit; }
 button { color: inherit; }
+button, [role="button"] { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+button:not(:disabled):active { opacity: .76; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
 svg { width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
 
-.project-app, .create-app { min-height: 100vh; display: flex; flex-direction: column; }
+.project-app, .create-app { min-height: 100vh; display: flex; flex-direction: column; animation: scene-manager-page-enter .42s cubic-bezier(.22,.8,.24,1) both; }
 .topbar, .create-topbar {
   width: min(100% - 56px, 1080px);
   min-height: 76px;
@@ -57,11 +59,14 @@ svg { width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-li
 
 .scene-manager-memory-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
 .scene-manager-memory-card { min-height: 350px; border: 0; border-radius: 24px; background: rgba(16,32,25,.78); box-shadow: inset 0 0 0 1px rgba(232,237,233,.09), 0 14px 42px rgba(0,0,0,.12); }
-.scene-manager-memory-card { position: relative; overflow: hidden; transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease; }
-.scene-manager-memory-card.is-ready:hover { transform: translateY(-4px); border-color: rgba(156,203,173,.34); box-shadow: var(--shadow); }
+.scene-manager-memory-card { position: relative; overflow: hidden; animation: scene-manager-card-enter .46s cubic-bezier(.22,.8,.24,1) both; transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease; }
+.scene-manager-memory-card:nth-child(2) { animation-delay: 55ms; }
+.scene-manager-memory-card:nth-child(3) { animation-delay: 110ms; }
+.scene-manager-memory-card:nth-child(n+4) { animation-delay: 150ms; }
 .scene-manager-memory-card-hit { position: absolute; inset: 0; z-index: 3; width: 100%; border: 0; background: transparent; cursor: pointer; }
 .scene-manager-memory-card-hit:disabled { cursor: not-allowed; }
-.scene-manager-memory-cover { position: relative; height: 174px; overflow: hidden; background: linear-gradient(145deg, #20382d, #0c1712); border-bottom: 1px solid var(--line); }
+.scene-manager-memory-cover { position: relative; height: 174px; overflow: hidden; background: linear-gradient(145deg, #20382d, #0c1712); border-bottom: 1px solid var(--line); transition: filter .12s ease; }
+.scene-manager-memory-cover > img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center; }
 .tone-moss .scene-manager-memory-cover { background: linear-gradient(145deg, #2d4939, #101e17); }
 .tone-gold .scene-manager-memory-cover { background: linear-gradient(145deg, #5a4e35, #19180f); }
 .tone-forest .scene-manager-memory-cover { background: linear-gradient(145deg, #25483f, #0a1713); }
@@ -73,7 +78,9 @@ svg { width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-li
 .scene-manager-panorama-lines i:nth-child(3) { transform: rotate(-13deg); }
 .scene-manager-memory-cover > span { position: absolute; right: 16px; bottom: 10px; left: 16px; overflow: hidden; color: var(--text); font-size: 9px; text-shadow: 0 1px 3px rgba(0,0,0,.7); white-space: nowrap; text-overflow: ellipsis; }
 .scene-manager-memory-card-hit:focus-visible { outline: 2px solid var(--gold); outline-offset: -3px; }
-.scene-manager-memory-card-body { padding: 22px 22px 21px; }
+.scene-manager-memory-card-body { padding: 22px 22px 21px; transition: filter .12s ease; }
+.scene-manager-memory-card-hit:not(:disabled):active ~ .scene-manager-memory-cover,
+.scene-manager-memory-card-hit:not(:disabled):active ~ .scene-manager-memory-card-body { filter: brightness(.86); }
 .scene-manager-status-pill { display: inline-flex; align-items: center; gap: 5px; width: fit-content; padding: 5px 8px; border-radius: 999px; color: var(--gold); background: rgba(172,128,60,.18); font-size: 9px; font-weight: 650; white-space: nowrap; }
 .scene-manager-status-pill svg { width: 11px; height: 11px; }
 .scene-manager-memory-card-body h3 { margin: 15px 0 7px; font-size: 22px; font-weight: 680; letter-spacing: -.025em; }
@@ -95,7 +102,7 @@ svg { width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-li
 .stepper li.complete span { background: rgba(156,203,173,.52); }
 .stepper li.active span { background: var(--green); transform: scaleX(1.08); }
 .create-panel { max-width: 780px; margin: 0 auto; overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
-.panel-content { min-height: 500px; padding: 0 26px 32px; }
+.panel-content { min-height: 500px; padding: 0 26px 32px; animation: scene-manager-step-enter .34s cubic-bezier(.22,.8,.24,1) both; }
 .panel-title { text-align: center; }
 .panel-title h2 { margin: 0 0 10px; font-size: 40px; font-weight: 730; letter-spacing: -.045em; line-height: 1.15; }
 .panel-title h2:focus { outline: none; }
@@ -108,7 +115,7 @@ svg { width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-li
 .panorama-picker.has-file { border-style: solid; background: rgba(48,79,61,.24); }
 .acquisition-options { margin-top: 34px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .acquisition-options > button { position: relative; min-height: 190px; padding: 26px; display: flex; flex-direction: column; align-items: flex-start; gap: 7px; border: 0; border-radius: 24px; background: rgba(25,43,35,.72); box-shadow: inset 0 0 0 1px rgba(232,237,233,.09), 0 14px 38px rgba(0,0,0,.13); cursor: pointer; text-align: left; transition: transform .2s ease, background .2s ease, box-shadow .2s ease; }
-.acquisition-options > button:hover { transform: translateY(-3px); background: rgba(30,51,41,.88); box-shadow: inset 0 0 0 1px rgba(156,203,173,.24), 0 18px 48px rgba(0,0,0,.2); }
+.acquisition-options > button:active { transform: scale(.985); }
 .acquisition-options > .camera-capture-option { background: linear-gradient(145deg, rgba(58,98,75,.48), rgba(19,38,29,.78)); box-shadow: inset 0 0 0 1px rgba(156,203,173,.19), 0 14px 38px rgba(0,0,0,.15); }
 .acquisition-options > button > svg { position: absolute; right: 18px; bottom: 18px; width: 16px; color: var(--green); }
 .acquisition-icon { display: grid; place-items: center; width: 52px; height: 52px; margin-bottom: 22px; border-radius: 50%; background: rgba(156,203,173,.11); color: var(--green); }
@@ -201,6 +208,26 @@ svg { width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-li
 .primary-button { min-width: 168px; min-height: 50px; padding: 12px 24px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 0; border-radius: 999px; background: var(--gold); color: #18201c; cursor: pointer; font-size: 14px; font-weight: 750; box-shadow: 0 12px 34px rgba(0,0,0,.2); }
 .primary-button:disabled { border-color: #33443b; background: #33443b; color: #718078; cursor: not-allowed; }
 .primary-button svg { width: 14px; }
+
+@keyframes scene-manager-page-enter {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scene-manager-card-enter {
+  from { opacity: 0; transform: translateY(12px) scale(.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes scene-manager-step-enter {
+  from { opacity: 0; transform: translateX(10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .scene-manager-memory-card.is-ready:hover { transform: translateY(-4px); border-color: rgba(156,203,173,.34); box-shadow: var(--shadow); }
+  .acquisition-options > button:hover { transform: translateY(-3px); background: rgba(30,51,41,.88); box-shadow: inset 0 0 0 1px rgba(156,203,173,.24), 0 18px 48px rgba(0,0,0,.2); }
+}
 
 @media (max-width: 900px) {
   .scene-manager-memory-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -342,5 +369,6 @@ svg { width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-li
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+  html { scroll-behavior: auto !important; }
+  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; animation-delay: 0ms !important; }
 }

@@ -24,6 +24,8 @@ export function SceneManagerPreview({ onOpenMemory = dispatchOpenMemoryIntent }:
       summary: "正在整理你选择的内容",
       mediaCount: request.media.length,
       panoramaName: request.panoramaName,
+      coverUrl: null,
+      fallbackCoverUrl: null,
       status: "processing",
       canEnterSpace: false,
       tone: "moss",

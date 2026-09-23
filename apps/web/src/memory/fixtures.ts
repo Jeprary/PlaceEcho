@@ -14,6 +14,8 @@ export type MemoryItem = {
   summary: string;
   mediaCount: number;
   panoramaName: string;
+  coverUrl: string | null;
+  fallbackCoverUrl: string | null;
   status: "ready" | "processing";
   canEnterSpace: boolean;
   tone: "forest" | "moss" | "gold";
@@ -43,6 +45,8 @@ export const initialMemories: MemoryItem[] = previewScene.memories.map((memory, 
     summary: memory.summary ?? "这段回忆还没有摘要",
     mediaCount: memory.media_ids.length,
     panoramaName,
+    coverUrl: previewScene.world.panorama_url,
+    fallbackCoverUrl: null,
     status: canEnterSpace ? "ready" : "processing",
     canEnterSpace,
     tone: tones[index % tones.length],

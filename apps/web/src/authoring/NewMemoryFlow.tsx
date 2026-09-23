@@ -214,7 +214,7 @@ export function NewMemoryFlow({ sceneId, onCancel, onCreate }: NewMemoryFlowProp
 
         <section className="create-panel">
           {step === 0 && (
-            <div className="panel-content panorama-step">
+            <div className="panel-content panorama-step" key="panorama-step">
               <div className="panel-title"><h2 ref={stepHeadingRef} tabIndex={-1}>获取全景图</h2><p>连接全景相机拍摄，或导入已有全景</p></div>
               <div className="acquisition-options">
                 <button className="camera-capture-option" type="button" onClick={() => completePanorama("Insta360 空间全景.jpg")}>
@@ -230,7 +230,7 @@ export function NewMemoryFlow({ sceneId, onCancel, onCreate }: NewMemoryFlowProp
           )}
 
           {step === 1 && (
-            <div className="panel-content media-step">
+            <div className="panel-content media-step" key="media-step">
               <div className="panel-title"><h2 ref={stepHeadingRef} tabIndex={-1}>为这里选择一些回忆</h2><p>添加 6–12 项照片、视频或声音</p></div>
               <button className="media-upload" type="button" onClick={() => mediaInput.current?.click()}>
                 <UploadIcon /><span><strong>从设备选择</strong><small>可一次选择多项</small></span>
@@ -254,7 +254,7 @@ export function NewMemoryFlow({ sceneId, onCancel, onCreate }: NewMemoryFlowProp
           )}
 
           {step === 2 && (
-            <div className="panel-content voice-step">
+            <div className="panel-content voice-step" key="voice-step">
               <div className="panel-title"><h2 ref={stepHeadingRef} tabIndex={-1}>说说这个空间</h2><p>它是什么地方？你为什么想把它留下？</p></div>
               <div className={`voice-recorder voice-recorder-${voiceState}`}>
                 <strong>{formatDuration(recordingSeconds)}</strong>

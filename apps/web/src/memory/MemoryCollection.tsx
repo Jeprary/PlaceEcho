@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { MemoryItem, MemoryOpenIntent } from "./fixtures";
 
 type MemoryCollectionProps = {
@@ -18,7 +19,11 @@ export function MemoryCollection({ memories, onOpenMemory }: MemoryCollectionPro
             disabled={!memory.canEnterSpace || !memory.memoryId}
           />
           <div className="scene-manager-memory-cover" aria-hidden="true">
-            <div className="scene-manager-panorama-lines"><i /><i /><i /></div>
+            <MemoryCoverImage
+              key={`${memory.coverUrl ?? "none"}:${memory.fallbackCoverUrl ?? "none"}`}
+              primaryUrl={memory.coverUrl}
+              fallbackUrl={memory.fallbackCoverUrl}
+            />
             <span>{memory.panoramaName}</span>
           </div>
           <div className="scene-manager-memory-card-body">
@@ -33,6 +38,24 @@ export function MemoryCollection({ memories, onOpenMemory }: MemoryCollectionPro
         </article>
       ))}
     </div>
+  );
+}
+
+function MemoryCoverImage({ primaryUrl, fallbackUrl }: { primaryUrl: string | null; fallbackUrl: string | null }) {
+  const [activeUrl, setActiveUrl] = useState(primaryUrl ?? fallbackUrl);
+
+  if (!activeUrl) {
+    return <div className="scene-manager-panorama-lines"><i /><i /><i /></div>;
+  }
+
+  return (
+    <img
+      key={activeUrl}
+      src={activeUrl}
+      alt=""
+      decoding="async"
+      onError={() => setActiveUrl(activeUrl === primaryUrl ? fallbackUrl : null)}
+    />
   );
 }
 
