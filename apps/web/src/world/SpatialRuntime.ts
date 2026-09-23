@@ -36,6 +36,11 @@ import {
   WindController,
   type WindOrientationSource,
 } from "./WindController";
+import {
+  getAnchorVolumeDistance,
+  resolveAnchorAxis,
+  setAnchorCapturePosition,
+} from "./anchorGeometry";
 import { selectRuntimeMemory } from "./runtimeTarget";
 import { getWorldSpawnTransform } from "./worldSpawn";
 
@@ -81,6 +86,7 @@ export class SpatialRuntime {
   private readonly windController: WindController;
   private readonly resizeObserver: ResizeObserver;
   private readonly anchorPosition = new Vector3();
+  private readonly anchorAxis = new Vector3(0, 1, 0);
   private readonly anchorFocusPosition = new Vector3();
   private readonly anchorCapturePosition = new Vector3();
   private readonly anchorGroup: Group;
@@ -144,12 +150,8 @@ export class SpatialRuntime {
     this.anchorPosition.fromArray(anchorPosition);
     this.anchorFocusPosition.copy(this.anchorPosition);
     const anchorNormal = this.memory.anchor.normal;
-    if (anchorNormal) {
-      this.anchorFocusPosition.addScaledVector(
-        new Vector3().fromArray(anchorNormal).normalize(),
-        1,
-      );
-    }
+    this.anchorAxis.copy(resolveAnchorAxis(anchorNormal));
+    this.anchorFocusPosition.addScaledVector(this.anchorAxis, 1);
 
     this.scene.background = new Color(0x07100e);
     this.scene.fog = new Fog(0x07100e, 10, 24);
@@ -602,14 +604,11 @@ export class SpatialRuntime {
     } else if (proximity === "approaching") {
       if (this.anchorEncounterArmed && !this.anchorCaptureActive) {
         this.anchorCaptureActive = true;
-        this.anchorCapturePosition.set(
-          this.anchorPosition.x,
-          MathUtils.clamp(
-            this.camera.position.y,
-            this.anchorPosition.y + 0.2,
-            this.anchorPosition.y + 1.8,
-          ),
-          this.anchorPosition.z,
+        setAnchorCapturePosition(
+          this.anchorCapturePosition,
+          this.camera.position,
+          this.anchorPosition,
+          this.anchorAxis,
         );
         this.windController.setInputLocked(true);
         this.windController.captureTo(this.anchorCapturePosition);
@@ -677,18 +676,11 @@ export class SpatialRuntime {
   }
 
   private distanceToAnchorVolume(): number {
-    const horizontalDistance = Math.hypot(
-      this.camera.position.x - this.anchorPosition.x,
-      this.camera.position.z - this.anchorPosition.z,
+    return getAnchorVolumeDistance(
+      this.camera.position,
+      this.anchorPosition,
+      this.anchorAxis,
     );
-    const volumeBottom = this.anchorPosition.y;
-    const volumeTop = volumeBottom + 2;
-    const verticalDistance = Math.max(
-      volumeBottom - this.camera.position.y,
-      this.camera.position.y - volumeTop,
-      0,
-    );
-    return Math.hypot(horizontalDistance, verticalDistance);
   }
 
   private readonly resolveCameraCollision = (
@@ -746,6 +738,10 @@ export class SpatialRuntime {
   private createMemoryAnchor(): { group: Group; plume: Mesh } {
     const group = new Group();
     group.position.copy(this.anchorPosition);
+    group.quaternion.setFromUnitVectors(
+      new Vector3(0, 1, 0),
+      this.anchorAxis,
+    );
 
     const halo = new Mesh(
       new TorusGeometry(0.095, 0.0045, 10, 64),
