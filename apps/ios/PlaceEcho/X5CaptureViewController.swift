@@ -90,12 +90,15 @@ final class X5CaptureViewController: UIViewController {
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        guard !didFinish else { return }
         countdownTimer?.invalidate()
         countdownTimer = nil
         previewFrameTimeout?.cancel()
         previewFrameTimeout = nil
         previewPlayer?.stopRunning(completion: nil)
         previewPlayer = nil
+        previewRenderView = nil
+        cameraManager.shutdown()
     }
 
     private func buildInterface() {
@@ -275,6 +278,7 @@ final class X5CaptureViewController: UIViewController {
         player.dataSource = self
         player.needCameraPreviewStreamAutoRotate = true
         player.render.renderModelType.displayType = .sphereStitch
+        player.debug = true
         previewPlayer = player
 
         let renderView = player.renderView
@@ -291,13 +295,17 @@ final class X5CaptureViewController: UIViewController {
 
         let optionTypes = [
             NSNumber(value: INSCameraOptionsType.videoEncode.rawValue),
-            NSNumber(value: INSCameraOptionsType.videoResolution.rawValue),
             NSNumber(value: INSCameraOptionsType.windowCropInfo.rawValue),
         ]
         INSCameraManager.shared().commandManager.getOptionsWithTypes(optionTypes) {
             [weak self, weak player] error, options, _ in
             DispatchQueue.main.async {
-                guard let self, let player, !self.didFinish else { return }
+                guard
+                    let self,
+                    let player,
+                    !self.didFinish,
+                    self.previewPlayer === player
+                else { return }
                 guard let options else {
                     self.showPreviewError(
                         error?.localizedDescription ?? "无法读取 X5 预览参数"
@@ -307,16 +315,32 @@ final class X5CaptureViewController: UIViewController {
 
                 self.windowCropInfo = options.windowCropInfo
                 player.videoStreamEncode = options.videoEncode
-                player.expectedVideoResolution = options.videoResolution
-                player.previewStreamType = .main
+                // `videoResolution` is the camera's recording resolution, not
+                // necessarily its live-preview transport size. The official
+                // sample configures both channels explicitly and renders the
+                // lower-bandwidth secondary stream. Feeding an X5 recording
+                // resolution into the preview decoder can produce a connected
+                // but permanently black render view.
+                player.expectedVideoResolution = INSVideoResolution1024x512x15
+                player.expectedVideoResolutionSecondary = INSVideoResolution960x480x30
+                player.previewStreamType = .secondary
 
                 let cameraName = self.cameraManager.currentCamera?.name ?? "unknown"
                 let cameraType = self.cameraManager.currentCamera?.cameraType ?? "unknown"
-                print("PlaceEcho X5 preview: camera=\(cameraName), type=\(cameraType)")
+                print(
+                    "PlaceEcho X5 preview: camera=\(cameraName), "
+                        + "type=\(cameraType), stream=secondary, "
+                        + "main=1024x512@15, secondary=960x480@30, "
+                        + "encode=\(options.videoEncode.rawValue)"
+                )
 
                 player.startRunning { [weak self] error in
                     DispatchQueue.main.async {
-                        guard let self, !self.didFinish else { return }
+                        guard
+                            let self,
+                            !self.didFinish,
+                            self.previewPlayer === player
+                        else { return }
                         if let error {
                             self.showPreviewError(error.localizedDescription)
                             return
@@ -341,7 +365,7 @@ final class X5CaptureViewController: UIViewController {
             self.showPreviewError("已连接相机，但没有收到实时画面")
         }
         previewFrameTimeout = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 12, execute: workItem)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15, execute: workItem)
     }
 
     private func markPreviewReady() {
@@ -538,6 +562,7 @@ final class X5CaptureViewController: UIViewController {
         previewFrameTimeout = nil
         stopPreview { [weak self] in
             guard let self else { return }
+            self.cameraManager.shutdown()
             self.dismiss(animated: true) {
                 self.completion(result)
             }
@@ -620,13 +645,17 @@ extension X5CaptureViewController: INSCameraSessionPlayerDelegate, INSCameraSess
     }
 
     func playerDidSetup(_ player: INSCameraSessionPlayer) {
-        markPreviewReady()
+        guard player === previewPlayer else { return }
+        // Setup only means that the SDK pipeline exists. It does not guarantee
+        // that a decoded frame reached the renderer yet.
+        print("PlaceEcho X5 preview: player setup completed")
     }
 
     func playerPrepared(
         _ player: INSCameraSessionPlayer,
         sampleGroup: INSSampleGroup
     ) {
+        guard player === previewPlayer else { return }
         markPreviewReady()
     }
 
@@ -635,12 +664,14 @@ extension X5CaptureViewController: INSCameraSessionPlayerDelegate, INSCameraSess
         sampleGroup: INSSampleGroup,
         projectionInfo: INSProjectionInfo
     ) {
+        guard player === previewPlayer else { return }
         markPreviewReady()
     }
 
     func player(_ player: INSCameraSessionPlayer, didOccurWithError error: Error) {
         DispatchQueue.main.async { [weak self] in
-            self?.showPreviewError(error.localizedDescription)
+            guard let self, self.previewPlayer === player else { return }
+            self.showPreviewError(error.localizedDescription)
         }
     }
 }
