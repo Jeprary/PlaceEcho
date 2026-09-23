@@ -101,7 +101,10 @@ so X5 capture must be validated on an iPhone.
 Open `PlaceEcho.xcodeproj`, select a development team, and use an iPhone target.
 The Xcode build phase runs the Web production build and embeds it as `WebApp`, so
 the interface remains available while the iPhone switches between normal Wi-Fi
-and the X5 hotspot. Node.js and pnpm must be available in the macOS login shell.
+and the X5 hotspot. The iOS shell serves these files through an internal
+`placeecho://` resource handler rather than `file://` so physical-device WebKit
+does not need a sandbox extension for the app bundle. Node.js and pnpm must be
+available in the macOS login shell.
 
 For the current Personal Team build, open the app on normal Wi-Fi, press the Web
 capture button, and then manually connect the iPhone to the X5 Wi-Fi. The bundled
