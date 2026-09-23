@@ -42,10 +42,14 @@ test("analyzes selected media, grounds final views, and persists Web geometry", 
         groundings: _scene.memories.map((memory, index) => ({ memory_id: memory.id, world_grounding: index === 0 ? { view_id: "front", x: 20, y: 30 } : null })),
         hero_recommendation: {
           action: "skip" as const,
-          memory_id: null,
-          object_name: null,
-          observations: [],
-          reconstruction_mode: null,
+          memory_id: _scene.memories[0]!.id,
+          object_name: "Ignored contradictory candidate",
+          observations: [{
+            media_id: _scene.memories[0]!.media_ids[0]!,
+            bbox_xyxy_norm: [0.1, 0.1, 0.9, 0.9] as [number, number, number, number],
+            view_role: "primary" as const,
+          }],
+          reconstruction_mode: "single_view" as const,
           confidence: 0.2,
           rationale: "No suitable isolated object.",
           uncertainty_codes: [],
@@ -80,6 +84,10 @@ test("analyzes selected media, grounds final views, and persists Web geometry", 
   }>();
   current = groundingResult.scene;
   assert.equal(groundingResult.hero_recommendation.action, "skip");
+  assert.equal(
+    (groundingResult.hero_recommendation as { memory_id?: string | null }).memory_id,
+    null,
+  );
   assert.equal(groundingResult.hero_job_id, null);
   assert.deepEqual(current.memories[0]!.anchor.world_grounding, { view_id: "front", x: 20, y: 30 });
   const memoryId = current.memories[0]!.id;

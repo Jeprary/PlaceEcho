@@ -226,6 +226,9 @@ pixels and at most one Scene-wide Hero recommendation. The API validates that
 every Memory has one grounding result, each pixel lies inside its named view,
 and every Hero observation references media in the recommended Memory. A
 changed grounding clears existing 3D position and normal.
+When the model chooses `action: "skip"`, the backend treats that action as
+authoritative and discards any contradictory candidate fields instead of
+rejecting otherwise valid world-grounding pixels.
 
 The optional `hero_generation` object requests automatic creation only when the
 model returns `action: "trigger_3d"` with confidence at least `0.75`. Passing
