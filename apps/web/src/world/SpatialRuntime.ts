@@ -36,16 +36,27 @@ import {
   WindController,
   type WindOrientationSource,
 } from "./WindController";
+import { selectRuntimeMemory } from "./runtimeTarget";
+import { getWorldSpawnTransform } from "./worldSpawn";
 
 export type WorldLoadStatus = "loading" | "ready" | "fallback";
+export type WorldLoadPhase = "opening" | "decoding" | "preparing";
 
-const CAMERA_COLLIDER_RADIUS = 0.2;
+export interface WorldLoadProgress {
+  phase: WorldLoadPhase;
+  value: number;
+}
+
+const CAMERA_COLLIDER_RADIUS = 0.12;
 const CAMERA_BOUNDS_INSET = CAMERA_COLLIDER_RADIUS + 0.02;
+const ESTIMATED_SPZ_TRANSFER_MS = 240;
+const ESTIMATED_SPZ_DECODE_MS = 1_800;
 
 export interface SpatialRuntimeSnapshot {
   proximity: AnchorProximity;
   distance: number;
   anchorId: string;
+  memoryId: string;
   memoryName: string;
   reachedPresentationActive: boolean;
 }
@@ -54,13 +65,16 @@ export interface SpatialRuntimeOptions {
   scene: PlaceEchoScene;
   onSnapshot?: (snapshot: SpatialRuntimeSnapshot) => void;
   onWorldStatus?: (status: WorldLoadStatus) => void;
+  onWorldProgress?: (progress: WorldLoadProgress) => void;
   orientationSource?: WindOrientationSource;
   thresholds?: ProximityThresholds;
+  reachedPresentationControl?: "timed" | "external";
+  targetMemoryId?: string;
 }
 
 export class SpatialRuntime {
   private readonly scene = new Scene();
-  private readonly camera = new PerspectiveCamera(58, 1, 0.05, 80);
+  private readonly camera = new PerspectiveCamera(90, 1, 0.05, 80);
   private readonly renderer: WebGLRenderer;
   private readonly sparkRenderer: SparkRenderer;
   private readonly clock = new Clock();
@@ -76,6 +90,8 @@ export class SpatialRuntime {
   private readonly thresholds: ProximityThresholds;
   private readonly onSnapshot?: (snapshot: SpatialRuntimeSnapshot) => void;
   private readonly onWorldStatus?: (status: WorldLoadStatus) => void;
+  private readonly onWorldProgress?: (progress: WorldLoadProgress) => void;
+  private readonly reachedPresentationControl: "timed" | "external";
   private readonly isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
   private readonly colliderOctree = new Octree();
   private readonly cameraCollider = new Sphere(
@@ -89,8 +105,10 @@ export class SpatialRuntime {
   private readonly debugOrigin =
     new URLSearchParams(window.location.search).get("debugOrigin") === "1";
   private animationFrame: number | null = null;
+  private worldLoadProgressFrame: number | null = null;
   private worldLoadTimer: number | null = null;
   private reachedResumeTimer: number | null = null;
+  private colliderLoadPromise: Promise<void> = Promise.resolve();
   private splatMesh: SplatMesh | null = null;
   private splatRevealProgress: ReturnType<typeof dyno.dynoFloat> | null = null;
   private splatFormationElapsedSeconds = 0;
@@ -106,16 +124,20 @@ export class SpatialRuntime {
   private splatFormationComplete = false;
   private gyroscopeEnabled = false;
   private disposed = false;
+  private lastWorldLoadProgress = 0;
 
   constructor(
     private readonly container: HTMLElement,
     options: SpatialRuntimeOptions,
   ) {
     this.sourceScene = options.scene;
-    this.memory = this.getPositionedMemory(options.scene);
+    this.memory = selectRuntimeMemory(options.scene, options.targetMemoryId);
     this.thresholds = options.thresholds ?? DEFAULT_PROXIMITY_THRESHOLDS;
     this.onSnapshot = options.onSnapshot;
     this.onWorldStatus = options.onWorldStatus;
+    this.onWorldProgress = options.onWorldProgress;
+    this.reachedPresentationControl =
+      options.reachedPresentationControl ?? "timed";
 
     const anchorPosition = this.memory.anchor.position;
     if (!anchorPosition) {
@@ -137,12 +159,9 @@ export class SpatialRuntime {
       this.camera.position.set(2.8, 3, 3.5);
       this.camera.lookAt(0, 0.7, 0);
     } else {
-      this.camera.position.set(
-        this.anchorPosition.x - 0.6,
-        1.55,
-        this.anchorPosition.z + 1.05,
-      );
-      this.camera.lookAt(this.anchorFocusPosition);
+      const spawn = getWorldSpawnTransform(options.scene);
+      this.camera.position.fromArray(spawn.position);
+      this.camera.quaternion.fromArray(spawn.quaternion);
     }
 
     this.renderer = new WebGLRenderer({
@@ -177,6 +196,7 @@ export class SpatialRuntime {
       orientationSource: options.orientationSource,
       startsActive: false,
       resolvePosition: this.resolveCameraCollision,
+      onSteeringInput: this.requestInitialGlide,
     });
     this.resizeObserver = new ResizeObserver(this.resize);
   }
@@ -197,10 +217,28 @@ export class SpatialRuntime {
   async enableGyroscope(): Promise<boolean> {
     const enabled = await this.windController.enableGyroscope();
     this.gyroscopeEnabled = enabled;
-    if (enabled && this.worldReady && this.splatFormationComplete) {
-      this.startGlide();
-    }
     return enabled;
+  }
+
+  completeReachedPresentation(): void {
+    if (!this.reachedPresentationActive || this.disposed) return;
+    if (this.reachedResumeTimer !== null) {
+      window.clearTimeout(this.reachedResumeTimer);
+      this.reachedResumeTimer = null;
+    }
+    this.reachedPresentationActive = false;
+    this.publishSnapshot("reached", this.distanceToAnchorVolume(), true);
+    this.reachedResumeTimer = window.setTimeout(() => {
+      if (this.disposed) return;
+      this.windController.turnBy(MathUtils.degToRad(100));
+      this.reachedResumeTimer = window.setTimeout(() => {
+        this.reachedResumeTimer = null;
+        if (!this.disposed) {
+          this.windController.setInputLocked(false);
+          this.startGlideWhenColliderReady();
+        }
+      }, 2_300);
+    }, 520);
   }
 
   dispose(): void {
@@ -208,6 +246,10 @@ export class SpatialRuntime {
     if (this.animationFrame !== null) {
       cancelAnimationFrame(this.animationFrame);
       this.animationFrame = null;
+    }
+    if (this.worldLoadProgressFrame !== null) {
+      cancelAnimationFrame(this.worldLoadProgressFrame);
+      this.worldLoadProgressFrame = null;
     }
     if (this.worldLoadTimer !== null) {
       window.clearTimeout(this.worldLoadTimer);
@@ -241,6 +283,8 @@ export class SpatialRuntime {
     }
 
     this.onWorldStatus?.("loading");
+    this.reportWorldLoadProgress("opening", 0.03, true);
+    this.startWorldLoadProgressEstimate();
     const reveal = this.createSplatReveal();
     const splat = new SplatMesh({
       url: splatUrl,
@@ -248,6 +292,14 @@ export class SpatialRuntime {
       lod: false,
       enableLod: false,
       objectModifier: reveal.modifier,
+      onProgress: (event) => {
+        if (!event.lengthComputable || event.total <= 0) return;
+        const loadedRatio = MathUtils.clamp(event.loaded / event.total, 0, 1);
+        this.reportWorldLoadProgress(
+          "opening",
+          0.03 + loadedRatio * 0.11,
+        );
+      },
     });
     splat.opacity = 1;
     splat.visible = false;
@@ -256,19 +308,28 @@ export class SpatialRuntime {
     this.scene.add(splat);
 
     try {
-      const supportTasks: Promise<unknown>[] = [];
-      if (colliderUrl) supportTasks.push(this.loadCollider(colliderUrl));
-      await Promise.all(supportTasks);
-      if (this.disposed) {
-        splat.dispose();
-        return;
-      }
+      // Start collision loading immediately, but do not keep the visual world
+      // behind the loading cover while this independent support asset parses.
+      this.colliderLoadPromise = colliderUrl
+        ? this.loadCollider(colliderUrl).catch((error: unknown) => {
+            console.warn("PlaceEcho collider could not be loaded.", error);
+          })
+        : Promise.resolve();
       await splat.initialized;
       if (this.disposed) {
         splat.dispose();
         return;
       }
-      splat.visible = true;
+      if (this.worldLoadProgressFrame !== null) {
+        cancelAnimationFrame(this.worldLoadProgressFrame);
+        this.worldLoadProgressFrame = null;
+      }
+      this.reportWorldLoadProgress("preparing", 0.95, true);
+      await this.prewarmWorldPresentation(splat);
+      if (this.disposed) {
+        splat.dispose();
+        return;
+      }
       this.beginWorldPresentation();
     } catch (error) {
       if (this.disposed) return;
@@ -287,7 +348,81 @@ export class SpatialRuntime {
     this.splatFormationActive = true;
     this.splatFormationComplete = false;
     this.worldReady = true;
+    this.reportWorldLoadProgress("preparing", 1, true);
     this.onWorldStatus?.("ready");
+  }
+
+  private reportWorldLoadProgress(
+    phase: WorldLoadPhase,
+    value: number,
+    force = false,
+  ): void {
+    const nextValue = Math.max(
+      this.lastWorldLoadProgress,
+      MathUtils.clamp(value, 0, 1),
+    );
+    if (!force && nextValue - this.lastWorldLoadProgress < 0.01) return;
+    this.lastWorldLoadProgress = nextValue;
+    this.onWorldProgress?.({ phase, value: nextValue });
+  }
+
+  private startWorldLoadProgressEstimate(): void {
+    if (this.worldLoadProgressFrame !== null || this.disposed) return;
+    const startedAt = performance.now();
+    const update = (now: number) => {
+      if (this.disposed) {
+        this.worldLoadProgressFrame = null;
+        return;
+      }
+      const elapsed = now - startedAt;
+      if (elapsed < ESTIMATED_SPZ_TRANSFER_MS) {
+        this.reportWorldLoadProgress(
+          "opening",
+          MathUtils.lerp(0.03, 0.14, elapsed / ESTIMATED_SPZ_TRANSFER_MS),
+        );
+      } else {
+        const decodeRatio = MathUtils.clamp(
+          (elapsed - ESTIMATED_SPZ_TRANSFER_MS) / ESTIMATED_SPZ_DECODE_MS,
+          0,
+          1,
+        );
+        this.reportWorldLoadProgress(
+          "decoding",
+          MathUtils.lerp(0.14, 0.92, decodeRatio),
+        );
+      }
+      if (
+        elapsed < ESTIMATED_SPZ_TRANSFER_MS + ESTIMATED_SPZ_DECODE_MS
+      ) {
+        this.worldLoadProgressFrame = requestAnimationFrame(update);
+      } else {
+        this.worldLoadProgressFrame = null;
+      }
+    };
+    this.worldLoadProgressFrame = requestAnimationFrame(update);
+  }
+
+  private async prewarmWorldPresentation(splat: SplatMesh): Promise<void> {
+    splat.visible = true;
+    if (this.splatRevealProgress) {
+      this.splatRevealProgress.value = 0;
+      splat.updateVersion();
+    }
+
+    // Keep the opaque loading cover up while SparkJS compiles and renders a
+    // few real frames. The reveal then begins with an already-hot pipeline.
+    await new Promise<void>((resolve) => {
+      let renderedFrames = 0;
+      const waitForFrame = () => {
+        renderedFrames += 1;
+        if (this.disposed || renderedFrames >= 3) {
+          resolve();
+          return;
+        }
+        requestAnimationFrame(waitForFrame);
+      };
+      requestAnimationFrame(waitForFrame);
+    });
   }
 
   private createSplatReveal() {
@@ -317,9 +452,13 @@ export class SpatialRuntime {
               revealHash = (revealHash >> 22u) ^ revealHash;
               float revealSample = float(revealHash) / 4294967295.0;
               float revealDensity = mix(0.06, 1.0, eased);
-              ${outputs.gsplat}.rgba.a = revealSample <= revealDensity
-                ? ${inputs.gsplat}.rgba.a * eased
-                : 0.0;
+              float densityFade = smoothstep(
+                revealSample - 0.045,
+                revealSample + 0.045,
+                revealDensity
+              );
+              ${outputs.gsplat}.rgba.a = ${inputs.gsplat}.rgba.a
+                * eased * densityFade;
             `);
           },
         });
@@ -360,6 +499,14 @@ export class SpatialRuntime {
     gltf.scene.name = "placeecho-world-collider";
     this.collider = gltf.scene;
     this.scene.add(gltf.scene);
+    if (!this.debugOrigin) {
+      const validatedSpawn = this.camera.position.clone();
+      const correction = this.resolveCameraCollision(validatedSpawn);
+      if (correction) {
+        console.warn("PlaceEcho spawn intersected the Collider and was corrected.");
+        this.camera.position.copy(validatedSpawn);
+      }
+    }
   }
 
   private readonly resize = (): void => {
@@ -390,25 +537,22 @@ export class SpatialRuntime {
       if (this.splatFormationElapsedSeconds >= totalFormationSeconds) {
         this.splatFormationActive = false;
         this.splatFormationComplete = true;
-        if (this.splatMesh) {
-          this.splatMesh.objectModifier = undefined;
-          this.splatMesh.updateGenerator();
-        }
+        // Keep the completed modifier in place. Rebuilding the generator at
+        // the exact reveal boundary caused a visible hitch on mobile GPUs.
         this.splatRevealProgress = null;
         this.anchorGroup.visible = true;
-        if (
-          !this.debugOrigin &&
-          (!this.isCoarsePointer || this.gyroscopeEnabled)
-        ) {
-          this.startGlide();
-        }
       }
     }
     this.windController.update(deltaSeconds);
     if (this.splatFormationComplete) {
       this.updateAnchor(this.clock.elapsedTime);
     }
-    this.renderer.render(this.scene, this.camera);
+    // The memory overlay needs the GPU for image/video compositing. The world
+    // camera is stationary here, so preserve its last rendered frame instead
+    // of competing with each slide transition.
+    if (!this.reachedPresentationActive) {
+      this.renderer.render(this.scene, this.camera);
+    }
     this.animationFrame = requestAnimationFrame(this.renderFrame);
   };
 
@@ -442,27 +586,17 @@ export class SpatialRuntime {
       this.reachedPresentationActive = true;
       this.windController.endCapture();
       this.windController.arrive();
-      const flightDurationSeconds = MathUtils.clamp(
-        elapsedSeconds - this.currentFlightStartedAt,
-        3,
-        8,
-      );
-      this.reachedResumeTimer = window.setTimeout(() => {
-        if (this.disposed) return;
-        this.reachedPresentationActive = false;
-        this.publishSnapshot("reached", this.distanceToAnchorVolume(), true);
+      if (this.reachedPresentationControl === "timed") {
+        const flightDurationSeconds = MathUtils.clamp(
+          elapsedSeconds - this.currentFlightStartedAt,
+          3,
+          8,
+        );
         this.reachedResumeTimer = window.setTimeout(() => {
-          if (this.disposed) return;
-          this.windController.turnBy(MathUtils.degToRad(100));
-          this.reachedResumeTimer = window.setTimeout(() => {
-            this.reachedResumeTimer = null;
-            if (!this.disposed) {
-              this.windController.setInputLocked(false);
-              this.startGlide();
-            }
-          }, 2_300);
-        }, 520);
-      }, flightDurationSeconds * 1_000);
+          this.reachedResumeTimer = null;
+          this.completeReachedPresentation();
+        }, flightDurationSeconds * 1_000);
+      }
     } else if (proximity === "approaching") {
       if (this.anchorEncounterArmed && !this.anchorCaptureActive) {
         this.anchorCaptureActive = true;
@@ -509,6 +643,7 @@ export class SpatialRuntime {
       proximity,
       distance,
       anchorId: this.memory.anchor.id,
+      memoryId: this.memory.id,
       memoryName: this.memory.name,
       reachedPresentationActive: this.reachedPresentationActive,
     });
@@ -517,6 +652,27 @@ export class SpatialRuntime {
   private startGlide(): void {
     this.currentFlightStartedAt = this.clock.elapsedTime;
     this.windController.startGlide();
+  }
+
+  private readonly requestInitialGlide = (): void => {
+    if (this.debugOrigin || this.reachedPresentationActive) return;
+    this.startGlideWhenColliderReady();
+  };
+
+  private startGlideWhenColliderReady(): void {
+    void this.colliderLoadPromise.then(() => {
+      if (
+        this.disposed ||
+        !this.worldReady ||
+        !this.splatFormationComplete ||
+        this.reachedPresentationActive ||
+        this.debugOrigin ||
+        (this.isCoarsePointer && !this.gyroscopeEnabled)
+      ) {
+        return;
+      }
+      this.startGlide();
+    });
   }
 
   private distanceToAnchorVolume(): number {
@@ -586,20 +742,12 @@ export class SpatialRuntime {
     return this.collisionNormal.normalize();
   };
 
-  private getPositionedMemory(scene: PlaceEchoScene): Memory {
-    const memory = scene.memories.find((candidate) => candidate.anchor.position);
-    if (!memory) {
-      throw new Error("The demo Scene does not contain a positioned Memory Anchor.");
-    }
-    return memory;
-  }
-
   private createMemoryAnchor(): { group: Group; plume: Mesh } {
     const group = new Group();
     group.position.copy(this.anchorPosition);
 
     const halo = new Mesh(
-      new TorusGeometry(0.14, 0.006, 10, 64),
+      new TorusGeometry(0.095, 0.0045, 10, 64),
       new MeshBasicMaterial({
         color: 0xffffff,
         transparent: true,
@@ -614,7 +762,7 @@ export class SpatialRuntime {
     group.add(halo);
 
     const plume = new Mesh(
-      new CylinderGeometry(0.17, 0.14, 1.65, 48, 20, true),
+      new CylinderGeometry(0.12, 0.095, 1.5, 48, 20, true),
       new ShaderMaterial({
         uniforms: {
           uTime: { value: 0 },
@@ -652,7 +800,7 @@ export class SpatialRuntime {
         blending: AdditiveBlending,
       }),
     );
-    plume.position.y = 0.825;
+    plume.position.y = 0.75;
     plume.renderOrder = 24;
     group.add(plume);
     return { group, plume };

@@ -18,6 +18,7 @@ const initialSnapshot: SpatialRuntimeSnapshot = {
   proximity: "far",
   distance: Number.POSITIVE_INFINITY,
   anchorId: "",
+  memoryId: "",
   memoryName: "",
   reachedPresentationActive: false,
 };
@@ -119,4 +120,3 @@ export default function SpatialWorldView({
     </main>
   );
 }
-

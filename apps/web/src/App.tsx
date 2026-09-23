@@ -1,48 +1,100 @@
 import type { Scene } from "@placeecho/shared";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import demoSceneFixture from "../../../assets/demo/demo-scene.json";
 import {
-  WorldEntry,
-  type IOSCaptureStatus,
-  type WorldEntryMemory,
-} from "./WorldEntry";
+  useEffect,
+  lazy,
+  useReducer,
+  useRef,
+  useState,
+  Suspense,
+} from "react";
+import demoSceneFixture from "../../../assets/demo/demo-scene.json";
+import previewScenesFixture from "../../../assets/demo/scene-manager-preview.json";
+import {
+  MemoryManager,
+  type MemoryRequestReceipt,
+} from "./authoring/SceneManagerPreview";
+import type { NewMemoryRequest } from "./authoring/NewMemoryFlow";
+import "./authoring/scene-manager-preview.css";
+import {
+  createExperienceState,
+  reduceExperience,
+  resolveMemoryEntry,
+  type MemorySelection,
+} from "./integration/experienceFlow";
 import { DeviceOrientationSource } from "./world/DeviceOrientationSource";
 import {
   installIOSPanoramaBridge,
   isIOSPanoramaCaptureAvailable,
   requestIOSPanoramaCapture,
+  type IOSBridgeStatus,
 } from "./world/IOSPanoramaBridge";
-
-const SpatialWorldView = lazy(() => import("./SpatialWorldView"));
+const SpatialExperience = lazy(() => import("./SpatialExperience"));
 
 const demoScene = demoSceneFixture as unknown as Scene;
-const entryMemories: WorldEntryMemory[] = demoScene.memories.map((memory) => ({
-  id: memory.id,
-  sceneId: demoScene.scene_id,
-  name: memory.name,
-  summary: memory.summary ?? "打开这段回忆，重新走进当时的空间。",
-}));
-export function App() {
+const previewScenes = previewScenesFixture as unknown as Scene[];
+type CaptureStatus =
+  | { type: "idle" }
+  | { type: "requesting" }
+  | IOSBridgeStatus;
+
+export interface AppProps {
+  initialScenes?: readonly Scene[];
+}
+
+export function App({ initialScenes }: AppProps) {
   const [iosCaptureAvailable] = useState(isIOSPanoramaCaptureAvailable);
+  const scenes = initialScenes ?? (iosCaptureAvailable ? previewScenes : [demoScene]);
+  const [experience, dispatch] = useReducer(
+    reduceExperience,
+    iosCaptureAvailable,
+    createExperienceState,
+  );
   const orientationSourceRef = useRef<DeviceOrientationSource | null>(null);
-  const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
   const [openingMemoryId, setOpeningMemoryId] = useState<string | null>(null);
-  const [gyroscopeAuthorized, setGyroscopeAuthorized] = useState(false);
-  const [iosCaptureStatus, setIOSCaptureStatus] =
-    useState<IOSCaptureStatus>({ type: "idle" });
+  const [captureStatus, setCaptureStatus] =
+    useState<CaptureStatus>({ type: "idle" });
 
   useEffect(() => {
     if (!iosCaptureAvailable) return;
-    const uninstallIOSBridge = installIOSPanoramaBridge(setIOSCaptureStatus);
-    return uninstallIOSBridge;
+    return installIOSPanoramaBridge(setCaptureStatus);
   }, [iosCaptureAvailable]);
 
-  const captureIOSPanorama = (sceneId = demoScene.scene_id) => {
-    setIOSCaptureStatus({ type: "requesting" });
+  useEffect(
+    () => () => {
+      orientationSourceRef.current?.disconnect();
+    },
+    [],
+  );
+
+  const openMemory = async (selection: MemorySelection) => {
+    const resolution = resolveMemoryEntry(scenes, selection);
+    if (resolution.status !== "ready") return;
+
+    setOpeningMemoryId(selection.memoryId);
+    const orientationSource = new DeviceOrientationSource();
+    orientationSourceRef.current?.disconnect();
+    orientationSourceRef.current = orientationSource;
+
+    let granted = false;
+    try {
+      // connect() requests iOS motion permission synchronously from this card
+      // click. Runtime mounting is intentionally deferred until it resolves.
+      granted = await orientationSource.connect();
+    } catch {
+      granted = false;
+    }
+
+    dispatch({ type: "open_memory", selection });
+    dispatch({ type: "wind_permission", granted });
+    setOpeningMemoryId(null);
+  };
+
+  const capturePanorama = (sceneId: string) => {
+    setCaptureStatus({ type: "requesting" });
     try {
       requestIOSPanoramaCapture(sceneId);
     } catch (error) {
-      setIOSCaptureStatus({
+      setCaptureStatus({
         type: "failed",
         sceneId,
         message:
@@ -51,53 +103,99 @@ export function App() {
     }
   };
 
-  const openScene = async (sceneId: string) => {
-    if (sceneId !== demoScene.scene_id) return;
-    const memory = entryMemories.find((item) => item.sceneId === sceneId);
-    setOpeningMemoryId(memory?.id ?? null);
-
-    const orientationSource = new DeviceOrientationSource();
-    orientationSourceRef.current?.disconnect();
-    orientationSourceRef.current = orientationSource;
-    try {
-      setGyroscopeAuthorized(await orientationSource.connect());
-    } catch {
-      setGyroscopeAuthorized(false);
+  const persistMemoryRequest = async (
+    request: NewMemoryRequest,
+  ): Promise<MemoryRequestReceipt> => {
+    const response = await fetch(
+      `/api/scenes/${encodeURIComponent(request.sceneId)}/memory-requests`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          panorama_name: request.panoramaName,
+          media: request.media,
+          has_voice_recording: request.hasVoiceRecording,
+        }),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(`Memory request failed with status ${response.status}.`);
     }
-    setActiveSceneId(sceneId);
-    setOpeningMemoryId(null);
+    const receipt = (await response.json()) as {
+      request_id?: string;
+      scene_id?: string;
+      status?: string;
+    };
+    if (
+      !receipt.request_id ||
+      receipt.scene_id !== request.sceneId ||
+      receipt.status !== "processing"
+    ) {
+      throw new Error("Memory request response was invalid.");
+    }
+    return { requestId: receipt.request_id, sceneId: receipt.scene_id };
   };
 
-  if (activeSceneId) {
-    return (
-      <Suspense
-        fallback={
-          <main className="spatial-shell">
-            <div className="world-loading-cover world-loading-cover--loading">
-              <span />
-            </div>
-          </main>
-        }
-      >
-        <SpatialWorldView
-          scene={demoScene}
-          orientationSource={orientationSourceRef.current}
-          gyroscopeAuthorized={gyroscopeAuthorized}
-          onReturnToSpaces={() => setActiveSceneId(null)}
-        />
-      </Suspense>
-    );
+  const beginMemoryRequest = async (): Promise<{ sceneId: string }> => {
+    // The native capture prototype stages into the existing demo Scene. The
+    // backend still owns creation of any new authoritative Scene ID.
+    if (iosCaptureAvailable) {
+      return { sceneId: scenes[0]?.scene_id ?? demoScene.scene_id };
+    }
+    const response = await fetch("/api/scenes", { method: "POST" });
+    if (!response.ok) {
+      throw new Error(`Scene creation failed with status ${response.status}.`);
+    }
+    const body = (await response.json()) as { scene_id?: string };
+    if (!body.scene_id) throw new Error("Scene creation response was invalid.");
+    return { sceneId: body.scene_id };
+  };
+
+  const returnToManager = () => {
+    orientationSourceRef.current?.disconnect();
+    orientationSourceRef.current = null;
+    dispatch({ type: "return_to_manager" });
+  };
+
+  if (experience.selection && experience.view !== "manager") {
+    const resolution = resolveMemoryEntry(scenes, experience.selection);
+    if (resolution.status === "ready") {
+      return (
+        <Suspense
+          fallback={
+            <main className="spatial-shell">
+              <div className="world-loading-cover world-loading-cover--loading">
+                <div className="world-loading-indicator"><p>正在进入空间</p></div>
+              </div>
+            </main>
+          }
+        >
+          <SpatialExperience
+            scene={resolution.scene}
+            memoryId={resolution.memory.id}
+            orientationSource={orientationSourceRef.current}
+            windMode={experience.windMode}
+            revealActive={experience.view === "reveal"}
+            onReached={(memoryId) =>
+              dispatch({ type: "runtime_reached", memoryId })
+            }
+            onRevealFinished={() => dispatch({ type: "reveal_finished" })}
+            onReturnToManager={returnToManager}
+          />
+        </Suspense>
+      );
+    }
   }
 
   return (
-    <main className="spatial-shell">
-      <WorldEntry
-        memories={entryMemories}
-        captureStatus={iosCaptureStatus}
-        openingMemoryId={openingMemoryId}
-        onOpenScene={openScene}
-        onCreateMemory={captureIOSPanorama}
-      />
-    </main>
+    <MemoryManager
+      scenes={scenes}
+      openingMemoryId={openingMemoryId}
+      captureState={captureStatus.type}
+      onCapturePanorama={iosCaptureAvailable ? capturePanorama : undefined}
+      onBeginCreate={beginMemoryRequest}
+      onCreateRequest={persistMemoryRequest}
+      onOpenMemory={openMemory}
+    />
   );
 }

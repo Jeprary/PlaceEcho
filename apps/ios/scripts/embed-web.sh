@@ -15,6 +15,7 @@ if [[ -z "${node_path}" || -z "${pnpm_path}" ]]; then
 fi
 
 export PATH="${node_path:h}:${PATH}"
+export CI=true
 
 cd "${repository_root}"
 "${pnpm_path}" --filter @placeecho/web build

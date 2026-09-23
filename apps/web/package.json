@@ -7,7 +7,9 @@
     "dev": "vite",
     "world:build-spz": "node scripts/build-world-spz.mjs",
     "build": "tsc -b && vite build",
-    "typecheck": "tsc -b --pretty false"
+    "typecheck": "tsc -b --pretty false",
+    "test": "node --test tests/integration/*.test.ts tests/e2e/*.test.ts",
+    "verify": "pnpm typecheck && pnpm build && pnpm test"
   },
   "dependencies": {
     "@placeecho/shared": "workspace:*",

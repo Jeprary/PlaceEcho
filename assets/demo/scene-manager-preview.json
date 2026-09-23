@@ -1,0 +1,124 @@
+[
+  {
+    "schema_version": "0.1",
+    "scene_id": "scene_manager_window",
+    "status": "processing",
+    "scene_context": { "text": "A fictional window-side room used only for preview content.", "audio_url": null },
+    "world": {
+      "panorama_url": "/demo/living-room-360.jpg",
+      "panorama_width": 4096,
+      "panorama_height": 2048,
+      "splat_url": null,
+      "collider_url": null,
+      "spawn": null
+    },
+    "media": [
+      { "id": "media_window_01", "source_name": "window-light-01.jpg", "type": "image", "url": null },
+      { "id": "media_window_02", "source_name": "curtain-wind.mov", "type": "video", "url": null },
+      { "id": "media_window_03", "source_name": "window-light-02.jpg", "type": "image", "url": null },
+      { "id": "media_window_04", "source_name": "rain-on-glass.m4a", "type": "audio", "url": null },
+      { "id": "media_window_05", "source_name": "window-books.jpg", "type": "image", "url": null },
+      { "id": "media_window_06", "source_name": "evening-window.jpg", "type": "image", "url": null },
+      { "id": "media_window_07", "source_name": "friends-by-window.jpg", "type": "image", "url": null }
+    ],
+    "memories": [
+      {
+        "id": "memory_window_wind",
+        "name": "窗边有风的下午",
+        "summary": "散落在几个夏天里的光，最后都停在了这扇窗前。",
+        "media_ids": ["media_window_01", "media_window_02", "media_window_03", "media_window_04", "media_window_05", "media_window_06", "media_window_07"],
+        "reflection": "每次风把帘子吹起来，我都会想起那些没有被特意记住的下午。",
+        "anchor": {
+          "id": "anchor_window",
+          "cue": { "label": "白色窗帘" },
+          "source_grounding": { "x": 1360, "y": 650 },
+          "world_grounding": { "view_id": "front_01", "x": 780, "y": 410 },
+          "position": [1.2, 1.5, -2.8],
+          "normal": [0, 0, 1],
+          "hero": { "status": "not_requested", "job_id": null, "asset_url": null }
+        }
+      }
+    ],
+    "unassigned_media_ids": []
+  },
+  {
+    "schema_version": "0.1",
+    "scene_id": "scene_manager_kitchen",
+    "status": "processing",
+    "scene_context": { "text": "A fictional late-night kitchen used only for preview content.", "audio_url": null },
+    "world": {
+      "panorama_url": "/demo/kitchen-360.jpg",
+      "panorama_width": 4096,
+      "panorama_height": 2048,
+      "splat_url": null,
+      "collider_url": null,
+      "spawn": null
+    },
+    "media": [
+      { "id": "media_kitchen_01", "source_name": "late-dinner-01.jpg", "type": "image", "url": null },
+      { "id": "media_kitchen_02", "source_name": "late-dinner-02.jpg", "type": "image", "url": null },
+      { "id": "media_kitchen_03", "source_name": "kitchen-talk.mov", "type": "video", "url": null },
+      { "id": "media_kitchen_04", "source_name": "warm-lamp.jpg", "type": "image", "url": null }
+    ],
+    "memories": [
+      {
+        "id": "memory_kitchen",
+        "name": "深夜厨房",
+        "summary": "一盏灯、一碗面，和朋友们不愿结束的谈话。",
+        "media_ids": ["media_kitchen_01", "media_kitchen_02", "media_kitchen_03", "media_kitchen_04"],
+        "reflection": null,
+        "anchor": {
+          "id": "anchor_kitchen",
+          "cue": { "label": "料理台上方的暖灯" },
+          "source_grounding": { "x": 2710, "y": 720 },
+          "world_grounding": null,
+          "position": null,
+          "normal": null,
+          "hero": { "status": "not_requested", "job_id": null, "asset_url": null }
+        }
+      }
+    ],
+    "unassigned_media_ids": []
+  },
+  {
+    "schema_version": "0.1",
+    "scene_id": "scene_manager_balcony",
+    "status": "processing",
+    "scene_context": { "text": "A fictional balcony garden used only for preview content.", "audio_url": null },
+    "world": {
+      "panorama_url": "/demo/balcony-360.jpg",
+      "panorama_width": 4096,
+      "panorama_height": 2048,
+      "splat_url": null,
+      "collider_url": null,
+      "spawn": null
+    },
+    "media": [
+      { "id": "media_plant_01", "source_name": "first-plant.jpg", "type": "image", "url": null },
+      { "id": "media_plant_02", "source_name": "new-leaf-01.jpg", "type": "image", "url": null },
+      { "id": "media_plant_03", "source_name": "watering.mov", "type": "video", "url": null },
+      { "id": "media_plant_04", "source_name": "balcony-spring.jpg", "type": "image", "url": null },
+      { "id": "media_plant_05", "source_name": "new-leaf-02.jpg", "type": "image", "url": null },
+      { "id": "media_plant_06", "source_name": "balcony-summer.jpg", "type": "image", "url": null }
+    ],
+    "memories": [
+      {
+        "id": "memory_plant",
+        "name": "新叶长出来之后",
+        "summary": "从搬进来的第一盆植物，到阳台渐渐有了自己的季节。",
+        "media_ids": ["media_plant_01", "media_plant_02", "media_plant_03", "media_plant_04", "media_plant_05", "media_plant_06"],
+        "reflection": "生活没有突然变好，但某天回头，绿色已经长满了角落。",
+        "anchor": {
+          "id": "anchor_plant",
+          "cue": { "label": "阳台旁的龟背竹" },
+          "source_grounding": { "x": 910, "y": 840 },
+          "world_grounding": { "view_id": "left_01", "x": 430, "y": 520 },
+          "position": [-1.1, 0.8, -2.1],
+          "normal": [0.2, 0, 0.98],
+          "hero": { "status": "not_requested", "job_id": null, "asset_url": null }
+        }
+      }
+    ],
+    "unassigned_media_ids": []
+  }
+]

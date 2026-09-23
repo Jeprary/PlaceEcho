@@ -1,6 +1,9 @@
 # PlaceEcho API Contract v0.1
 
-This document freezes the high-level collaboration routes. Only `GET /health` is implemented during initialization. All `/api` routes are explicit HTTP 501 stubs: their paths exist, but no product behavior, persistence, upload parsing, AI call, world generation, or GPU job exists yet.
+This document freezes the high-level collaboration routes. Scene, binary media,
+Memory request, panorama, Marble world, Hero, and job routes below are
+implemented. Memory analysis, final-world grounding, world registration, and
+Anchor persistence remain explicit HTTP 501 boundaries in this branch.
 
 ## Status Legend
 
@@ -20,23 +23,71 @@ Returns:
 
 ## Scene
 
-### `POST /api/scenes` — Stub
+### `POST /api/scenes` — Implemented
 
-Will create a Scene and return an application-generated ID:
+Creates and persists an empty Scene, then returns an application-generated ID:
 
 ```json
 { "scene_id": "scene_001" }
 ```
 
-### `GET /api/scenes/:sceneId` — Stub
+### `GET /api/scenes/:sceneId` — Implemented
 
-Will return the current Scene manifest.
+Returns the current Scene manifest or `404`.
 
 ## Media
 
-### `POST /api/scenes/:sceneId/media` — Stub
+### `POST /api/scenes/:sceneId/media?filename=...` — Implemented
 
-May initially accept local multipart upload, persist through `StorageProvider`, and return an application-generated `media_id` plus media record. A future OSS migration should preserve the higher-level contract.
+Accepts a non-empty `application/octet-stream` body, persists it through
+`StorageProvider`, and returns an application-generated `media_id` plus media
+record. `GET /api/scenes/:sceneId/media/:mediaId` returns the stored bytes.
+
+## Memory Request
+
+### `POST /api/scenes/:sceneId/memory-requests` — Implemented
+
+Persists a local-first request to create a Memory. The application generates the
+`request_id`; this is a processing-request identifier, not an authoritative
+`memory_id`. The request remains outside `scene.json` until media persistence and
+Memory analysis produce a formal Memory record.
+
+The referenced Scene must already exist. The Web therefore creates a draft Scene
+before entering the shared creation flow; native capture and later persistence
+use that same authoritative `scene_id`.
+
+Request:
+
+```json
+{
+  "panorama_name": "living-room-360.jpg",
+  "media": [
+    { "name": "window.jpg", "kind": "照片", "size": "2.4 MB" }
+  ],
+  "has_voice_recording": false
+}
+```
+
+Response (`202 Accepted`):
+
+```json
+{
+  "request_id": "memory_request_<application-generated UUID>",
+  "scene_id": "scene_001",
+  "status": "processing",
+  "panorama_name": "living-room-360.jpg",
+  "media": [
+    { "name": "window.jpg", "kind": "照片", "size": "2.4 MB" }
+  ],
+  "has_voice_recording": false,
+  "created_at": "2026-09-23T00:00:00.000Z"
+}
+```
+
+Local development stores the record through `StorageProvider` at
+`.local-data/scenes/<scene_id>/memory-requests/<request_id>.json`. The route does
+not claim that named client files have been uploaded; durable media registration
+continues to use the Media route.
 
 ## Memory Analysis
 
@@ -69,9 +120,12 @@ This route must not return authoritative 3D position or normal.
 
 Will register existing or generated splat, Collider, and related world metadata.
 
-### `POST /api/scenes/:sceneId/world/generate` — Stub / future capability
+### `POST /api/scenes/:sceneId/world/generate` — Implemented
 
-Reserved asynchronous world-generation boundary. It may later create a Marble job. Marble is not integrated in v0.1 initialization.
+Creates an asynchronous Marble job from a completed PlaceEcho panorama. A
+missing `WLT_API_KEY` returns `503`; successful creation returns `202` with a
+`job_id`. Registering the resulting splat, Collider, and spawn in the Scene is
+still the separate world-registration boundary above.
 
 ## Anchor Persistence
 
@@ -88,46 +142,22 @@ Will persist authoritative geometry computed by the Web runtime:
 
 ## Hero Object
 
-### `POST /api/scenes/:sceneId/memories/:memoryId/hero` — Stub
+### `POST /api/scenes/:sceneId/memories/:memoryId/hero` — Implemented
 
-Will create an optional GPU Hero job and return an application-generated job ID:
+Creates an optional provider-backed Hero job and returns an application-generated job ID:
 
 ```json
 { "job_id": "job_001" }
 ```
 
-### `GET /api/jobs/:jobId` — Stub
+### `GET /api/jobs/:jobId` — Implemented
 
-Will report `queued`, `running`, `completed`, or `failed`.
+Reports `queued`, `running`, `completed`, or `failed`. `GET
+/api/jobs/:jobId/output` returns supported panorama or Hero binary output.
 
-## Native-to-Web Bridge — Scaffolded, not an HTTP API
+## Native-to-Web Bridge — Implemented acquisition boundary, not an HTTP API
 
-Web-to-native capture request:
-
-```json
-{
-  "type": "capture_panorama",
-  "scene_id": "scene_001"
-}
-```
-
-Native-to-Web local-export status:
-
-```json
-{
-  "type": "panorama_staged",
-  "scene_id": "scene_001",
-  "width": 11904,
-  "height": 5952
-}
-```
-
-`panorama_staged` means the camera capture has been downloaded and exported into
-the app sandbox and the SDK camera session has been shut down. In Personal Team
-builds, Wi-Fi selection remains manual. This status must not invoke
-`importPanorama()`.
-
-Native-to-Web durable success message, after upload:
+Durable-success message shape:
 
 ```json
 {
@@ -139,21 +169,6 @@ Native-to-Web durable success message, after upload:
 }
 ```
 
-The Web converts only `panorama_ready` to a `PanoramaAsset` and invokes
-`importPanorama(asset)`. Its `url` must be durable and Web-readable; a native
-app-sandbox `file://` URL is only an intermediate capture result and never crosses
-that boundary.
-
-Native-to-Web failure message:
-
-```json
-{
-  "type": "capture_failed",
-  "scene_id": "scene_001",
-  "message": "..."
-}
-```
-
-The Web receiver, WKWebView message handler, and native capture provider are
-scaffolded. The native shell currently emits `panorama_staged`; device validation,
-internet-restoration gating, and upload-before-`panorama_ready` remain pending.
+The Web converts this to a `PanoramaAsset` and invokes `importPanorama(asset)`.
+The current X5 shell emits `panorama_staged` after local export because durable
+upload is still pending; staged local file URLs are deliberately not imported.

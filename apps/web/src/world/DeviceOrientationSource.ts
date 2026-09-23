@@ -15,6 +15,19 @@ const DEVICE_TO_CAMERA = new Quaternion(
   0,
   Math.sqrt(0.5),
 );
+const STEERING_FULL_TILT = MathUtils.degToRad(24);
+
+function tiltToSteering(angle: number): number {
+  const normalized = MathUtils.clamp(
+    Math.abs(angle) / STEERING_FULL_TILT,
+    0,
+    1,
+  );
+  // Continuous response with a flat slope around neutral: tiny tilts remain
+  // controllable without creating the step caused by a hard angular dead zone.
+  const eased = normalized * normalized * (3 - 2 * normalized);
+  return Math.sign(angle) * eased;
+}
 
 export class DeviceOrientationSource implements WindOrientationSource {
   private readonly deviceEuler = new Euler(0, 0, 0, "YXZ");
@@ -84,9 +97,12 @@ export class DeviceOrientationSource implements WindOrientationSource {
       .multiply(this.currentQuaternion);
     this.relativeEuler.setFromQuaternion(this.relativeQuaternion, "YXZ");
     this.orientation = {
-      yaw: this.relativeEuler.y,
-      pitch: this.relativeEuler.x,
-      roll: this.relativeEuler.z,
+      // Treat the phone as a spring-centred flight controller: roll requests a
+      // continuous turn, pitch requests a continuous climb/dive, and returning
+      // to the entry pose stops adding rotation.
+      yaw: tiltToSteering(-this.relativeEuler.z),
+      pitch: tiltToSteering(this.relativeEuler.x),
+      roll: 0,
     };
   };
 }

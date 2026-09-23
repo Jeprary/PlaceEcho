@@ -1,7 +1,9 @@
 import { Euler, MathUtils, PerspectiveCamera, Vector3 } from "three";
 
 export interface WindOrientation {
+  /** Normalized steering request in the range [-1, 1]. */
   yaw: number;
+  /** Normalized steering request in the range [-1, 1]. */
   pitch: number;
   roll?: number;
 }
@@ -17,29 +19,47 @@ export interface WindControllerOptions {
   orientationSource?: WindOrientationSource;
   lookSensitivity?: number;
   glideSpeed?: number;
+  gyroscopeYawRate?: number;
+  gyroscopePitchRate?: number;
   startsActive?: boolean;
+  onSteeringInput?: () => void;
   resolvePosition?: (proposedPosition: Vector3) => Vector3 | null;
 }
 
 const MAX_PITCH = MathUtils.degToRad(85);
-const COLLISION_REFLECTION_FRACTION = 1 / 3;
+const GYROSCOPE_MAX_PITCH = MathUtils.degToRad(42);
+const GYROSCOPE_LOOK_RESPONSE = 4.8;
+const DEFAULT_GYROSCOPE_YAW_RATE = MathUtils.degToRad(48);
+const DEFAULT_GYROSCOPE_PITCH_RATE = MathUtils.degToRad(34);
+const COLLISION_LOOK_AHEAD = 0.12;
 const COLLISION_GLIDE_SCALE = 0.28;
 const COLLISION_SPEED_CAP = 0.4;
+const COLLISION_TURN_DURATION = 2.6;
+const COLLISION_TURN_FOLLOW_RESPONSE = 12;
+const COLLISION_ESCAPE_NORMAL_WEIGHT = 1.1;
+const GYROSCOPE_RECENTER_INPUT = 0.02;
+const GYROSCOPE_RECENTER_HOLD_SECONDS = 0.12;
 
 export class WindController {
+  private readonly camera: PerspectiveCamera;
+  private readonly canvas: HTMLCanvasElement;
   private readonly forward = new Vector3();
   private readonly collisionNormal = new Vector3();
-  private readonly collisionSlideDirection = new Vector3();
+  private readonly collisionEscapeDirection = new Vector3();
   private readonly reflectedDirection = new Vector3();
   private readonly rotation = new Euler(0, 0, 0, "YXZ");
   private readonly targetRotation = new Euler(0, 0, 0, "YXZ");
   private readonly orientationSource?: WindOrientationSource;
   private readonly lookSensitivity: number;
   private readonly glideSpeed: number;
+  private readonly gyroscopeYawRate: number;
+  private readonly gyroscopePitchRate: number;
   private readonly resolvePosition?: (
     proposedPosition: Vector3,
   ) => Vector3 | null;
+  private readonly onSteeringInput?: () => void;
   private readonly proposedPosition = new Vector3();
+  private readonly probePosition = new Vector3();
   private readonly captureTarget = new Vector3();
   private dragPointerId: number | null = null;
   private lastPointerX = 0;
@@ -49,29 +69,38 @@ export class WindController {
   private speedScale = 1;
   private currentSpeed = 0;
   private windTime = 0;
-  private orientationYawOffset = 0;
   private collisionSpeedScale = 1;
   private collisionActive = false;
   private collisionClearSeconds = 0;
+  private collisionTurnDirection = 0;
   private collisionTurnElapsed = 0;
-  private collisionTurnDuration = 1;
   private collisionTurnStartYaw = 0;
   private collisionTurnTargetYaw = 0;
-  private collisionTurnDirection = 0;
+  private collisionTurnAnimating = false;
+  private collisionTurnCommitted = false;
+  private awaitingGyroscopeRecenter = false;
+  private gyroscopeRecenterSeconds = 0;
   private departureTurnActive = false;
   private captureActive = false;
   private inputLocked = false;
   private connected = false;
 
   constructor(
-    private readonly camera: PerspectiveCamera,
-    private readonly canvas: HTMLCanvasElement,
+    camera: PerspectiveCamera,
+    canvas: HTMLCanvasElement,
     options: WindControllerOptions = {},
   ) {
+    this.camera = camera;
+    this.canvas = canvas;
     this.orientationSource = options.orientationSource;
     this.lookSensitivity = options.lookSensitivity ?? 0.0025;
-    this.glideSpeed = options.glideSpeed ?? 0.85;
+    this.glideSpeed = options.glideSpeed ?? 0.56;
+    this.gyroscopeYawRate =
+      options.gyroscopeYawRate ?? DEFAULT_GYROSCOPE_YAW_RATE;
+    this.gyroscopePitchRate =
+      options.gyroscopePitchRate ?? DEFAULT_GYROSCOPE_PITCH_RATE;
     this.resolvePosition = options.resolvePosition;
+    this.onSteeringInput = options.onSteeringInput;
     this.glideActive = options.startsActive ?? true;
     this.rotation.setFromQuaternion(camera.quaternion, "YXZ");
     this.targetRotation.copy(this.rotation);
@@ -128,6 +157,7 @@ export class WindController {
     this.captureTarget.copy(target);
     this.captureActive = true;
     this.glideActive = true;
+    this.collisionTurnAnimating = false;
   }
 
   endCapture(): void {
@@ -141,22 +171,52 @@ export class WindController {
 
   turnBy(angleRadians: number): void {
     this.targetRotation.y += angleRadians;
-    this.orientationYawOffset += angleRadians;
     this.departureTurnActive = true;
   }
 
   update(deltaSeconds: number): void {
     this.windTime += deltaSeconds;
-    const orientation = this.orientationActive && !this.inputLocked
+    const rawOrientation = this.orientationActive && !this.inputLocked
       ? this.orientationSource?.getOrientation()
       : null;
-    if (orientation) {
-      this.targetRotation.set(
-        MathUtils.clamp(orientation.pitch, -MAX_PITCH, MAX_PITCH),
-        orientation.yaw + this.orientationYawOffset,
-        orientation.roll ?? 0,
-        "YXZ",
+    if (
+      this.awaitingGyroscopeRecenter &&
+      rawOrientation
+    ) {
+      const recenterInput = Math.hypot(
+        rawOrientation.yaw,
+        rawOrientation.pitch,
       );
+      this.gyroscopeRecenterSeconds =
+        recenterInput <= GYROSCOPE_RECENTER_INPUT
+          ? this.gyroscopeRecenterSeconds + deltaSeconds
+          : 0;
+      if (
+        this.gyroscopeRecenterSeconds >= GYROSCOPE_RECENTER_HOLD_SECONDS
+      ) {
+        this.awaitingGyroscopeRecenter = false;
+        this.gyroscopeRecenterSeconds = 0;
+      }
+    }
+    const orientation = this.awaitingGyroscopeRecenter
+      ? null
+      : rawOrientation;
+    const userYawSteeringActive = Boolean(
+      orientation && Math.abs(orientation.yaw) > 0.001,
+    );
+    if (orientation) {
+      if (Math.hypot(orientation.yaw, orientation.pitch) > 0.001) {
+        this.onSteeringInput?.();
+      }
+      this.targetRotation.y +=
+        orientation.yaw * this.gyroscopeYawRate * deltaSeconds;
+      this.targetRotation.x = MathUtils.clamp(
+        this.targetRotation.x +
+          orientation.pitch * this.gyroscopePitchRate * deltaSeconds,
+        -GYROSCOPE_MAX_PITCH,
+        GYROSCOPE_MAX_PITCH,
+      );
+      this.targetRotation.z = 0;
     }
     if (this.captureActive) {
       this.forward.copy(this.captureTarget).sub(this.camera.position);
@@ -171,21 +231,25 @@ export class WindController {
       }
     }
 
-    if (this.collisionActive && !this.captureActive) {
+    if (
+      this.collisionTurnAnimating &&
+      !this.captureActive
+    ) {
       this.collisionTurnElapsed = Math.min(
         this.collisionTurnElapsed + deltaSeconds,
-        this.collisionTurnDuration,
+        COLLISION_TURN_DURATION,
       );
-      const progress = this.collisionTurnElapsed / this.collisionTurnDuration;
-      const easedProgress = progress * progress * (3 - 2 * progress);
-      const previousYaw = this.targetRotation.y;
+      const progress = this.collisionTurnElapsed / COLLISION_TURN_DURATION;
+      const eased = progress * progress * progress
+        * (progress * (progress * 6 - 15) + 10);
       this.targetRotation.y = MathUtils.lerp(
         this.collisionTurnStartYaw,
         this.collisionTurnTargetYaw,
-        easedProgress,
+        eased,
       );
-      this.orientationYawOffset += this.targetRotation.y - previousYaw;
+      if (progress >= 1) this.collisionTurnAnimating = false;
     }
+
     this.collisionSpeedScale = MathUtils.damp(
       this.collisionSpeedScale,
       1,
@@ -197,9 +261,11 @@ export class WindController {
       ? 3.4
       : this.departureTurnActive
         ? 1.7
-        : this.collisionActive
-          ? 3
-          : 14;
+        : this.collisionTurnAnimating || this.collisionActive
+          ? COLLISION_TURN_FOLLOW_RESPONSE
+          : this.orientationActive
+            ? GYROSCOPE_LOOK_RESPONSE
+            : 14;
     const lookBlend = 1 - Math.exp(-lookResponse * deltaSeconds);
     this.rotation.x = MathUtils.lerp(
       this.rotation.x,
@@ -266,22 +332,30 @@ export class WindController {
       deltaSeconds,
     );
     this.camera.getWorldDirection(this.forward);
-    if (this.collisionActive) {
-      const verticalDirection = this.forward.y;
-      this.forward.copy(this.collisionSlideDirection);
-      this.forward.y = verticalDirection;
-      this.forward.normalize();
+    if (!this.captureActive && this.resolvePosition) {
+      this.probePosition
+        .copy(this.camera.position)
+        .addScaledVector(this.forward, COLLISION_LOOK_AHEAD);
+      const probeNormal = this.resolvePosition(this.probePosition);
+      if (probeNormal) {
+        this.collisionActive = this.updateCollisionResponse(
+          probeNormal,
+          !userYawSteeringActive,
+        );
+        this.collisionClearSeconds = 0;
+      }
     }
+    const proposedStep = this.currentSpeed * deltaSeconds;
     this.proposedPosition.copy(this.camera.position).addScaledVector(
       this.forward,
-      this.currentSpeed * deltaSeconds,
+      proposedStep,
     );
     const collisionNormal = this.resolvePosition?.(this.proposedPosition) ?? null;
-    this.camera.position.copy(this.proposedPosition);
     if (collisionNormal) {
-      if (!this.collisionActive) {
-        this.collisionActive = this.beginCollisionTurn(collisionNormal);
-      }
+      this.collisionActive = this.updateCollisionResponse(
+        collisionNormal,
+        true,
+      );
       this.collisionClearSeconds = 0;
       this.collisionSpeedScale = Math.min(
         this.collisionSpeedScale,
@@ -294,17 +368,22 @@ export class WindController {
     } else if (this.collisionActive) {
       this.collisionClearSeconds += deltaSeconds;
       if (
-        this.collisionClearSeconds >= 0.55 &&
-        this.collisionTurnElapsed >= this.collisionTurnDuration
+        this.collisionClearSeconds >= 0.32 &&
+        !this.collisionTurnAnimating
       ) {
         this.collisionActive = false;
         this.collisionClearSeconds = 0;
         this.collisionTurnDirection = 0;
+        this.collisionTurnCommitted = false;
       }
     }
+    this.camera.position.copy(this.proposedPosition);
   }
 
-  private beginCollisionTurn(normal: Vector3): boolean {
+  private updateCollisionResponse(
+    normal: Vector3,
+    applyAutomaticTurn: boolean,
+  ): boolean {
     this.forward.y = 0;
     if (this.forward.lengthSq() < 0.000001) return false;
     this.forward.normalize();
@@ -314,52 +393,67 @@ export class WindController {
     if (this.collisionNormal.lengthSq() < 0.000001) return false;
     this.collisionNormal.normalize();
 
-    const incidence = MathUtils.clamp(
-      -this.forward.dot(this.collisionNormal),
-      0,
-      1,
-    );
-    this.reflectedDirection
-      .copy(this.forward)
-      .reflect(this.collisionNormal)
-      .normalize();
-    const incomingYaw = Math.atan2(-this.forward.x, -this.forward.z);
-    const reflectedYaw = Math.atan2(
-      -this.reflectedDirection.x,
-      -this.reflectedDirection.z,
-    );
-    const reflectionDelta = Math.atan2(
-      Math.sin(reflectedYaw - incomingYaw),
-      Math.cos(reflectedYaw - incomingYaw),
-    );
-    this.collisionTurnDirection = Math.sign(reflectionDelta) || 1;
-    const directedReflectionDelta =
-      Math.abs(reflectionDelta) * this.collisionTurnDirection;
-    const desiredYaw =
-      incomingYaw + directedReflectionDelta * COLLISION_REFLECTION_FRACTION;
-    const yawDelta = Math.atan2(
-      Math.sin(desiredYaw - this.targetRotation.y),
-      Math.cos(desiredYaw - this.targetRotation.y),
-    );
-    this.collisionTurnStartYaw = this.targetRotation.y;
-    this.collisionTurnTargetYaw = this.targetRotation.y + yawDelta;
-    this.collisionSlideDirection
+    if (!this.collisionActive || this.collisionTurnDirection === 0) {
+      this.reflectedDirection
+        .copy(this.forward)
+        .reflect(this.collisionNormal)
+        .normalize();
+      const incomingYaw = Math.atan2(-this.forward.x, -this.forward.z);
+      const reflectedYaw = Math.atan2(
+        -this.reflectedDirection.x,
+        -this.reflectedDirection.z,
+      );
+      const reflectionDelta = Math.atan2(
+        Math.sin(reflectedYaw - incomingYaw),
+        Math.cos(reflectedYaw - incomingYaw),
+      );
+      this.collisionTurnDirection = Math.sign(reflectionDelta) || 1;
+    }
+    this.collisionEscapeDirection
       .set(-this.collisionNormal.z, 0, this.collisionNormal.x)
       .multiplyScalar(this.collisionTurnDirection)
-      .addScaledVector(this.collisionNormal, 0.18)
+      .addScaledVector(
+        this.collisionNormal,
+        COLLISION_ESCAPE_NORMAL_WEIGHT,
+      )
       .normalize();
-    this.collisionTurnElapsed = 0;
-    this.collisionTurnDuration = MathUtils.clamp(
-      1.25 + Math.abs(yawDelta) * 0.65 + incidence * 0.5,
-      1.4,
-      2.8,
-    );
+    if (applyAutomaticTurn) {
+      const escapeYaw = Math.atan2(
+        -this.collisionEscapeDirection.x,
+        -this.collisionEscapeDirection.z,
+      );
+      if (!this.collisionTurnCommitted) {
+        let escapeDelta = Math.atan2(
+          Math.sin(escapeYaw - this.rotation.y),
+          Math.cos(escapeYaw - this.rotation.y),
+        );
+        if (this.collisionTurnDirection > 0 && escapeDelta < 0) {
+          escapeDelta += Math.PI * 2;
+        } else if (this.collisionTurnDirection < 0 && escapeDelta > 0) {
+          escapeDelta -= Math.PI * 2;
+        }
+        if (Math.abs(escapeDelta) > MathUtils.degToRad(2)) {
+          this.collisionTurnStartYaw = this.rotation.y;
+          this.collisionTurnTargetYaw = this.rotation.y + escapeDelta;
+          this.collisionTurnElapsed = 0;
+          this.collisionTurnAnimating = true;
+          this.collisionTurnCommitted = true;
+          if (this.orientationActive) {
+            this.awaitingGyroscopeRecenter = true;
+            this.gyroscopeRecenterSeconds = 0;
+          }
+        }
+      }
+    }
     return true;
   }
 
   private readonly handleTrackpad = (event: WheelEvent): void => {
     if (this.orientationActive || this.inputLocked) return;
     event.preventDefault();
+    if (Math.hypot(event.deltaX, event.deltaY) > 0) {
+      this.onSteeringInput?.();
+    }
     this.targetRotation.y -= event.deltaX * this.lookSensitivity;
     this.targetRotation.x = MathUtils.clamp(
       this.targetRotation.x - event.deltaY * this.lookSensitivity,
@@ -386,6 +480,7 @@ export class WindController {
     if (this.inputLocked || event.pointerId !== this.dragPointerId) return;
     const deltaX = event.clientX - this.lastPointerX;
     const deltaY = event.clientY - this.lastPointerY;
+    if (Math.hypot(deltaX, deltaY) > 0) this.onSteeringInput?.();
     this.lastPointerX = event.clientX;
     this.lastPointerY = event.clientY;
     this.targetRotation.y -= deltaX * this.lookSensitivity;

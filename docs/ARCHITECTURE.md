@@ -27,16 +27,16 @@ The JavaScript/TypeScript projects use a pnpm workspace without Turborepo. The P
 ```text
 Web authoring/runtime
   <-> API
-       ├── StorageProvider -> LocalStorageProvider
+       ├── StorageProvider -> Local / mounted volume / Alibaba OSS
        ├── Memory AI boundary
        ├── Spatial AI grounding boundary
-       ├── future world-generation boundary
+       ├── panorama, Marble world, and Hero job boundaries
        └── GPU job boundary -> FastAPI GPU Worker
 ```
 
 The Web runtime owns the final Collider, camera poses, Three.js coordinates, Gaussian-world coordinates, viewing-ray construction, and Collider intersection. It therefore owns authoritative `anchor.position` and optional `anchor.normal`.
 
-The world boundary supports both pre-generated world assets and later asynchronous generation. The main demo must operate from pre-generated Gaussian + Collider assets.
+The world boundary supports both pre-generated world assets and asynchronous Marble generation. The main demo operates from pre-generated Gaussian + Collider assets. Each enterable world also carries an explicit camera-eye spawn pose. Web Geometry validates that pose against the Collider before movement; it does not infer avatar feet or add an eye-height offset.
 
 ## Local-first Development Architecture
 
@@ -49,14 +49,24 @@ Mac
     ├── media/
     ├── world/
     ├── heroes/
+    ├── memory-requests/  # processing requests, not formal Scene Memories
     └── scene.json
 
 External when needed
 ├── multimodal API
-└── Alibaba GPU ECS (future CUDA/SAM3D runtime)
+└── Alibaba GPU ECS (CUDA/SAM3 runtime)
 ```
 
-`scene.json` is a serialized runtime manifest/current state, not a production database.
+`scene.json` is a serialized runtime manifest/current state, not a relational
+production database. The same repositories currently persist it through a
+replaceable object-storage abstraction; a later indexed database can be added
+without making React or iOS authoritative for IDs.
+
+New Memory creation first persists an application-generated request record under
+`memory-requests/`. A request ID is not a Memory ID, and pending request state is
+not inserted into the Scene manifest. After media persistence and Memory analysis
+complete, the backend creates the authoritative Memory ID and updates
+`scene.json`.
 
 ## Future Alibaba Deployment
 
@@ -75,13 +85,13 @@ Local-first and cloud deployments must retain the same high-level Web, AI, GPU, 
 
 ### Web
 
-Future responsibilities include authoring UI, media selection, panorama import, the Three.js/SparkJS world runtime, Collider runtime, Wind Mode, gyroscope input, Anchor runtime, raycast, Memory Reveal, and media playback. Imperative world code belongs in `apps/web/src/world/`, not directly in React component state.
+Current responsibilities include the shared Memory manager/creation UI, panorama import, the Three.js/SparkJS world runtime, Collider runtime, Wind Mode, gyroscope input, Anchor runtime, Memory Reveal, and media playback. Production and preview render the same `App`; only injected Scene JSON and service configuration differ. Imperative world code belongs in `apps/web/src/world/`, not directly in React component state.
 
 The Web must not care how a panorama was acquired. Both Web upload and a future native bridge produce a `PanoramaAsset` and call `importPanorama()`. Everything after that boundary is acquisition-independent.
 
 ### API
 
-Future responsibilities include Scene lifecycle, authoritative system-ID generation, persistence, storage abstraction, AI orchestration, GPU jobs, and world jobs. Development runs locally on macOS; later CPU deployment must not change Web contracts.
+Current responsibilities include Scene lifecycle, authoritative system-ID generation, persistence, local/mounted/OSS storage, panorama jobs, Marble world jobs, and Hero provider jobs. Memory analysis, final-world grounding, world registration, and Anchor persistence remain explicit extension boundaries. Development runs locally on macOS; a later CPU deployment must not change Web contracts.
 
 The backend/application—not AI models—generates `scene_id`, `media_id`, `memory_id`, `anchor_id`, and `job_id`. Models may only return IDs supplied to them.
 
@@ -91,11 +101,9 @@ The FastAPI worker is the future boundary for PyTorch, NVIDIA CUDA, segmentation
 
 ### Optional iOS Capture Shell
 
-The thin shell hosts the Web product in `WKWebView` and owns optional native X5
-acquisition. The current scaffold includes the WKWebView bridge plus an
-Insta360-backed capture provider for capture, camera-file download, and 2:1 JPEG
-export. The native SDK binaries remain local ignored dependencies and are never
-committed.
+The thin shell hosts the same Web app in a WKWebView and supplies X5 preview,
+countdown, capture, local download, and Media SDK export. Durable upload remains
+pending. It must not reimplement the Web product or introduce a second home UI.
 
 The application executable does not link the large Insta360 binaries. It embeds
 a signed `PlaceEchoCaptureKit` framework without linking it, and dynamically
@@ -104,41 +112,14 @@ owns the SDK-linked provider and native capture controller; a process-local
 request/result bridge returns the staged panorama to the shell. This keeps SDK
 class registration and media initialization out of the Web shell launch path.
 
-The iOS build embeds the Web production bundle and loads it from the application
-resources by default. This keeps the Web UI alive while a Personal Team build
-manually switches from normal Wi-Fi to the X5 hotspot. A Scheme URL override is
-available only for live Web development and is not the capture-test default.
-
-An X5 capture request may present a transient native acquisition screen over the
-WKWebView for the SDK live spherical preview, shutter, and countdown. That screen
-is part of camera acquisition, not a second implementation of the Web authoring
-flow; it must return through the same bridge statuses and `PanoramaAsset`
-boundary.
-
-The Web memory-card entry emits scene-open and memory-creation intents; it does
-not mount or preload the spatial runtime. The Gaussian world is loaded only
-after the user opens a ready Memory's Scene, and X5 capture remains available as
-part of creating a new Memory independently of world loading state. On supported
-iOS browsers, the Memory click requests motion permission in the same user
-gesture before entering the Scene; there is no separate full-screen permission
-or Wind Mode interstitial.
-
-The intended paid-team network lifecycle is temporary: PlaceEcho joins the X5
-hotspot with an app-owned `joinOnce` configuration, downloads and exports the
-capture, removes that configuration, waits for normal internet connectivity to
-return, and only then uploads. The automatic adapter remains in the project but
-its entitlement is commented out for Personal Team signing. The current default
-flow uses manual X5 Wi-Fi selection, capture through local export, and manual
-return to normal networking. Upload and internet-restoration gating remain
-pending.
-
-The shell must not reimplement the Web product. Web sends a `capture_panorama`
-request with an application-generated `scene_id`; only a durable uploaded URL may
-cross `importPanorama()` in the completed product flow.
+The iOS build embeds the production Web bundle and serves it through an internal
+resource handler, so changing temporarily to X5 Wi-Fi does not remove the home
+UI. The Spatial Runtime is a separate lazy Web chunk and is loaded only after a
+ready Memory is opened; neither it nor the capture kit may block the manager UI.
 
 ## StorageProvider Abstraction
 
-API business modules access storage through a replaceable `StorageProvider`, not scattered filesystem calls. v0.1 initializes `LocalStorageProvider`. A future `OSSStorageProvider` may replace it without changing Web, Memory AI, Spatial AI, or GPU business contracts. OSS is not implemented now.
+API business modules access storage through a replaceable `StorageProvider`, not scattered filesystem calls. v0.1 supports `LocalStorageProvider`, a mounted-volume local provider, and `OSSStorageProvider`, including Memory request records. Selecting local, mounted, or OSS storage changes environment configuration, not Web, AI, or job contracts.
 
 ## AI Responsibility Boundaries
 
