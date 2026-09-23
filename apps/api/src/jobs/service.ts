@@ -91,6 +91,49 @@ export class PanoramaJobService {
     return job;
   }
 
+  async importPanorama(
+    sceneId: string,
+    image: Uint8Array,
+    width: number,
+    height: number,
+  ): Promise<PanoramaStitchJob | null> {
+    if ((await this.scenes.get(sceneId)) === null) return null;
+    if (
+      image.length < 4 ||
+      image.length > 64 * 1024 * 1024 ||
+      !Number.isInteger(width) ||
+      !Number.isInteger(height) ||
+      width < 2 ||
+      height < 1 ||
+      width > 16_384 ||
+      height > 8_192 ||
+      Math.abs(width / height - 2) > 0.01 ||
+      !isJpegOrPng(image)
+    ) {
+      throw new Error(
+        "Import a non-empty JPEG or PNG 2:1 equirectangular panorama with valid dimensions.",
+      );
+    }
+    const job: PanoramaStitchJob = {
+      job_id: `job_${randomUUID()}`,
+      type: "panorama_stitch",
+      scene_id: sceneId,
+      media_ids: [],
+      status: "completed",
+      output_url: null,
+      width,
+      height,
+      cuda_enabled: false,
+      elapsed_ms: 0,
+      error: null,
+    };
+    await this.storage.put(this.outputKey(job), image);
+    job.output_url = `/api/jobs/${job.job_id}/output`;
+    await this.scenes.setPanorama(sceneId, job.output_url, width, height);
+    await this.save(job);
+    return job;
+  }
+
   async createClean(
     sceneId: string,
     sourceJobId: string,
@@ -343,4 +386,19 @@ export class PanoramaJobService {
       encoder.encode(`${JSON.stringify(job, null, 2)}\n`),
     );
   }
+}
+
+function isJpegOrPng(image: Uint8Array): boolean {
+  const jpeg = image[0] === 0xff && image[1] === 0xd8;
+  const png =
+    image.length >= 8 &&
+    image[0] === 137 &&
+    image[1] === 80 &&
+    image[2] === 78 &&
+    image[3] === 71 &&
+    image[4] === 13 &&
+    image[5] === 10 &&
+    image[6] === 26 &&
+    image[7] === 10;
+  return jpeg || png;
 }

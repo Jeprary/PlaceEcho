@@ -21,6 +21,7 @@ export interface AnalysisGroup {
 export interface AnalysisResult {
   memories: AnalysisGroup[];
   unassigned_media_ids: string[];
+  scene_context_text?: string | null;
 }
 export interface MemoryAnalyzer {
   analyze(input: AnalysisInput): Promise<AnalysisResult>;
@@ -37,13 +38,13 @@ export class MemoryAnalysisService {
   async analyze(sceneId: string, mediaIds?: string[]): Promise<Scene | null> {
     const scene = await this.scenes.get(sceneId);
     if (!scene) return null;
-    const selected = mediaIds ?? scene.media.filter((item) => item.type === "image" && /\.(jpe?g|png|webp)$/i.test(item.source_name)).map((item) => item.id);
-    if (selected.length < 2 || selected.length > 12 || new Set(selected).size !== selected.length) {
-      throw new Error("Select 2–12 distinct media IDs.");
+    const selected = mediaIds ?? scene.media.filter(isAnalyzableMedia).map((item) => item.id);
+    if (selected.length < 1 || selected.length > 12 || new Set(selected).size !== selected.length) {
+      throw new Error("Select 1–12 distinct media IDs.");
     }
     const assets = selected.map((id) => scene.media.find((item) => item.id === id));
-    if (assets.some((asset) => !asset || asset.type !== "image" || !/\.(jpe?g|png|webp)$/i.test(asset.source_name))) {
-      throw new Error("All selected media must be uploaded image assets in this Scene.");
+    if (assets.some((asset) => !asset || !isAnalyzableMedia(asset))) {
+      throw new Error("All selected media must be supported uploaded image, audio, or video assets in this Scene.");
     }
     const panoramaJobId = scene.world.panorama_url?.match(/^\/api\/jobs\/(job_[a-zA-Z0-9_-]+)\/output$/)?.[1];
     const panorama = panoramaJobId ? await this.panoramaJobs.getOutput(panoramaJobId) : null;
@@ -75,13 +76,27 @@ export class MemoryAnalysisService {
       },
     }));
     const unselected = scene.media.map((item) => item.id).filter((id) => !selected.includes(id));
-    return this.scenes.setAnalysis(sceneId, memories, [...result.unassigned_media_ids, ...unselected]);
+    const selectedAssets = assets as MediaAsset[];
+    const selectedAudio = selectedAssets.filter((asset) => asset.type === "audio");
+    const sceneContextAudioUrl = selectedAudio.length === 1
+      ? selectedAudio[0]?.url
+      : undefined;
+    return this.scenes.setAnalysis(
+      sceneId,
+      memories,
+      [...result.unassigned_media_ids, ...unselected],
+      result.scene_context_text ?? undefined,
+      sceneContextAudioUrl ?? undefined,
+    );
   }
 }
 
 function validateAnalysis(result: AnalysisResult, selected: string[], allowedIds: string[], width: number, height: number): void {
-  if (!result || !Array.isArray(result.memories) || !Array.isArray(result.unassigned_media_ids) || result.memories.length < 2 || result.memories.length > 3) {
-    throw new Error("Analysis must contain 2–3 memories and an unassigned media array.");
+  if (!result || !Array.isArray(result.memories) || !Array.isArray(result.unassigned_media_ids) || result.memories.length < 1 || result.memories.length > 3) {
+    throw new Error("Analysis must contain 1–3 memories and an unassigned media array.");
+  }
+  if (result.scene_context_text !== undefined && result.scene_context_text !== null && (typeof result.scene_context_text !== "string" || !result.scene_context_text.trim())) {
+    throw new Error("Scene Context text must be null or a non-empty string.");
   }
   const seen = new Set<string>();
   const ids = new Set<string>();
@@ -106,4 +121,10 @@ function validateAnalysis(result: AnalysisResult, selected: string[], allowedIds
     seen.add(id);
   }
   if (seen.size !== selected.length) throw new Error("Every selected media ID must be assigned or unassigned.");
+}
+
+function isAnalyzableMedia(asset: MediaAsset): boolean {
+  if (asset.type === "image") return /\.(jpe?g|png|webp)$/i.test(asset.source_name);
+  if (asset.type === "audio") return /\.(m4a|wav|webm)$/i.test(asset.source_name);
+  return asset.type === "video" && /\.(mp4|mov)$/i.test(asset.source_name);
 }

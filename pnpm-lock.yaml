@@ -13,6 +13,9 @@ importers:
       '@alicloud/credentials':
         specifier: ^2.4.7
         version: 2.4.7
+      '@manycore/aholo-sdk-asset':
+        specifier: ^1.2.0
+        version: 1.2.0
       '@placeecho/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -515,6 +518,14 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@manycore/aholo-sdk-asset@1.2.0':
+    resolution: {integrity: sha512-6gEvrkllYd5MrXCFfsqkIv8iGfKDSsKtKewLWNCeA0/mmOEQ6L/hE5JXNHNp3ZkUVBkE4zuKHMjQwh2vmap5Fg==}
+    engines: {node: '>=18'}
+
+  '@manycore/aholo-sdk-core@1.2.0':
+    resolution: {integrity: sha512-v5j0wmJeNoPKKVIF7Yap95HY+aNmBbyiPIOFumZnnRC9fykRennYAG94gUp10LQQTwgctVAtiQBJW2ztfUSvSg==}
+    engines: {node: '>=18'}
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     resolution: {integrity: sha512-oTXEIha4SsuXdTA4Iyskj0kpdx2yVXdhd75c2v3xGrHFfVMsbhTPZU/nMPL4sWKo4pBHm3aucLaqGlF696dTyQ==}
@@ -1740,6 +1751,12 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
+
+  '@manycore/aholo-sdk-asset@1.2.0':
+    dependencies:
+      '@manycore/aholo-sdk-core': 1.2.0
+
+  '@manycore/aholo-sdk-core@1.2.0': {}
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     optional: true

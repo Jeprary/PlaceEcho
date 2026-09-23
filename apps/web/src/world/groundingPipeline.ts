@@ -79,6 +79,23 @@ export interface ResolveWorldAnchorsOptions {
   fetchImplementation?: typeof fetch;
   /** Use hero/marker half-depth + 0.02m when that dimension is known. */
   placementOffsetMeters?: number;
+  /** Present only after an explicit external-processing confirmation. */
+  heroGeneration?: {
+    provider: "aholo" | "trellis" | "trellis2";
+    version?: "G1" | "G1-Turbo";
+    face_count?: number;
+    enable_pbr?: boolean;
+    ai_predict_size?: boolean;
+    confirm_external_processing: boolean;
+  };
+}
+
+export interface HeroRecommendationResult {
+  action: "trigger_3d" | "request_additional_capture" | "skip";
+  memory_id: string | null;
+  object_name: string | null;
+  confidence: number;
+  rationale: string;
 }
 
 export interface ResolveWorldAnchorsResult {
@@ -86,6 +103,8 @@ export interface ResolveWorldAnchorsResult {
   anchors: AnchorResolutionResult[];
   /** Exact renderer captures used by AI and Web Geometry for visual QA. */
   views: readonly GroundingRenderView[];
+  heroRecommendation: HeroRecommendationResult | null;
+  heroJobId: string | null;
 }
 
 const DEFAULT_VIEW_ORIENTATIONS: readonly GroundingViewOrientation[] = [
@@ -363,11 +382,38 @@ async function readSceneResponse(response: Response): Promise<PlaceEchoScene> {
     }
     throw new Error(`PlaceEcho API request failed (${response.status})${detail}`);
   }
-  const scene = (await response.json()) as Partial<PlaceEchoScene>;
+  const payload = (await response.json()) as
+    | Partial<PlaceEchoScene>
+    | { scene?: Partial<PlaceEchoScene> };
+  const scene = "scene" in payload ? payload.scene : payload;
   if (!scene.scene_id || !Array.isArray(scene.memories)) {
     throw new Error("PlaceEcho API returned an invalid Scene.");
   }
   return scene as PlaceEchoScene;
+}
+
+async function readGroundingResponse(response: Response): Promise<{
+  scene: PlaceEchoScene;
+  heroRecommendation: HeroRecommendationResult | null;
+  heroJobId: string | null;
+}> {
+  if (!response.ok) {
+    await readSceneResponse(response);
+  }
+  const payload = (await response.json()) as PlaceEchoScene & {
+    scene?: PlaceEchoScene;
+    hero_recommendation?: HeroRecommendationResult;
+    hero_job_id?: string | null;
+  };
+  const scene = payload.scene ?? payload;
+  if (!scene.scene_id || !Array.isArray(scene.memories)) {
+    throw new Error("PlaceEcho API returned an invalid grounding result.");
+  }
+  return {
+    scene,
+    heroRecommendation: payload.hero_recommendation ?? null,
+    heroJobId: payload.hero_job_id ?? null,
+  };
 }
 
 /**
@@ -387,10 +433,16 @@ export async function resolveWorldAnchors(
     {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ views: options.views }),
+      body: JSON.stringify({
+        views: options.views,
+        ...(options.heroGeneration
+          ? { hero_generation: options.heroGeneration }
+          : {}),
+      }),
     },
   );
-  let scene = await readSceneResponse(groundingResponse);
+  const grounding = await readGroundingResponse(groundingResponse);
+  let scene = grounding.scene;
   const viewsById = new Map(options.views.map((view) => [view.view_id, view]));
   const anchors: AnchorResolutionResult[] = [];
 
@@ -431,5 +483,11 @@ export async function resolveWorldAnchors(
     anchors.push({ memory_id: memory.id, status: "persisted", hit });
   }
 
-  return { scene, anchors, views: options.views };
+  return {
+    scene,
+    anchors,
+    views: options.views,
+    heroRecommendation: grounding.heroRecommendation,
+    heroJobId: grounding.heroJobId,
+  };
 }

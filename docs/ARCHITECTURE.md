@@ -137,11 +137,32 @@ database.
 
 ## AI Responsibility Boundaries
 
-Memory AI owns media grouping, Memory names, summaries, and cues. Spatial AI owns source-panorama and final-world 2D grounding. One efficient multimodal request may combine the first semantic and spatial analysis, but code remains separated under `ai/memory/` and `ai/grounding/`.
+Memory AI owns media grouping, Memory names, summaries, cues, and an optional
+media-supported description of the overall Scene. Spatial AI owns
+source-panorama and final-world 2D grounding. One efficient multimodal request
+may combine the first semantic and spatial analysis, but code remains separated
+under `ai/memory/` and `ai/grounding/`.
 
 AI must never produce authoritative final 3D coordinates.
 
-The implemented API analysis service reads selected uploaded image bytes and the stitched panorama, calls a replaceable `MemoryAnalyzer`, validates the model's grouping and source pixels, then persists Memory groups. The default analyzer calls Bailian. Image-only API upload and a completed stitched panorama are current prerequisites; the standalone Python multimedia prototype is not the API runtime. Reanalysis replaces prior Memory groups.
+The implemented API analysis service reads 1–12 selected uploaded image, audio,
+or video assets and the stitched panorama, calls a replaceable
+`MemoryAnalyzer`, validates the model's 1–3 groups and source pixels, then
+persists Memory groups. The default analyzer calls Bailian
+`qwen3.8-omni-flash` through the OpenAI-compatible Chat Completions API using
+the provider's native image, audio, and video content parts. INSP remains an
+image-compatible panorama capture upload but is excluded from automatic Memory
+analysis selection. A completed stitched panorama remains a prerequisite; the
+standalone Python multimedia prototype is not the API runtime. Reanalysis
+replaces prior Memory groups. A validated `scene_context_text` from that same
+analysis may update `scene_context.text`; when the selection contains exactly
+one audio asset, its registered URL is persisted as `scene_context.audio_url`.
+Neither field is copied automatically into individual Memory reflections.
+Audio and direct user text are global semantic evidence: they may disambiguate
+which visible panorama cue corresponds to a Memory and help produce the Scene
+Context summary. They cannot independently authorize a pixel or 3D location;
+`source_grounding` still requires visible evidence in the original panorama,
+and final position still requires Web Collider raycast.
 
 The authoritative Memory title first exists when this analysis succeeds. Before
 then, `memory-requests/` records are only processing receipts and must use a
@@ -152,10 +173,9 @@ must not be represented as model output.
 
 The Web creation boundary carries the actual panorama `File`, selected media
 `File` objects, recorded audio `Blob`, and optional typed context. Web uploads
-the currently supported panorama/image binaries sequentially through the Media
-route before creating the processing receipt. Video, audio, and typed context
-remain explicit deferred inputs while their backend persistence routes are
-absent; they must never be represented as uploaded or transcribed.
+supported binaries sequentially through the Media route before creating the
+processing receipt. Typed context remains Scene-level semantic evidence and is
+never represented as an uploaded or transcribed binary.
 
 A completed optional Hero asset is currently rendered as a transparent Three.js
 turntable beside the Memory Reveal. This presentation renderer is intentionally
@@ -163,7 +183,17 @@ independent of the Gaussian world and does not claim world-space placement at
 the Anchor. A future in-world Hero needs explicit scale/orientation placement
 metadata before `SpatialRuntime` may attach it to Anchor geometry.
 
-The implemented World Grounding service receives explicit final-world render images with stable view IDs and dimensions. A replaceable `WorldGrounder` finds cue pixels in those renders; the API validates and persists only `world_grounding`. Registering new world assets or recomputing grounding clears stale 3D geometry. Web Geometry remains solely responsible for raycast position and normal, sent through the Anchor persistence route. The API does not infer a 3D point from AI output.
+The implemented World Grounding service receives explicit final-world
+perspective render images with stable view IDs and dimensions. Its second
+Scene-level multimodal request also receives the already-validated Memory
+groups and their image media. A replaceable `WorldGrounder` returns cue pixels
+plus at most one validated Hero recommendation (or `skip`/additional-capture).
+Only an explicit generation option and provider-processing confirmation may turn
+a high-confidence recommendation into a Hero job. The API persists only
+`world_grounding`; registering new world assets or recomputing grounding clears
+stale 3D geometry. Web Geometry remains solely responsible for raycast position
+and normal, sent through the Anchor persistence route. Neither grounding nor
+Hero recommendation may infer an authoritative 3D point.
 
 The Web capture module binds every stable view ID to its exact perspective-camera
 pose and projection values, then uses that in-memory map immediately after the

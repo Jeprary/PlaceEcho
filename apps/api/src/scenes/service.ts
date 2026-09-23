@@ -56,11 +56,19 @@ export class SceneService {
     return scene;
   }
 
-  async setAnalysis(sceneId: string, memories: Memory[], unassigned: string[]): Promise<Scene | null> {
+  async setAnalysis(
+    sceneId: string,
+    memories: Memory[],
+    unassigned: string[],
+    sceneContextText?: string,
+    sceneContextAudioUrl?: string,
+  ): Promise<Scene | null> {
     const scene = await this.scenes.get(sceneId);
     if (!scene) return null;
     scene.memories = memories;
     scene.unassigned_media_ids = unassigned;
+    if (sceneContextText !== undefined) scene.scene_context.text = sceneContextText;
+    if (sceneContextAudioUrl !== undefined) scene.scene_context.audio_url = sceneContextAudioUrl;
     await this.scenes.save(scene);
     return scene;
   }

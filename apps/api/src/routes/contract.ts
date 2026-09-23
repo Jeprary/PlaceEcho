@@ -110,7 +110,7 @@ export function registerContractRoutes(
     if (!Buffer.isBuffer(request.body) || request.body.length === 0) {
       return reply.code(400).send({
         status: "invalid_request",
-        message: "Send a non-empty INSP, JPG, PNG, or WebP file as application/octet-stream.",
+        message: "Send a non-empty supported image, audio, or video file as application/octet-stream.",
       });
     }
     try {
@@ -126,6 +126,38 @@ export function registerContractRoutes(
         media_id: stored.media.id,
         media: stored.media,
       });
+    } catch (error) {
+      return reply.code(400).send({
+        status: "invalid_request",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+  app.post<{
+    Params: { sceneId: string };
+    Querystring: { width?: string; height?: string };
+    Body: Buffer;
+  }>("/api/scenes/:sceneId/panorama/import", async (request, reply) => {
+    const width = Number(request.query.width);
+    const height = Number(request.query.height);
+    if (!Buffer.isBuffer(request.body) || request.body.length === 0) {
+      return reply.code(400).send({
+        status: "invalid_request",
+        message: "Send a non-empty 2:1 JPEG or PNG as application/octet-stream.",
+      });
+    }
+    try {
+      const job = await dependencies.panoramaJobs.importPanorama(
+        request.params.sceneId,
+        request.body,
+        width,
+        height,
+      );
+      if (job === null) {
+        return reply.code(404).send({ status: "not_found" });
+      }
+      return reply.code(201).send({ job_id: job.job_id, job });
     } catch (error) {
       return reply.code(400).send({
         status: "invalid_request",
@@ -267,13 +299,64 @@ export function registerContractRoutes(
     },
   );
 
-  app.post<{ Params: { sceneId: string }; Body: { views?: RenderView[] } }>(
+  app.post<{
+    Params: { sceneId: string };
+    Body: {
+      views?: RenderView[];
+      hero_generation?: {
+        provider?: HeroProviderName;
+        version?: HeroGenerationVersion;
+        face_count?: number;
+        enable_pbr?: boolean;
+        ai_predict_size?: boolean;
+        confirm_external_processing?: boolean;
+      };
+    };
+  }>(
     "/api/scenes/:sceneId/world-grounding", async (request, reply) => {
       try {
-        const scene = await dependencies.worldGrounding.ground(request.params.sceneId, request.body?.views ?? []);
-        return scene ? reply.send(scene) : reply.code(404).send({ status: "not_found" });
+        const result = await dependencies.worldGrounding.ground(
+          request.params.sceneId,
+          request.body?.views ?? [],
+        );
+        if (!result) return reply.code(404).send({ status: "not_found" });
+        let heroJobId: string | null = null;
+        const generation = request.body?.hero_generation;
+        if (
+          result.hero_recommendation.action === "trigger_3d" &&
+          generation?.provider
+        ) {
+          const job = await dependencies.heroJobs.create(
+            request.params.sceneId,
+            result.hero_recommendation.memory_id!,
+            {
+              provider: generation.provider,
+              image_urls: [],
+              media_ids: result.hero_recommendation.observations.map(
+                (observation) => observation.media_id,
+              ),
+              version: generation.version,
+              face_count: generation.face_count,
+              enable_pbr: generation.enable_pbr,
+              ai_predict_size: generation.ai_predict_size,
+              confirm_external_processing:
+                generation.confirm_external_processing,
+            },
+          );
+          if (!job) throw new Error("Recommended Hero Memory disappeared.");
+          heroJobId = job.job_id;
+        }
+        const scene = await dependencies.sceneService.get(request.params.sceneId);
+        if (!scene) return reply.code(404).send({ status: "not_found" });
+        return reply.send({
+          scene,
+          hero_recommendation: result.hero_recommendation,
+          hero_job_id: heroJobId,
+        });
       } catch (error) {
-        const unavailable = error instanceof BailianUnavailableError;
+        const unavailable =
+          error instanceof BailianUnavailableError ||
+          error instanceof HeroProviderUnavailableError;
         return reply.code(unavailable ? 503 : 400).send({ status: unavailable ? "provider_unavailable" : "invalid_request", message: error instanceof Error ? error.message : String(error) });
       }
     },

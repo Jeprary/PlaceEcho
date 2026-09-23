@@ -94,6 +94,46 @@ test("returns 404 for a missing Scene", async (t) => {
   });
 });
 
+test("imports an existing 2:1 panorama without a GPU stitch", async (t) => {
+  const localDataDirectory = await mkdtemp(
+    path.join(tmpdir(), "placeecho-api-test-"),
+  );
+  t.after(async () => rm(localDataDirectory, { recursive: true, force: true }));
+  const worker = new FakeGpuWorkerClient();
+  const app = buildApp({
+    localDataDirectory,
+    logger: false,
+    gpuWorkerClient: worker,
+  });
+  t.after(async () => app.close());
+
+  const created = await app.inject({ method: "POST", url: "/api/scenes" });
+  const sceneId = created.json<{ scene_id: string }>().scene_id;
+  const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+  const imported = await app.inject({
+    method: "POST",
+    url: `/api/scenes/${sceneId}/panorama/import?width=4000&height=2000`,
+    headers: { "content-type": "application/octet-stream" },
+    payload: jpeg,
+  });
+  assert.equal(imported.statusCode, 201, imported.body);
+  const jobId = imported.json<{ job_id: string }>().job_id;
+  assert.equal(worker.requests.length, 0);
+
+  const scene = await app.inject({
+    method: "GET",
+    url: `/api/scenes/${sceneId}`,
+  });
+  assert.equal(scene.json<Scene>().world.panorama_url, `/api/jobs/${jobId}/output`);
+  assert.equal(scene.json<Scene>().world.panorama_width, 4000);
+  assert.equal(scene.json<Scene>().world.panorama_height, 2000);
+  const output = await app.inject({
+    method: "GET",
+    url: `/api/jobs/${jobId}/output`,
+  });
+  assert.deepEqual(output.rawPayload, jpeg);
+});
+
 test("uploads INSP media and completes a panorama stitch job", async (t) => {
   const localDataDirectory = await mkdtemp(path.join(tmpdir(), "placeecho-api-test-"));
   t.after(async () => rm(localDataDirectory, { recursive: true, force: true }));

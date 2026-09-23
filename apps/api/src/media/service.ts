@@ -26,7 +26,7 @@ export class MediaService {
     const media: MediaAsset = {
       id: mediaId,
       source_name: filename,
-      type: "image",
+      type: mediaType(filename),
       url: `/api/scenes/${sceneId}/media/${mediaId}`,
     };
 
@@ -57,8 +57,15 @@ export class MediaService {
 
 function sanitizeMediaFilename(sourceName: string): string {
   const filename = path.basename(sourceName.trim());
-  if (!filename || !/^[a-zA-Z0-9._-]+\.(insp|jpe?g|png|webp)$/i.test(filename)) {
-    throw new Error("Media filename must be a safe INSP, JPG, PNG, or WebP filename.");
+  if (!filename || !/^[a-zA-Z0-9._-]+\.(insp|jpe?g|png|webp|m4a|wav|webm|mp4|mov)$/i.test(filename)) {
+    throw new Error("Media filename must be a safe INSP, JPG, PNG, WebP, M4A, WAV, WebM, MP4, or MOV filename.");
   }
   return filename;
+}
+
+function mediaType(filename: string): MediaAsset["type"] {
+  const extension = path.extname(filename).toLowerCase();
+  if ([".m4a", ".wav", ".webm"].includes(extension)) return "audio";
+  if ([".mp4", ".mov"].includes(extension)) return "video";
+  return "image";
 }

@@ -27,6 +27,7 @@ export interface HeroProviderStatus {
 export interface HeroProvider {
   readonly name: HeroProviderName;
   isConfigured(): boolean;
+  uploadSourceImage?(data: Uint8Array, filename: string): Promise<string>;
   start(input: HeroGenerationInput): Promise<string>;
   getStatus(
     providerTaskId: string,

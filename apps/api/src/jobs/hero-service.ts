@@ -77,6 +77,12 @@ export class HeroJobService {
     const inputKeys = (options.media_ids ?? []).map((mediaId) => {
       const selected = scene.media.find((candidate) => candidate.id === mediaId);
       if (!selected) throw new Error("Every hero media ID must belong to the target Scene.");
+      if (
+        options.provider === "aholo" &&
+        (selected.type !== "image" || !/\.(jpe?g|png|webp)$/i.test(selected.source_name))
+      ) {
+        throw new Error("Every Aholo hero media ID must reference a JPG, PNG, or WebP image.");
+      }
       return this.media.storageKey(sceneId, selected.id, selected.source_name);
     });
     const input = normalizeInput(
@@ -92,7 +98,7 @@ export class HeroJobService {
       status: "queued",
       provider: provider.name,
       provider_task_id: null,
-      source_image_count: input.image_urls.length || input.input_keys?.length || 0,
+      source_image_count: input.image_urls.length + (input.input_keys?.length ?? 0),
       version: options.provider === "aholo" ? input.version : null,
       asset_url: null,
       asset_key: null,
@@ -136,7 +142,8 @@ export class HeroJobService {
       asset_url: null,
     });
     try {
-      job.provider_task_id = await provider.start(input);
+      const providerInput = await this.prepareProviderInput(provider, input);
+      job.provider_task_id = await provider.start(providerInput);
       await this.save(job);
       for (let attempt = 0; attempt < 60; attempt += 1) {
         const result = await provider.getStatus(job.provider_task_id, input.version);
@@ -172,6 +179,31 @@ export class HeroJobService {
     await this.save(job);
   }
 
+  private async prepareProviderInput(
+    provider: HeroProvider,
+    input: HeroGenerationInput,
+  ): Promise<HeroGenerationInput> {
+    if (provider.name !== "aholo" || !input.input_keys?.length) return input;
+    if (!provider.uploadSourceImage) {
+      throw new Error("The Aholo provider does not support local Scene media uploads.");
+    }
+
+    const uploadedUrls: string[] = [];
+    for (const inputKey of input.input_keys) {
+      const data = await this.storage.get(inputKey);
+      if (data === null) {
+        throw new Error("A selected Hero source image is no longer available.");
+      }
+      const filename = inputKey.split("/").at(-1) ?? "hero-source.jpg";
+      uploadedUrls.push(await provider.uploadSourceImage(data, filename));
+    }
+    return {
+      ...input,
+      image_urls: [...input.image_urls, ...uploadedUrls],
+      input_keys: undefined,
+    };
+  }
+
   private async save(job: HeroJob): Promise<void> {
     await this.storage.put(
       `jobs/${job.job_id}.json`,
@@ -185,6 +217,9 @@ function normalizeInput(
   inputKeys: string[],
   outputGlbKey: string,
 ): HeroGenerationInput {
+  if (new Set(inputKeys).size !== inputKeys.length) {
+    throw new Error("Every hero media ID must be distinct.");
+  }
   const imageUrls = (options.image_urls ?? []).map((value) => {
     if (typeof value !== "string" || value.length > 4096) {
       throw new Error("Every hero image URL must be a valid HTTPS URL.");
@@ -197,8 +232,9 @@ function normalizeInput(
       throw new Error("Every hero image URL must be a valid HTTPS URL.");
     }
   });
-  if (options.provider === "aholo" && (imageUrls.length < 1 || imageUrls.length > 8)) {
-    throw new Error("Aholo hero generation requires between 1 and 8 image URLs.");
+  const sourceImageCount = imageUrls.length + inputKeys.length;
+  if (options.provider === "aholo" && (sourceImageCount < 1 || sourceImageCount > 8)) {
+    throw new Error("Aholo hero generation requires between 1 and 8 source images.");
   }
   if (options.provider !== "aholo" && inputKeys.length !== 1) {
     throw new Error("Local hero generation requires exactly one media ID.");

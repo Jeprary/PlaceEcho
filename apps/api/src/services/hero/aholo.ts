@@ -1,3 +1,4 @@
+import { createAssetClient } from "@manycore/aholo-sdk-asset";
 import type {
   HeroGenerationInput,
   HeroGenerationVersion,
@@ -32,6 +33,13 @@ interface AholoSdkClient {
   };
 }
 
+interface AholoAssetClient {
+  uploadBuffer(
+    data: Buffer,
+    options: { filename: string },
+  ): Promise<{ url: string }>;
+}
+
 export class AholoHeroProvider implements HeroProvider {
   readonly name = "aholo" as const;
 
@@ -39,6 +47,7 @@ export class AholoHeroProvider implements HeroProvider {
     private readonly apiKey: string,
     private readonly region: AholoRegion,
     private readonly injectedClient?: AholoSdkClient,
+    private readonly injectedAssetClient?: AholoAssetClient,
   ) {}
 
   static fromEnvironment(env: NodeJS.ProcessEnv = process.env): AholoHeroProvider {
@@ -46,12 +55,27 @@ export class AholoHeroProvider implements HeroProvider {
     return new AholoHeroProvider(env.AHOLO_API_KEY ?? "", region);
   }
 
-  static forTesting(client: AholoSdkClient): AholoHeroProvider {
-    return new AholoHeroProvider("test-only", "cn", client);
+  static forTesting(
+    client: AholoSdkClient,
+    assetClient?: AholoAssetClient,
+  ): AholoHeroProvider {
+    return new AholoHeroProvider("test-only", "cn", client, assetClient);
   }
 
   isConfigured(): boolean {
     return this.apiKey.length > 0;
+  }
+
+  async uploadSourceImage(data: Uint8Array, filename: string): Promise<string> {
+    this.assertConfigured();
+    try {
+      const result = await this.assetClient().uploadBuffer(Buffer.from(data), {
+        filename,
+      });
+      return requireHttpsUrl(result.url, "Aholo asset upload");
+    } catch (error) {
+      throw this.redactedError(error);
+    }
   }
 
   async start(input: HeroGenerationInput): Promise<string> {
@@ -117,6 +141,13 @@ export class AholoHeroProvider implements HeroProvider {
     );
   }
 
+  private assetClient(): AholoAssetClient {
+    return (
+      this.injectedAssetClient ??
+      createAssetClient({ apiKey: this.apiKey, region: this.region })
+    );
+  }
+
   private assertConfigured(): void {
     if (!this.isConfigured()) {
       throw new Error("AHOLO_API_KEY is not configured.");
@@ -143,10 +174,19 @@ function selectGlbUrl(
   const content = result.outputs[version === "G1" ? 1 : 0]?.content;
   if (!content || content === "NOT_REQUESTED") return null;
   try {
-    const url = new URL(content);
-    return url.protocol === "https:" ? url.toString() : null;
+    return requireHttpsUrl(content, "Aholo Lux3D output");
   } catch {
     return null;
+  }
+}
+
+function requireHttpsUrl(value: string, source: string): string {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:") throw new Error();
+    return url.toString();
+  } catch {
+    throw new Error(`${source} did not return a valid HTTPS URL.`);
   }
 }
 

@@ -76,7 +76,11 @@ export function buildApp(options: BuildAppOptions = {}) {
     options.panoramaCleaner ?? new CommandPanoramaCleaner(),
   );
   const memoryAnalysis = new MemoryAnalysisService(sceneService, mediaService, panoramaJobs, options.memoryAnalyzer ?? new BailianMemoryAnalyzer());
-  const worldGrounding = new WorldGroundingService(sceneService, options.worldGrounder ?? new BailianWorldGrounder());
+  const worldGrounding = new WorldGroundingService(
+    sceneService,
+    mediaService,
+    options.worldGrounder ?? new BailianWorldGrounder(),
+  );
   const marble =
     options.marbleClient ??
     new HttpMarbleClient(

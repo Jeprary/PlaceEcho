@@ -47,14 +47,21 @@ for Scene IDs.
 
 Accepts a non-empty `application/octet-stream` body, persists it through
 `StorageProvider`, and returns an application-generated `media_id` plus media
-record. `GET /api/scenes/:sceneId/media/:mediaId` returns the stored bytes.
-The current Web client sends supported panorama and image `File` bodies through
-this route one at a time. Video files, audio files/recordings, and typed context
-have no binary/context persistence route in v0.1 and therefore must remain
-clearly marked deferred inputs; the client must not silently discard them or
-pretend that audio was transcribed.
+record. Safe JPG/JPEG, PNG, WebP, and INSP filenames register as `image`; M4A,
+WAV, and WebM register as `audio`; MP4 and MOV register as `video`. INSP keeps
+its existing capture compatibility but is not an automatic Memory-analysis
+input. `GET /api/scenes/:sceneId/media/:mediaId` returns the stored bytes.
 
 ## Panorama
+
+### `POST /api/scenes/:sceneId/panorama/import?width=...&height=...` — Implemented
+
+Imports an already-stitched JPEG or PNG equirectangular panorama as an
+`application/octet-stream` body. Dimensions must describe a valid 2:1 image and
+are retained for source-grounding bounds. The API creates a completed panorama
+job and activates its immutable output without invoking the GPU worker. This is
+the acquisition-independent path used for existing 360 files; INSP capture uses
+the stitch route below.
 
 ### `POST /api/scenes/:sceneId/panorama/stitch` — Implemented
 
@@ -151,9 +158,31 @@ continues to use the Media route.
 
 ## Memory Analysis
 
-### `POST /api/scenes/:sceneId/analyze` — Implemented for uploaded images
+### `POST /api/scenes/:sceneId/analyze` — Implemented for multimodal media
 
-Body: `{ "media_ids": ["media_..."] }` (optional; defaults to uploaded JPG, PNG, and WebP media, excluding INSP captures). Requires 2–12 distinct uploaded image assets and a completed panorama stitch. Uses Bailian (`DASHSCOPE_API_KEY`, optional `DASHSCOPE_BASE_URL` and `DASHSCOPE_MODEL`; legacy `BAILIAN_API_KEY`, `BAILIAN_HOST`/`BAILIAN_API_HOST`, and `BAILIAN_MODEL` aliases are accepted) to group images and identify source-panorama cues. A bare workspace host copied from the console is normalized to its HTTPS OpenAI-compatible base path. The backend supplies Memory IDs, validates that every selected media ID appears exactly once in a group or `unassigned_media_ids`, and checks source pixels against the original panorama dimensions. Unselected Scene media remains unassigned. Returns the updated Scene. Analysis replaces the previous Memory groups; clients should only rerun it when that loss is intended. The current API media upload supports images only. Missing provider configuration returns 503; invalid input or model output returns 400.
+Body: `{ "media_ids": ["media_..."] }` (optional; defaults to uploaded JPG,
+PNG, WebP, M4A, WAV, WebM, MP4, and MOV media, excluding INSP captures).
+Requires 1–12 distinct supported uploaded image/audio/video assets and a
+completed panorama stitch. Uses Bailian (`DASHSCOPE_API_KEY`, optional
+`DASHSCOPE_BASE_URL` and `DASHSCOPE_MODEL`; legacy `BAILIAN_API_KEY`,
+`BAILIAN_HOST`/`BAILIAN_API_HOST`, and `BAILIAN_MODEL` aliases are accepted) to
+produce 1–3 Memory groups and identify source-panorama cues. The default model
+is `qwen3.8-omni-flash`; the OpenAI-compatible request uses `image_url`,
+`input_audio`, and `video_url` content parts, requests text-only output, disables
+reasoning with `reasoning_effort: "none"`, and requests
+`response_format: { "type": "json_object" }`. A bare workspace host copied from
+the console is normalized to its HTTPS OpenAI-compatible base path.
+
+The backend supplies Memory IDs, validates that every selected media ID appears
+exactly once in a group or `unassigned_media_ids`, and checks source pixels
+against the original panorama dimensions. A one-asset analysis may return one
+Memory. The result may also contain a non-empty `scene_context_text`, which is
+persisted to `scene_context.text`; if the selection contains exactly one audio
+asset, its registered URL is persisted to `scene_context.audio_url`. Unselected
+Scene media remains unassigned. Returns the updated Scene. Analysis replaces the
+previous Memory groups; clients should only rerun it when that loss is intended.
+Missing provider configuration returns 503; invalid input or model output
+returns 400.
 
 This analysis call is the only point at which the model creates the authoritative
 `memory.name`, `summary`, and cue. A processing Memory request has no final
@@ -166,7 +195,42 @@ unexecuted fixture title as a live model result.
 
 ### `POST /api/scenes/:sceneId/world-grounding` — Implemented
 
-Requires registered splat and Collider URLs. Body contains 1–8 known final-world render views, each with `view_id`, `width`, `height`, and `image_data_url` (`data:image/jpeg`, PNG, or WebP base64). The API sends cues and these views to Bailian, validates that every Memory has one result and each pixel lies inside its named view, then persists 2D grounding. A changed grounding clears existing 3D position and normal. Returns the updated Scene. Example result within a Memory:
+Requires registered splat and Collider URLs. Body contains 1–8 known
+final-world perspective render views, each with `view_id`, `width`, `height`,
+and `image_data_url` (`data:image/jpeg`, PNG, or WebP base64). One
+`qwen3.8-omni-flash` request receives these renders, the validated Memory
+groups, their original image media, and Scene Context. It returns both the cue
+pixels and at most one Scene-wide Hero recommendation. The API validates that
+every Memory has one grounding result, each pixel lies inside its named view,
+and every Hero observation references media in the recommended Memory. A
+changed grounding clears existing 3D position and normal.
+
+The optional `hero_generation` object requests automatic creation only when the
+model returns `action: "trigger_3d"` with confidence at least `0.75`. Passing
+Aholo requires `confirm_external_processing: true`; `skip` or
+`request_additional_capture` never starts a 3D job. Example:
+
+```json
+{
+  "views": [
+    {
+      "view_id": "front_01",
+      "width": 1024,
+      "height": 1024,
+      "image_data_url": "data:image/jpeg;base64,..."
+    }
+  ],
+  "hero_generation": {
+    "provider": "aholo",
+    "version": "G1-Turbo",
+    "confirm_external_processing": true
+  }
+}
+```
+
+The response is `{ scene, hero_recommendation, hero_job_id }`.
+`hero_job_id` is null when no generation started. Example grounding within a
+Memory:
 
 ```json
 {
@@ -237,7 +301,28 @@ Persists authoritative geometry computed by Web Geometry after a world grounding
 
 ### `POST /api/scenes/:sceneId/memories/:memoryId/hero` — Implemented
 
-Creates an optional provider-backed Hero job and returns an application-generated job ID:
+Creates an optional provider-backed Hero job and returns an application-generated
+job ID. Aholo accepts 1–8 total source images as existing HTTPS `image_urls`,
+uploaded Scene image `media_ids`, or both. Local sources must be JPG, PNG, or
+WebP. When `media_ids` are supplied, the asynchronous job reads their bytes
+through `StorageProvider`, uploads them with the official Aholo asset client,
+and passes only the resulting HTTPS URLs to Lux3D image-to-3D. Every media ID
+must belong to the target Scene and be distinct.
+
+Sending any source image to Aholo requires
+`"confirm_external_processing": true`; without that explicit consent no upload
+or generation call is made. The request may also select `version` (`G1-Turbo`
+by default or `G1`), `face_count`, `enable_pbr`, and `ai_predict_size`:
+
+```json
+{
+  "provider": "aholo",
+  "media_ids": ["media_001"],
+  "confirm_external_processing": true
+}
+```
+
+The queued response is:
 
 ```json
 { "job_id": "job_001" }

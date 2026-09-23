@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@alicloud/credentials": "^2.4.7",
+    "@manycore/aholo-sdk-asset": "^1.2.0",
     "@placeecho/shared": "workspace:*",
     "ali-oss": "^6.23.0",
     "fastify": "^5.6.0"
