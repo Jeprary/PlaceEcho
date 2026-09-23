@@ -9,9 +9,9 @@ enum X5CaptureUIError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .cancelled:
-            return "X5 capture was cancelled."
+            return "已取消 X5 拍摄。"
         case .previewFailed(let message):
-            return "Could not start the X5 preview: \(message)"
+            return "无法启动 X5 实时预览：\(message)"
         }
     }
 }
@@ -47,6 +47,7 @@ final class X5CaptureViewController: UIViewController {
     private var countdownValue = 3
     private var connectionAttemptsRemaining = 30
     private var isPreviewReady = false
+    private var isRetryingPreview = false
     private var didFinish = false
     private var didAnimateEntrance = false
 
@@ -250,6 +251,10 @@ final class X5CaptureViewController: UIViewController {
         showStatus("正在连接 X5…", spinning: true)
         setShutterEnabled(false)
         isPreviewReady = false
+        if cameraManager.cameraState == .connected {
+            configurePreview()
+            return
+        }
         cameraManager.setup()
         waitForCameraConnection()
     }
@@ -397,13 +402,26 @@ final class X5CaptureViewController: UIViewController {
     @objc private func shutterTapped() {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         if !isPreviewReady || cameraManager.cameraState != .connected {
-            previewPlayer?.stopRunning(completion: nil)
-            previewPlayer?.renderView.removeFromSuperview()
-            previewPlayer = nil
-            beginPreviewConnection()
+            retryPreview()
             return
         }
         startCountdown()
+    }
+
+    private func retryPreview() {
+        guard !isRetryingPreview else { return }
+        isRetryingPreview = true
+        showStatus("正在重新连接 X5…", spinning: true)
+        setShutterEnabled(false)
+
+        // The Insta360 player must finish stopping before a replacement player
+        // is created. Starting both pipelines at once briefly stalls the UI and
+        // leaves two decoders competing for the camera stream.
+        stopPreview { [weak self] in
+            guard let self, !self.didFinish else { return }
+            self.isRetryingPreview = false
+            self.beginPreviewConnection()
+        }
     }
 
     private func startCountdown() {

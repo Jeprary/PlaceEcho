@@ -21,6 +21,7 @@ interface PanoramaReadyMessage {
   url: string;
   width: number;
   height: number;
+  availability: "device" | "durable";
 }
 
 interface CaptureFailedMessage {
@@ -47,7 +48,11 @@ type NativeMessage =
   | CaptureFailedMessage;
 
 export type IOSBridgeStatus =
-  | { type: "ready"; asset: PanoramaAsset }
+  | {
+      type: "ready";
+      asset: PanoramaAsset;
+      availability: "device" | "durable";
+    }
   | {
       type: "staged";
       sceneId: string;
@@ -63,10 +68,10 @@ export function isIOSPanoramaCaptureAvailable(): boolean {
 export function requestIOSPanoramaCapture(sceneId: string): void {
   const messageHandler = getMessageHandler();
   if (!messageHandler) {
-    throw new Error("PlaceEcho is not running inside the iOS capture shell.");
+    throw new Error("当前页面不在 PlaceEcho iOS 拍摄环境中。");
   }
   if (!sceneId.trim()) {
-    throw new Error("A scene ID is required before starting panorama capture.");
+    throw new Error("开始全景拍摄前需要有效的场景 ID。");
   }
 
   const request: IOSCaptureRequest = {
@@ -78,8 +83,9 @@ export function requestIOSPanoramaCapture(sceneId: string): void {
 
 /**
  * Installs the single native-to-Web entry point used by the iOS shell.
- * Only durable panorama_ready results cross the acquisition-independent boundary.
- * Local panorama_staged results remain outside importPanorama until upload succeeds.
+ * Both device-local and server-durable panorama_ready results cross the
+ * acquisition-independent boundary. The explicit availability value keeps a
+ * device-only import from being mistaken for completed cloud synchronization.
  */
 export function installIOSPanoramaBridge(
   onStatus?: (status: IOSBridgeStatus) => void,
@@ -110,32 +116,37 @@ export function installIOSPanoramaBridge(
       return;
     }
 
-    const durableURL = getWebReadableURL(message.url);
-    if (!durableURL) {
+    const readableURL = getWebReadableURL(message.url, message.availability);
+    if (!readableURL) {
       onStatus?.({
         type: "failed",
         sceneId: message.scene_id,
-        message:
-          "The capture result is not a durable Web URL and was not imported.",
+        message: "拍摄结果地址不可用，未能导入全景图。",
       });
       return;
     }
 
     const asset: PanoramaAsset = {
       sceneId: message.scene_id,
-      url: durableURL,
+      url: readableURL,
       width: message.width,
       height: message.height,
       source: "ios_capture",
     };
     void importPanorama(asset)
-      .then(() => onStatus?.({ type: "ready", asset }))
+      .then(() =>
+        onStatus?.({
+          type: "ready",
+          asset,
+          availability: message.availability,
+        }),
+      )
       .catch((error: unknown) => {
         onStatus?.({
           type: "failed",
           sceneId: message.scene_id,
           message:
-            error instanceof Error ? error.message : "Panorama import failed.",
+            error instanceof Error ? error.message : "全景图导入失败。",
         });
       });
   };
@@ -195,6 +206,7 @@ function parseNativeMessage(value: unknown): NativeMessage | null {
   if (
     typeof value.scene_id !== "string" ||
     typeof value.url !== "string" ||
+    (value.availability !== "device" && value.availability !== "durable") ||
     typeof value.width !== "number" ||
     typeof value.height !== "number" ||
     value.width <= 0 ||
@@ -208,6 +220,7 @@ function parseNativeMessage(value: unknown): NativeMessage | null {
     url: value.url,
     width: value.width,
     height: value.height,
+    availability: value.availability,
   };
 }
 
@@ -215,9 +228,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function getWebReadableURL(value: string): string | null {
+function getWebReadableURL(
+  value: string,
+  availability: "device" | "durable",
+): string | null {
   try {
     const url = new URL(value, window.location.href);
+    if (availability === "device") {
+      return url.protocol === "placeecho:" && url.hostname === "capture"
+        ? url.toString()
+        : null;
+    }
     return url.protocol === "https:" || url.protocol === "http:"
       ? url.toString()
       : null;

@@ -114,14 +114,19 @@ The FastAPI worker is the future boundary for PyTorch, NVIDIA CUDA, segmentation
 ### Optional iOS Capture Shell
 
 The thin shell hosts the same Web app in a WKWebView and supplies X5 preview,
-countdown, capture, local download, and Media SDK export. Durable upload remains
-pending. It must not reimplement the Web product or introduce a second home UI.
+countdown, capture, local download, and Media SDK export. It persists the export
+under app-private Application Support and exposes only that bounded capture
+directory through `placeecho://capture/<uuid>.jpg`. The bridge marks this result
+as `availability=device`, so Web can call `importPanorama()` immediately without
+mistaking local availability for completed cloud synchronization. Durable upload
+remains an API-owned follow-up. The shell must not reimplement the Web product,
+mutate Scene JSON, or introduce a second home UI.
 
 The application executable does not link the large Insta360 binaries. It embeds
 a signed `PlaceEchoCaptureKit` framework without linking it, and dynamically
 loads that framework only after the user opens X5 acquisition. The capture kit
 owns the SDK-linked provider and native capture controller; a process-local
-request/result bridge returns the staged panorama to the shell. This keeps SDK
+request/result bridge returns the device-local panorama to the shell. This keeps SDK
 class registration and media initialization out of the Web shell launch path.
 The shell prepares the dynamic framework on a dedicated background queue after
 that explicit action, then creates and presents UIKit controllers on the main
@@ -142,6 +147,13 @@ the same `/local-world`, `/local-marble`, and `/local-memory` URL namespace used
 by the development server; this is an offline packaging step, not a second asset
 contract. Source media, PLY/LOD intermediates, and other large generated files
 remain outside Git and outside the app.
+
+The internal resource handler accepts only the fixed `placeecho` scheme,
+`capture` host, UUID JPEG filename, and the app-owned capture directory. Native
+never exposes arbitrary `file://` paths or injects large base64 payloads into
+JavaScript. After network restoration, Web/API may upload the same JPEG and emit
+an `availability=durable` result with an HTTP(S) URL; authoritative Scene IDs and
+persistence remain API responsibilities.
 
 ## StorageProvider Abstraction
 

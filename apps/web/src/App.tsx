@@ -106,7 +106,7 @@ export function App({
         type: "failed",
         sceneId,
         message:
-          error instanceof Error ? error.message : "Panorama capture failed.",
+          error instanceof Error ? error.message : "全景拍摄失败。",
       });
     }
   };

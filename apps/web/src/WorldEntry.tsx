@@ -93,9 +93,16 @@ function getCaptureCopy(
         buttonLabel: "再次拍摄",
       };
     case "ready":
+      if (status.availability === "device") {
+        return {
+          title: "全景图已导入这台 iPhone",
+          detail: "可以继续创建回忆；恢复正常网络后，PlaceEcho 会再同步到云端。",
+          buttonLabel: "继续创建",
+        };
+      }
       return {
         title: "全景图已导入",
-        detail: "这段全景素材已经进入 PlaceEcho 的创建回忆流程。",
+        detail: "这段全景素材已经进入 PlaceEcho，并完成云端同步。",
         buttonLabel: "继续创建",
       };
     case "failed":
