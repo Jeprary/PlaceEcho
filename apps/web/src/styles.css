@@ -312,6 +312,21 @@ button {
   cursor: pointer;
 }
 
+.motion-access-retry {
+  position: absolute;
+  z-index: 7;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  padding: 0.62rem 0.85rem;
+  border: 1px solid rgba(255, 231, 181, 0.52);
+  border-radius: 999px;
+  color: #e8f0eb;
+  background: rgba(6, 16, 13, 0.68);
+  font-weight: 700;
+  backdrop-filter: blur(12px);
+  cursor: pointer;
+}
+
 .space-card button {
   align-self: end;
   justify-self: start;

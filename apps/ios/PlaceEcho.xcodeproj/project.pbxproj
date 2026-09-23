@@ -12,6 +12,7 @@
 		10A000000000000000000003 /* PanoramaCaptureProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000003 /* PanoramaCaptureProvider.swift */; };
 		10A000000000000000000004 /* Insta360PanoramaCaptureProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000006 /* Insta360PanoramaCaptureProvider.swift */; };
 		10A000000000000000000005 /* X5WiFiSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000007 /* X5WiFiSession.swift */; };
+		10A000000000000000000006 /* X5CaptureViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000009 /* X5CaptureViewController.swift */; };
 		10A000000000000000000011 /* INSCameraSDK.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000011 /* INSCameraSDK.xcframework */; };
 		10A000000000000000000012 /* INSCameraServiceSDK.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000012 /* INSCameraServiceSDK.xcframework */; };
 		10A000000000000000000013 /* INSCoreMedia.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000013 /* INSCoreMedia.xcframework */; };
@@ -48,6 +49,7 @@
 		10B000000000000000000006 /* Insta360PanoramaCaptureProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Insta360PanoramaCaptureProvider.swift; sourceTree = "<group>"; };
 		10B000000000000000000007 /* X5WiFiSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = X5WiFiSession.swift; sourceTree = "<group>"; };
 		10B000000000000000000008 /* PlaceEcho.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PlaceEcho.entitlements; sourceTree = "<group>"; };
+		10B000000000000000000009 /* X5CaptureViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = X5CaptureViewController.swift; sourceTree = "<group>"; };
 		10B000000000000000000011 /* INSCameraSDK.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = INSCameraSDK.xcframework; sourceTree = "<group>"; };
 		10B000000000000000000012 /* INSCameraServiceSDK.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = INSCameraServiceSDK.xcframework; sourceTree = "<group>"; };
 		10B000000000000000000013 /* INSCoreMedia.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = INSCoreMedia.xcframework; sourceTree = "<group>"; };
@@ -86,6 +88,7 @@
 				10B000000000000000000003 /* PanoramaCaptureProvider.swift */,
 				10B000000000000000000006 /* Insta360PanoramaCaptureProvider.swift */,
 				10B000000000000000000007 /* X5WiFiSession.swift */,
+				10B000000000000000000009 /* X5CaptureViewController.swift */,
 				10B000000000000000000008 /* PlaceEcho.entitlements */,
 				10B000000000000000000004 /* Info.plist */,
 			);
@@ -186,6 +189,7 @@
 				10A000000000000000000003 /* PanoramaCaptureProvider.swift in Sources */,
 				10A000000000000000000004 /* Insta360PanoramaCaptureProvider.swift in Sources */,
 				10A000000000000000000005 /* X5WiFiSession.swift in Sources */,
+				10A000000000000000000006 /* X5CaptureViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

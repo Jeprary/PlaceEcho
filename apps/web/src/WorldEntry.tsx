@@ -1,60 +1,70 @@
 import type { IOSBridgeStatus } from "./world/IOSPanoramaBridge";
-import type { WorldLoadStatus } from "./world/SpatialRuntime";
 
 export type IOSCaptureStatus =
   | { type: "idle" }
   | { type: "requesting" }
   | IOSBridgeStatus;
 
-interface WorldEntryProps {
+export interface WorldEntryMemory {
+  id: string;
+  sceneId: string;
+  name: string;
+  summary: string;
+}
+
+export interface WorldEntryProps {
+  memories: WorldEntryMemory[];
   captureStatus: IOSCaptureStatus;
-  worldStatus: WorldLoadStatus;
-  onCapture: () => void;
-  onEnterDemo: () => void;
+  openingMemoryId?: string | null;
+  onOpenScene: (sceneId: string) => void;
+  onCreateMemory: (sceneId?: string) => void;
 }
 
 export function WorldEntry({
+  memories,
   captureStatus,
-  worldStatus,
-  onCapture,
-  onEnterDemo,
+  openingMemoryId = null,
+  onOpenScene,
+  onCreateMemory,
 }: WorldEntryProps) {
-  const captureCopy = getCaptureCopy(captureStatus, worldStatus);
-  const worldLoading = worldStatus === "loading";
+  const captureCopy = getCaptureCopy(captureStatus);
 
   return (
     <section className="world-entry" aria-labelledby="world-entry-title">
       <header className="world-entry__header">
         <p>PlaceEcho</p>
-        <h1 id="world-entry-title">Your spaces</h1>
-        <span>Return to a place, or preserve a new one with your X5.</span>
+        <h1 id="world-entry-title">你的记忆空间</h1>
+        <span>全部回忆</span>
       </header>
 
       <div className="world-entry__grid">
-        <article className="space-card space-card--existing">
-          <p>Existing space</p>
-          <h2>Cozy bedroom</h2>
-          <span>
-            {worldLoading
-              ? "Preparing the spatial world before you enter…"
-              : "The demo world is ready for Wind Mode."}
-          </span>
-          <button type="button" onClick={onEnterDemo} disabled={worldLoading}>
-            {worldLoading ? "Loading space…" : "Enter space"}
-          </button>
-        </article>
+        {memories.map((memory) => (
+          <article className="space-card space-card--existing" key={memory.id}>
+            <p>已准备</p>
+            <h2>{memory.name}</h2>
+            <span>{memory.summary}</span>
+            <button
+              type="button"
+              onClick={() => onOpenScene(memory.sceneId)}
+              disabled={openingMemoryId === memory.id}
+              aria-busy={openingMemoryId === memory.id}
+            >
+              {openingMemoryId === memory.id ? "正在进入…" : "进入回忆"}
+            </button>
+          </article>
+        ))}
 
         <article
           className={`space-card space-card--capture space-card--${captureStatus.type}`}
           aria-live="polite"
         >
-          <p>New space · Insta360 X5</p>
+          <p>创建新回忆 · Insta360 X5</p>
           <h2>{captureCopy.title}</h2>
           <span>{captureCopy.detail}</span>
           <button
             type="button"
-            onClick={onCapture}
-            disabled={worldLoading || captureStatus.type === "requesting"}
+            onClick={() => onCreateMemory()}
+            disabled={captureStatus.type === "requesting"}
             aria-busy={captureStatus.type === "requesting"}
           >
             {captureCopy.buttonLabel}
@@ -67,49 +77,39 @@ export function WorldEntry({
 
 function getCaptureCopy(
   status: IOSCaptureStatus,
-  worldStatus: WorldLoadStatus,
 ): { title: string; detail: string; buttonLabel: string } {
-  if (worldStatus === "loading") {
-    return {
-      title: "Let PlaceEcho load first",
-      detail:
-        "After loading finishes, connect this iPhone to the X5 Wi-Fi in Settings, then return here.",
-      buttonLabel: "Loading PlaceEcho…",
-    };
-  }
-
   switch (status.type) {
     case "requesting":
       return {
-        title: "Capturing with X5",
-        detail: "Keep PlaceEcho open and stay connected to the camera Wi-Fi.",
-        buttonLabel: "Capturing…",
+        title: "正在通过 X5 拍摄",
+        detail: "请保持 PlaceEcho 打开，并保持连接相机 Wi-Fi。",
+        buttonLabel: "正在拍摄…",
       };
     case "staged":
       return {
-        title: "Capture saved on this iPhone",
+        title: "照片已保存在这台 iPhone",
         detail:
-          "Reconnect to normal Wi-Fi. Upload is not available yet, so this panorama has not been imported.",
-        buttonLabel: "Capture another",
+          "请重新连接普通 Wi-Fi。上传尚未接通，因此全景图还没有正式导入。",
+        buttonLabel: "再次拍摄",
       };
     case "ready":
       return {
-        title: "Panorama imported",
-        detail: "The durable panorama is ready for the PlaceEcho Web flow.",
-        buttonLabel: "Capture another",
+        title: "全景图已导入",
+        detail: "这段全景素材已经进入 PlaceEcho 的创建回忆流程。",
+        buttonLabel: "继续创建",
       };
     case "failed":
       return {
-        title: "Capture needs attention",
+        title: "拍摄需要处理",
         detail: status.message,
-        buttonLabel: "Try capture again",
+        buttonLabel: "重新尝试",
       };
     default:
       return {
-        title: "Preserve a new space",
+        title: "创建一段新回忆",
         detail:
-          "Connect this iPhone to the X5 Wi-Fi in Settings, return to PlaceEcho, then start capture.",
-        buttonLabel: "Capture with X5",
+          "先在系统设置中将这台 iPhone 连接到 X5 Wi-Fi，回到 PlaceEcho 后开始拍摄。",
+        buttonLabel: "使用 X5 拍摄",
       };
   }
 }

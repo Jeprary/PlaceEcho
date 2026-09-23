@@ -60,6 +60,7 @@ struct PlaceEchoWebView: UIViewRepresentable {
         weak var webView: WKWebView?
         private let captureProvider: PanoramaCaptureProviding
         private var stagedCaptures: [String: CapturedPanorama] = [:]
+        private weak var captureViewController: X5CaptureViewController?
 
         init(captureProvider: PanoramaCaptureProviding) {
             self.captureProvider = captureProvider
@@ -79,25 +80,73 @@ struct PlaceEchoWebView: UIViewRepresentable {
                 return
             }
 
+            guard captureViewController == nil else {
+                send([
+                    "type": "capture_failed",
+                    "scene_id": sceneID,
+                    "message": "An X5 capture screen is already open.",
+                ])
+                return
+            }
+
+            if captureProvider is Insta360PanoramaCaptureProvider {
+                presentX5Capture(sceneID: sceneID)
+            } else {
+                runCapture(sceneID: sceneID)
+            }
+        }
+
+        private func presentX5Capture(sceneID: String) {
+            guard
+                let webView,
+                let presenter = webView.nearestViewController
+            else {
+                send([
+                    "type": "capture_failed",
+                    "scene_id": sceneID,
+                    "message": "Could not present the X5 capture screen.",
+                ])
+                return
+            }
+
+            let controller = X5CaptureViewController(
+                sceneID: sceneID,
+                captureProvider: captureProvider
+            ) { [weak self] result in
+                self?.captureViewController = nil
+                self?.handle(result, fallbackSceneID: sceneID)
+            }
+            captureViewController = controller
+            presenter.present(controller, animated: true)
+        }
+
+        private func runCapture(sceneID: String) {
             captureProvider.capture(sceneID: sceneID) { [weak self] result in
                 DispatchQueue.main.async {
-                    switch result {
-                    case .success(let panorama):
-                        self?.stagedCaptures[panorama.sceneID] = panorama
-                        self?.send([
-                            "type": "panorama_staged",
-                            "scene_id": panorama.sceneID,
-                            "width": panorama.width,
-                            "height": panorama.height,
-                        ])
-                    case .failure(let error):
-                        self?.send([
-                            "type": "capture_failed",
-                            "scene_id": sceneID,
-                            "message": error.localizedDescription,
-                        ])
-                    }
+                    self?.handle(result, fallbackSceneID: sceneID)
                 }
+            }
+        }
+
+        private func handle(
+            _ result: Result<CapturedPanorama, Error>,
+            fallbackSceneID: String
+        ) {
+            switch result {
+            case .success(let panorama):
+                stagedCaptures[panorama.sceneID] = panorama
+                send([
+                    "type": "panorama_staged",
+                    "scene_id": panorama.sceneID,
+                    "width": panorama.width,
+                    "height": panorama.height,
+                ])
+            case .failure(let error):
+                send([
+                    "type": "capture_failed",
+                    "scene_id": fallbackSceneID,
+                    "message": error.localizedDescription,
+                ])
             }
         }
 
@@ -111,5 +160,18 @@ struct PlaceEchoWebView: UIViewRepresentable {
             }
             webView?.evaluateJavaScript("window.PlaceEchoNative?.receiveMessage(\(json));")
         }
+    }
+}
+
+private extension UIView {
+    var nearestViewController: UIViewController? {
+        var responder: UIResponder? = self
+        while let next = responder?.next {
+            if let viewController = next as? UIViewController {
+                return viewController
+            }
+            responder = next
+        }
+        return window?.rootViewController
     }
 }

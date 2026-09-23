@@ -97,6 +97,20 @@ Insta360-backed capture provider for capture, camera-file download, and 2:1 JPEG
 export. The native SDK binaries remain local ignored dependencies and are never
 committed.
 
+An X5 capture request may present a transient native acquisition screen over the
+WKWebView for the SDK live spherical preview, shutter, and countdown. That screen
+is part of camera acquisition, not a second implementation of the Web authoring
+flow; it must return through the same bridge statuses and `PanoramaAsset`
+boundary.
+
+The Web memory-card entry emits scene-open and memory-creation intents; it does
+not mount or preload the spatial runtime. The Gaussian world is loaded only
+after the user opens a ready Memory's Scene, and X5 capture remains available as
+part of creating a new Memory independently of world loading state. On supported
+iOS browsers, the Memory click requests motion permission in the same user
+gesture before entering the Scene; there is no separate full-screen permission
+or Wind Mode interstitial.
+
 The intended paid-team network lifecycle is temporary: PlaceEcho joins the X5
 hotspot with an app-owned `joinOnce` configuration, downloads and exports the
 capture, removes that configuration, waits for normal internet connectivity to

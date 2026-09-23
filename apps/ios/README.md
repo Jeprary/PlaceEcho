@@ -8,6 +8,7 @@ Current responsibilities:
 - load the configured PlaceEcho Web URL;
 - receive a `capture_panorama` message from Web;
 - use an iPhone connection to the Insta360 X5 Wi-Fi;
+- present a native live spherical preview and three-second capture countdown;
 - capture, download, and export a 11904 x 5952 equirectangular JPEG;
 - shut down the SDK camera session after the local export finishes;
 - return capture status through the WKWebView bridge.
@@ -39,8 +40,13 @@ Native-to-Web local-export status:
 }
 ```
 
-This means capture, camera download, stitching, and X5 Wi-Fi teardown completed.
-It does not call `importPanorama()`.
+This means capture, camera download, stitching, and SDK camera-session shutdown
+completed. In Personal Team builds, Wi-Fi selection remains manual. This status
+does not call `importPanorama()`.
+
+The capture request first opens a transient native acquisition screen backed by
+`INSCameraSessionPlayer`. This screen owns only the X5 live preview, shutter, and
+three-second countdown; the surrounding create-Memory flow remains Web-owned.
 
 Native-to-Web durable success, after a future upload adapter returns a Web-readable
 URL:
