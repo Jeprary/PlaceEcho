@@ -24,12 +24,14 @@ The user decides what is meaningful by selecting the media. AI assists with unde
 
 Scene Context is an optional description of the whole preserved space. A Memory Reflection is an optional later statement about one specific Memory. They are separate fields and must not be automatically duplicated.
 
+Authoring copy should ask the user which personal media they want to preserve with the space. It must not require the user to decide whether an asset was captured in the Scene or recalled through a spatial cue; that distinction is a product principle, not an authoring task.
+
 ## Main User Flow
 
 ```text
 Capture Space
-  -> Optional Scene Context
   -> Select 6–12 Personal Media
+  -> Optional Scene Context
   -> AI Memory Understanding
   -> 2–3 Memory Groups + Cues + Source Panorama Grounding
   -> Generate or Load Gaussian World + Collider
