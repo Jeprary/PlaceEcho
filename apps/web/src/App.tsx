@@ -2,6 +2,7 @@ import type { Scene } from "@placeecho/shared";
 import { useEffect, useRef, useState } from "react";
 import demoSceneFixture from "../../../assets/demo/demo-scene.json";
 import { DeviceOrientationSource } from "./world/DeviceOrientationSource";
+import { MemorySlidesOverlay } from "./memory/MemorySlidesOverlay";
 import {
   SpatialRuntime,
   type SpatialRuntimeSnapshot,
@@ -28,6 +29,7 @@ export function App() {
   const [gyroStatus, setGyroStatus] = useState<
     "idle" | "requesting" | "active" | "denied"
   >("idle");
+  const [presentationVisible, setPresentationVisible] = useState(false);
 
   useEffect(() => {
     if (!runtimeHost.current) return;
@@ -44,6 +46,16 @@ export function App() {
       runtime.dispose();
     };
   }, []);
+
+  useEffect(() => {
+    if (snapshot.reachedPresentationActive) {
+      setPresentationVisible(true);
+    }
+  }, [snapshot.reachedPresentationActive]);
+
+  const finishPresentation = () => {
+    setPresentationVisible(false);
+  };
 
   const enterWindMode = async () => {
     if (!runtimeRef.current || gyroStatus === "requesting") return;
@@ -65,6 +77,11 @@ export function App() {
       }`}
     >
       <div className="spatial-runtime" ref={runtimeHost} />
+      <MemorySlidesOverlay
+        active={presentationVisible && snapshot.reachedPresentationActive}
+        memoryName={snapshot.memoryName}
+        onFinished={finishPresentation}
+      />
       <div className="approach-veil" aria-hidden="true" />
       <div
         className={`world-loading-cover world-loading-cover--${worldStatus}`}
