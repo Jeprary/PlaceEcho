@@ -9,7 +9,18 @@ export interface MarbleOperation {
 export interface MarbleWorld {
   world_id: string;
   world_marble_url?: string;
-  assets?: Record<string, unknown>;
+  assets?: {
+    mesh?: {
+      collider_mesh_url?: string | null;
+      hq_mesh_url?: string | null;
+      full_res_mesh_url?: string | null;
+    };
+    imagery?: { pano_url?: string | null };
+    splats?: { spz_urls?: Record<string, string | undefined> };
+    thumbnail_url?: string | null;
+    caption?: string | null;
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 }
 

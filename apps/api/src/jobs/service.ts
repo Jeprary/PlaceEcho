@@ -3,10 +3,14 @@ import type { MediaService } from "../media/service.js";
 import type { SceneService } from "../scenes/service.js";
 import type { GpuWorkerClient } from "../services/gpu/client.js";
 import type { StorageProvider } from "../storage/provider.js";
+import {
+  PanoramaCleanerUnavailableError,
+  type PanoramaCleaner,
+} from "./panorama-cleaner.js";
 
 export type JobStatus = "queued" | "running" | "completed" | "failed";
 
-export interface PanoramaJob {
+export interface PanoramaStitchJob {
   job_id: string;
   type: "panorama_stitch";
   scene_id: string;
@@ -20,6 +24,23 @@ export interface PanoramaJob {
   error: string | null;
 }
 
+export interface PanoramaCleanJob {
+  job_id: string;
+  type: "panorama_clean";
+  scene_id: string;
+  source_job_id: string;
+  status: JobStatus;
+  output_url: string | null;
+  width: number | null;
+  height: number | null;
+  activate_on_completion: boolean;
+  activated: boolean;
+  validation: Record<string, unknown> | null;
+  error: string | null;
+}
+
+export type PanoramaJob = PanoramaStitchJob | PanoramaCleanJob;
+
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
@@ -30,13 +51,14 @@ export class PanoramaJobService {
     private readonly scenes: SceneService,
     private readonly media: MediaService,
     private readonly worker: GpuWorkerClient,
+    private readonly cleaner: PanoramaCleaner,
   ) {}
 
   async create(
     sceneId: string,
     mediaIds: string[],
     enableStitchFusion = false,
-  ): Promise<PanoramaJob | null> {
+  ): Promise<PanoramaStitchJob | null> {
     const scene = await this.scenes.get(sceneId);
     if (scene === null) return null;
     if (mediaIds.length < 1 || mediaIds.length > 9) {
@@ -67,12 +89,92 @@ export class PanoramaJobService {
     return job;
   }
 
+  async createClean(
+    sceneId: string,
+    sourceJobId: string,
+    maskPng: Uint8Array,
+    activate = false,
+  ): Promise<PanoramaCleanJob | null> {
+    const scene = await this.scenes.get(sceneId);
+    if (scene === null) return null;
+    if (!this.cleaner.isConfigured()) {
+      throw new PanoramaCleanerUnavailableError(
+        "Panorama cleaning is optional and is not configured on this API instance.",
+      );
+    }
+    if (maskPng.length === 0 || maskPng.length > 10 * 1024 * 1024) {
+      throw new Error("The PNG cleaner mask must be between 1 byte and 10 MB.");
+    }
+    const source = await this.get(sourceJobId);
+    if (
+      source === null ||
+      source.scene_id !== sceneId ||
+      source.status !== "completed" ||
+      source.width === null ||
+      source.height === null
+    ) {
+      throw new Error("source_job_id must name a completed panorama job in this Scene.");
+    }
+    const sourcePanorama = await this.getOutput(sourceJobId);
+    if (sourcePanorama === null) {
+      throw new Error("The source panorama output is unavailable.");
+    }
+
+    const job: PanoramaCleanJob = {
+      job_id: `job_${randomUUID()}`,
+      type: "panorama_clean",
+      scene_id: sceneId,
+      source_job_id: sourceJobId,
+      status: "queued",
+      output_url: null,
+      width: null,
+      height: null,
+      activate_on_completion: activate,
+      activated: false,
+      validation: null,
+      error: null,
+    };
+    await this.save(job);
+    setImmediate(() =>
+      void this.runClean(job, sourcePanorama, maskPng, source.width!, source.height!),
+    );
+    return job;
+  }
+
+  async activateClean(
+    sceneId: string,
+    jobId: string,
+  ): Promise<PanoramaCleanJob | null> {
+    const job = await this.get(jobId);
+    if (job?.type !== "panorama_clean" || job.scene_id !== sceneId) return null;
+    if (
+      job.status !== "completed" ||
+      job.output_url === null ||
+      job.width === null ||
+      job.height === null
+    ) {
+      throw new Error("Only a completed panorama clean job can be activated.");
+    }
+    const scene = await this.scenes.setPanorama(
+      sceneId,
+      job.output_url,
+      job.width,
+      job.height,
+    );
+    if (scene === null) return null;
+    job.activated = true;
+    await this.save(job);
+    return job;
+  }
+
   async get(jobId: string): Promise<PanoramaJob | null> {
     if (!/^job_[a-zA-Z0-9_-]+$/.test(jobId)) return null;
     const value = await this.storage.get(`jobs/${jobId}.json`);
     if (value === null) return null;
     const parsed = JSON.parse(decoder.decode(value)) as { type?: string };
-    return parsed.type === "panorama_stitch" ? (parsed as PanoramaJob) : null;
+    return parsed.type === "panorama_stitch" || parsed.type === "panorama_clean"
+      ? (parsed as PanoramaJob)
+      : null;
   }
 
   async getOutput(jobId: string): Promise<Uint8Array | null> {
@@ -82,7 +184,7 @@ export class PanoramaJobService {
   }
 
   private async run(
-    job: PanoramaJob,
+    job: PanoramaStitchJob,
     selected: Array<{ id: string; source_name: string }>,
     enableStitchFusion: boolean,
   ): Promise<void> {
@@ -136,8 +238,45 @@ export class PanoramaJobService {
     await this.save(job);
   }
 
+  private async runClean(
+    job: PanoramaCleanJob,
+    sourcePanorama: Uint8Array,
+    maskPng: Uint8Array,
+    width: number,
+    height: number,
+  ): Promise<void> {
+    job.status = "running";
+    await this.save(job);
+    try {
+      const result = await this.cleaner.clean({
+        panorama: sourcePanorama,
+        maskPng,
+      });
+      await this.storage.put(this.outputKey(job), result.panorama);
+      job.status = "completed";
+      job.output_url = `/api/jobs/${job.job_id}/output`;
+      job.width = width;
+      job.height = height;
+      job.validation = result.validation;
+      if (job.activate_on_completion) {
+        await this.scenes.setPanorama(
+          job.scene_id,
+          job.output_url,
+          width,
+          height,
+        );
+        job.activated = true;
+      }
+    } catch (error) {
+      job.status = "failed";
+      job.error = error instanceof Error ? error.message : String(error);
+    }
+    await this.save(job);
+  }
+
   private outputKey(job: PanoramaJob): string {
-    return `scenes/${job.scene_id}/panorama/${job.job_id}.jpg`;
+    const suffix = job.type === "panorama_clean" ? "-clean" : "";
+    return `scenes/${job.scene_id}/panorama/${job.job_id}${suffix}.jpg`;
   }
 
   private async save(job: PanoramaJob): Promise<void> {

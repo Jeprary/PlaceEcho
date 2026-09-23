@@ -1,0 +1,433 @@
+import type {
+  Quaternion as SceneQuaternion,
+  Scene as PlaceEchoScene,
+  Vector3 as SceneVector3,
+  WorldGrounding,
+} from "@placeecho/shared";
+import {
+  Euler,
+  Matrix3,
+  Object3D,
+  PerspectiveCamera,
+  Quaternion,
+  Raycaster,
+  Scene,
+  Vector2,
+  WebGLRenderer,
+} from "three";
+
+export interface PerspectiveViewCamera {
+  projection: "perspective";
+  position: SceneVector3;
+  quaternion: SceneQuaternion;
+  vertical_fov_degrees: number;
+  aspect: number;
+  near: number;
+  far: number;
+}
+
+export interface GroundingRenderView {
+  view_id: string;
+  width: number;
+  height: number;
+  image_data_url: string;
+  /** Retained by Web Geometry to reconstruct the AI-selected pixel ray. */
+  camera: PerspectiveViewCamera;
+}
+
+export interface GroundingViewOrientation {
+  label: string;
+  yaw_degrees: number;
+  pitch_degrees: number;
+}
+
+export interface GroundingViewCaptureOptions {
+  width: number;
+  height: number;
+  captureImageDataUrl: (
+    camera: PerspectiveCamera,
+  ) => string | Promise<string>;
+  orientations?: readonly GroundingViewOrientation[];
+}
+
+export interface ColliderRaycastHit {
+  /** Camera-facing interaction/display point, offset from the raw surface. */
+  position: SceneVector3;
+  surface_position: SceneVector3;
+  normal: SceneVector3 | null;
+  distance: number;
+  offset_meters: number;
+}
+
+export type AnchorResolutionStatus =
+  | "persisted"
+  | "grounding_missing"
+  | "view_missing"
+  | "collider_miss";
+
+export interface AnchorResolutionResult {
+  memory_id: string;
+  status: AnchorResolutionStatus;
+  hit?: ColliderRaycastHit;
+}
+
+export interface ResolveWorldAnchorsOptions {
+  sceneId: string;
+  views: readonly GroundingRenderView[];
+  collider: Object3D;
+  apiBaseUrl?: string;
+  fetchImplementation?: typeof fetch;
+  /** Use hero/marker half-depth + 0.02m when that dimension is known. */
+  placementOffsetMeters?: number;
+}
+
+export interface ResolveWorldAnchorsResult {
+  scene: PlaceEchoScene;
+  anchors: AnchorResolutionResult[];
+}
+
+const DEFAULT_VIEW_ORIENTATIONS: readonly GroundingViewOrientation[] = [
+  { label: "front", yaw_degrees: 0, pitch_degrees: 0 },
+  { label: "right", yaw_degrees: -90, pitch_degrees: 0 },
+  { label: "back", yaw_degrees: 180, pitch_degrees: 0 },
+  { label: "left", yaw_degrees: 90, pitch_degrees: 0 },
+  { label: "up", yaw_degrees: 0, pitch_degrees: 60 },
+  { label: "down", yaw_degrees: 0, pitch_degrees: -60 },
+];
+
+const IMAGE_DATA_URL = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
+export const DEFAULT_ANCHOR_SURFACE_OFFSET_METERS = 0.08;
+
+function assertCaptureDimensions(width: number, height: number): void {
+  if (
+    !Number.isInteger(width) ||
+    !Number.isInteger(height) ||
+    width < 1 ||
+    height < 1 ||
+    width > 8192 ||
+    height > 8192
+  ) {
+    throw new Error("Grounding view dimensions must be integers from 1 to 8192.");
+  }
+}
+
+function finiteTuple3(value: readonly number[]): SceneVector3 {
+  if (value.length !== 3 || value.some((axis) => !Number.isFinite(axis))) {
+    throw new Error("Expected a finite 3D vector.");
+  }
+  return value.map((axis) => (Object.is(axis, -0) ? 0 : axis)) as SceneVector3;
+}
+
+function finiteTuple4(value: readonly number[]): SceneQuaternion {
+  if (value.length !== 4 || value.some((axis) => !Number.isFinite(axis))) {
+    throw new Error("Expected a finite quaternion.");
+  }
+  return value.map((axis) => (Object.is(axis, -0) ? 0 : axis)) as SceneQuaternion;
+}
+
+function finiteDirectionTuple3(value: readonly number[]): SceneVector3 {
+  const finite = finiteTuple3(value);
+  return finite.map((axis) => (Math.abs(axis) < 1e-12 ? 0 : axis)) as SceneVector3;
+}
+
+function rounded(value: number): number {
+  return Math.round(value * 1_000_000) / 1_000_000;
+}
+
+function fnv1a(value: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36).padStart(7, "0");
+}
+
+function cameraMetadata(camera: PerspectiveCamera): PerspectiveViewCamera {
+  return {
+    projection: "perspective",
+    position: finiteTuple3(camera.position.toArray()),
+    quaternion: finiteTuple4(camera.quaternion.toArray()),
+    vertical_fov_degrees: camera.fov,
+    aspect: camera.aspect,
+    near: camera.near,
+    far: camera.far,
+  };
+}
+
+function stableViewId(
+  label: string,
+  ordinal: number,
+  camera: PerspectiveViewCamera,
+): string {
+  const safeLabel = label.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 24) || "view";
+  const stableCamera = JSON.stringify({
+    ...camera,
+    position: camera.position.map(rounded),
+    quaternion: camera.quaternion.map(rounded),
+    vertical_fov_degrees: rounded(camera.vertical_fov_degrees),
+    aspect: rounded(camera.aspect),
+    near: rounded(camera.near),
+    far: rounded(camera.far),
+  });
+  return `${safeLabel}_${ordinal.toString().padStart(2, "0")}_${fnv1a(stableCamera)}`;
+}
+
+/** Capture deterministic views around one known eye without mutating it. */
+export async function captureGroundingViews(
+  sourceCamera: PerspectiveCamera,
+  options: GroundingViewCaptureOptions,
+): Promise<GroundingRenderView[]> {
+  assertCaptureDimensions(options.width, options.height);
+  const orientations = options.orientations ?? DEFAULT_VIEW_ORIENTATIONS;
+  if (orientations.length < 1 || orientations.length > 8) {
+    throw new Error("Capture 1–8 final-world grounding views.");
+  }
+
+  const baseQuaternion = sourceCamera.quaternion.clone();
+  const views: GroundingRenderView[] = [];
+  for (const [ordinal, orientation] of orientations.entries()) {
+    if (
+      !Number.isFinite(orientation.yaw_degrees) ||
+      !Number.isFinite(orientation.pitch_degrees)
+    ) {
+      throw new Error("Grounding view rotations must be finite.");
+    }
+    const camera = sourceCamera.clone();
+    camera.aspect = options.width / options.height;
+    const offset = new Quaternion().setFromEuler(
+      new Euler(
+        (orientation.pitch_degrees * Math.PI) / 180,
+        (orientation.yaw_degrees * Math.PI) / 180,
+        0,
+        "YXZ",
+      ),
+    );
+    camera.quaternion.copy(baseQuaternion).multiply(offset).normalize();
+    camera.updateProjectionMatrix();
+    camera.updateMatrixWorld(true);
+    const metadata = cameraMetadata(camera);
+    const imageDataUrl = await options.captureImageDataUrl(camera);
+    if (!IMAGE_DATA_URL.test(imageDataUrl)) {
+      throw new Error("Grounding capture must return a JPEG, PNG, or WebP data URL.");
+    }
+    views.push({
+      view_id: stableViewId(orientation.label, ordinal, metadata),
+      width: options.width,
+      height: options.height,
+      image_data_url: imageDataUrl,
+      camera: metadata,
+    });
+  }
+  return views;
+}
+
+/** Capture adapter for an already-loaded Three.js/SparkJS world. */
+export async function captureRendererGroundingViews(
+  renderer: WebGLRenderer,
+  scene: Scene,
+  camera: PerspectiveCamera,
+  orientations?: readonly GroundingViewOrientation[],
+): Promise<GroundingRenderView[]> {
+  const canvas = renderer.domElement;
+  const width = Math.max(canvas.width, 1);
+  const height = Math.max(canvas.height, 1);
+  try {
+    return await captureGroundingViews(camera, {
+      width,
+      height,
+      orientations,
+      captureImageDataUrl: (viewCamera) => {
+        renderer.render(scene, viewCamera);
+        return canvas.toDataURL("image/jpeg", 0.9);
+      },
+    });
+  } finally {
+    renderer.render(scene, camera);
+  }
+}
+
+function cameraFromMetadata(metadata: PerspectiveViewCamera): PerspectiveCamera {
+  if (
+    metadata.projection !== "perspective" ||
+    !Number.isFinite(metadata.vertical_fov_degrees) ||
+    !Number.isFinite(metadata.aspect) ||
+    !Number.isFinite(metadata.near) ||
+    !Number.isFinite(metadata.far) ||
+    metadata.vertical_fov_degrees <= 0 ||
+    metadata.vertical_fov_degrees >= 180 ||
+    metadata.aspect <= 0 ||
+    metadata.near <= 0 ||
+    metadata.far <= metadata.near
+  ) {
+    throw new Error("Grounding view camera metadata is invalid.");
+  }
+  const camera = new PerspectiveCamera(
+    metadata.vertical_fov_degrees,
+    metadata.aspect,
+    metadata.near,
+    metadata.far,
+  );
+  camera.position.fromArray(metadata.position);
+  camera.quaternion.fromArray(metadata.quaternion).normalize();
+  camera.updateProjectionMatrix();
+  camera.updateMatrixWorld(true);
+  return camera;
+}
+
+/** Convert a top-left-origin pixel into a ray and hit only the Collider. */
+export function raycastWorldGrounding(
+  grounding: WorldGrounding,
+  view: GroundingRenderView,
+  collider: Object3D,
+  placementOffsetMeters = DEFAULT_ANCHOR_SURFACE_OFFSET_METERS,
+): ColliderRaycastHit | null {
+  if (grounding.view_id !== view.view_id) {
+    throw new Error("World grounding view_id does not match the supplied camera view.");
+  }
+  if (
+    !Number.isFinite(grounding.x) ||
+    !Number.isFinite(grounding.y) ||
+    grounding.x < 0 ||
+    grounding.y < 0 ||
+    grounding.x >= view.width ||
+    grounding.y >= view.height
+  ) {
+    throw new Error("World grounding pixel lies outside its render view.");
+  }
+  if (!Number.isFinite(placementOffsetMeters) || placementOffsetMeters < 0) {
+    throw new Error("Anchor surface offset must be a finite non-negative distance.");
+  }
+
+  const camera = cameraFromMetadata(view.camera);
+  const ndc = new Vector2(
+    ((grounding.x + 0.5) / view.width) * 2 - 1,
+    1 - ((grounding.y + 0.5) / view.height) * 2,
+  );
+  const raycaster = new Raycaster();
+  raycaster.near = camera.near;
+  raycaster.far = camera.far;
+  raycaster.setFromCamera(ndc, camera);
+  collider.updateWorldMatrix(true, true);
+  const intersection = raycaster.intersectObject(collider, true)[0];
+  if (!intersection) return null;
+
+  const surfacePosition = intersection.point.clone();
+  const placementPosition = surfacePosition.clone();
+  let normal: SceneVector3 | null = null;
+  if (intersection.face) {
+    const worldNormal = intersection.face.normal
+      .clone()
+      .applyNormalMatrix(new Matrix3().getNormalMatrix(intersection.object.matrixWorld))
+      .normalize();
+    // Collider winding is not guaranteed. Persist a normal that consistently
+    // faces the known render camera, then place the marker on that visible side.
+    if (worldNormal.dot(raycaster.ray.direction) > 0) worldNormal.negate();
+    placementPosition.addScaledVector(worldNormal, placementOffsetMeters);
+    const signedSeparation = placementPosition
+      .clone()
+      .sub(surfacePosition)
+      .dot(worldNormal);
+    if (
+      !Number.isFinite(signedSeparation) ||
+      signedSeparation < placementOffsetMeters - 1e-9 ||
+      placementPosition.toArray().some((axis) => !Number.isFinite(axis))
+    ) {
+      throw new Error("Collider hit did not produce a finite, non-penetrating Anchor offset.");
+    }
+    normal = finiteDirectionTuple3(worldNormal.toArray());
+  }
+  return {
+    position: finiteTuple3(placementPosition.toArray()),
+    surface_position: finiteTuple3(surfacePosition.toArray()),
+    normal,
+    distance: intersection.distance,
+    offset_meters: normal ? placementOffsetMeters : 0,
+  };
+}
+
+function endpoint(baseUrl: string, path: string): string {
+  return `${baseUrl.replace(/\/$/, "")}${path}`;
+}
+
+async function readSceneResponse(response: Response): Promise<PlaceEchoScene> {
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const body = (await response.json()) as { message?: unknown };
+      if (typeof body.message === "string") detail = `: ${body.message}`;
+    } catch {
+      // Keep the status-only error when the response is not JSON.
+    }
+    throw new Error(`PlaceEcho API request failed (${response.status})${detail}`);
+  }
+  const scene = (await response.json()) as Partial<PlaceEchoScene>;
+  if (!scene.scene_id || !Array.isArray(scene.memories)) {
+    throw new Error("PlaceEcho API returned an invalid Scene.");
+  }
+  return scene as PlaceEchoScene;
+}
+
+/**
+ * AI chooses only a view pixel. Web reconstructs the ray, requires a Collider
+ * hit, and persists only geometry measured from that hit.
+ */
+export async function resolveWorldAnchors(
+  options: ResolveWorldAnchorsOptions,
+): Promise<ResolveWorldAnchorsResult> {
+  if (options.views.length < 1 || options.views.length > 8) {
+    throw new Error("Resolve anchors from 1–8 submitted render views.");
+  }
+  const fetchImplementation = options.fetchImplementation ?? fetch;
+  const baseUrl = options.apiBaseUrl ?? "";
+  const groundingResponse = await fetchImplementation(
+    endpoint(baseUrl, `/api/scenes/${encodeURIComponent(options.sceneId)}/world-grounding`),
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ views: options.views }),
+    },
+  );
+  let scene = await readSceneResponse(groundingResponse);
+  const viewsById = new Map(options.views.map((view) => [view.view_id, view]));
+  const anchors: AnchorResolutionResult[] = [];
+
+  // Serial PATCH calls avoid racing the current scene.json read-modify-write.
+  for (const memory of scene.memories) {
+    const grounding = memory.anchor.world_grounding;
+    if (!grounding) {
+      anchors.push({ memory_id: memory.id, status: "grounding_missing" });
+      continue;
+    }
+    const view = viewsById.get(grounding.view_id);
+    if (!view) {
+      anchors.push({ memory_id: memory.id, status: "view_missing" });
+      continue;
+    }
+    const hit = raycastWorldGrounding(
+      grounding,
+      view,
+      options.collider,
+      options.placementOffsetMeters,
+    );
+    if (!hit) {
+      anchors.push({ memory_id: memory.id, status: "collider_miss" });
+      continue;
+    }
+    const patchResponse = await fetchImplementation(
+      endpoint(
+        baseUrl,
+        `/api/scenes/${encodeURIComponent(options.sceneId)}/memories/${encodeURIComponent(memory.id)}/anchor`,
+      ),
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ position: hit.position, normal: hit.normal }),
+      },
+    );
+    scene = await readSceneResponse(patchResponse);
+    anchors.push({ memory_id: memory.id, status: "persisted", hit });
+  }
+
+  return { scene, anchors };
+}

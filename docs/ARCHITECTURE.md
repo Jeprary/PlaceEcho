@@ -9,7 +9,7 @@ placeecho/
 ├── apps/
 │   ├── web/          # browser authoring and spatial runtime
 │   ├── api/          # scene, storage, AI, and job boundaries
-│   ├── gpu-worker/   # future CUDA/SAM 3D Objects worker
+│   ├── gpu-worker/   # CUDA/MediaSDK and optional segmentation worker boundary
 │   └── ios/          # reserved thin native capture shell
 ├── packages/
 │   └── shared/
@@ -89,11 +89,21 @@ Current responsibilities include the shared Memory manager/creation UI, panorama
 
 The Web must not care how a panorama was acquired. Both Web upload and a future native bridge produce a `PanoramaAsset` and call `importPanorama()`. Everything after that boundary is acquisition-independent.
 
-`tools/qwen-panorama-cleaner/` is an optional standalone preprocessing CLI for a full 2:1 panorama before that import boundary. It projects a nadir crop, requests a Qwen image edit, applies a user-supplied local mask, and inverse-maps the repair into the original panorama. It does not run in the Web or API process, change the Scene contract, or provide final-world geometry. Its source package is tracked without user media or generated outputs.
+`tools/qwen-panorama-cleaner/` is the optional preprocessing implementation for a
+full 2:1 panorama. It projects a nadir crop, requests a Qwen image edit, applies a
+user-supplied mask, and inverse-maps only the repair into the original panorama.
+It is usable as a standalone CLI or as a bounded child process behind an explicit
+API `panorama_clean` job. The stitch result is immutable; a cleaned derivative
+must be previewed or explicitly activated. Missing cleaner credentials never
+block upload or stitching, and no private inputs or generated outputs are tracked.
 
 ### API
 
-Current responsibilities include Scene lifecycle, authoritative system-ID generation, persistence, local/mounted/OSS storage, panorama jobs, Marble world jobs, and Hero provider jobs. Memory analysis, final-world grounding, world registration, and Anchor persistence remain explicit extension boundaries. Development runs locally on macOS; a later CPU deployment must not change Web contracts.
+Current responsibilities include Scene lifecycle and listing, authoritative
+system-ID generation, persistence, local/mounted/OSS storage, stitch/clean
+panorama jobs, Memory analysis, final-world 2D grounding, Marble world jobs,
+world registration, Anchor persistence, and Hero provider jobs. Development and
+Alibaba deployments retain the same HTTP and Scene contracts.
 
 The backend/application—not AI models—generates `scene_id`, `media_id`, `memory_id`, `anchor_id`, and `job_id`. Models may only return IDs supplied to them.
 
@@ -111,6 +121,11 @@ pending. It must not reimplement the Web product or introduce a second home UI.
 
 API business modules access storage through a replaceable `StorageProvider`, not scattered filesystem calls. v0.1 supports `LocalStorageProvider`, a mounted-volume local provider, and `OSSStorageProvider`, including Memory request records. Selecting local, mounted, or OSS storage changes environment configuration, not Web, AI, or job contracts.
 
+The repository maintains a small `scenes/index.json` through that abstraction so
+the manager can list Scenes without requiring OSS bucket enumeration permission.
+This is a v0.1 manifest index, not a replacement for a future transactional
+database.
+
 ## AI Responsibility Boundaries
 
 Memory AI owns media grouping, Memory names, summaries, and cues. Spatial AI owns source-panorama and final-world 2D grounding. One efficient multimodal request may combine the first semantic and spatial analysis, but code remains separated under `ai/memory/` and `ai/grounding/`.
@@ -120,6 +135,21 @@ AI must never produce authoritative final 3D coordinates.
 The implemented API analysis service reads selected uploaded image bytes and the stitched panorama, calls a replaceable `MemoryAnalyzer`, validates the model's grouping and source pixels, then persists Memory groups. The default analyzer calls Bailian. Image-only API upload and a completed stitched panorama are current prerequisites; the standalone Python multimedia prototype is not the API runtime. Reanalysis replaces prior Memory groups.
 
 The implemented World Grounding service receives explicit final-world render images with stable view IDs and dimensions. A replaceable `WorldGrounder` finds cue pixels in those renders; the API validates and persists only `world_grounding`. Registering new world assets or recomputing grounding clears stale 3D geometry. Web Geometry remains solely responsible for raycast position and normal, sent through the Anchor persistence route. The API does not infer a 3D point from AI output.
+
+The Web capture module binds every stable view ID to its exact perspective-camera
+pose and projection values, then uses that in-memory map immediately after the
+API response. This capture/ground/raycast sequence is an explicit authoring step
+after both the splat and Collider have loaded. It is never run from normal world
+entry or Revisit, and successful geometry must be reused until the registered
+world assets change. Camera metadata is not persisted in v0.1, so a page refresh
+restarts the whole explicit authoring transaction rather than guessing a ray.
+
+`SpatialRuntime` therefore defaults to `experience` mode. Authoring code must
+deliberately construct a separate `localization` runtime, start it, and call its
+one-shot `prepareGrounding()` method after world readiness. That mode suppresses
+Anchor visuals, Wind/gyroscope movement, and the entry glide while it captures
+the final-world views. The normal application entry path does not call this
+method; a failed or completed attempt cannot silently issue another model call.
 
 ## Source Grounding vs World Grounding
 
@@ -141,6 +171,12 @@ world_grounding
 ```
 
 This calculation belongs exclusively to Web Geometry because only the Web runtime has the authoritative Collider and runtime coordinate spaces.
+
+The stored Anchor position is the interaction/display point, not the raw triangle
+surface point. Web Geometry orients the world-space hit normal toward the render
+camera and offsets the point into free space (8 cm for the default marker, or the
+Hero half-depth plus a small margin) before persistence. This prevents z-fighting
+and collision embedding while preserving the surface normal.
 
 ## Module Ownership
 

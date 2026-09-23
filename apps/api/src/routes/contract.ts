@@ -1,5 +1,5 @@
-import type { FastifyInstance, FastifyReply } from "fastify";
-import type { Vector3 } from "@placeecho/shared";
+import type { FastifyInstance } from "fastify";
+import type { Vector3, WorldSpawn } from "@placeecho/shared";
 import { BailianUnavailableError } from "../ai/memory/bailian.js";
 import type { MemoryAnalysisService } from "../ai/memory/service.js";
 import type { RenderView, WorldGroundingService } from "../ai/grounding/service.js";
@@ -8,6 +8,7 @@ import {
   type HeroJobService,
 } from "../jobs/hero-service.js";
 import type { PanoramaJobService } from "../jobs/service.js";
+import { PanoramaCleanerUnavailableError } from "../jobs/panorama-cleaner.js";
 import {
   MarbleProviderUnavailableError,
   type WorldJobService,
@@ -22,13 +23,6 @@ import type {
   HeroGenerationVersion,
   HeroProviderName,
 } from "../services/hero/provider.js";
-
-const notImplemented = (reply: FastifyReply, capability: string) =>
-  reply.code(501).send({
-    status: "not_implemented",
-    capability,
-    message: "PlaceEcho v0.1 contract placeholder; product logic is not implemented.",
-  });
 
 export interface ContractRouteDependencies {
   sceneService: SceneService;
@@ -45,6 +39,23 @@ function validVector(value: unknown): value is Vector3 {
   return Array.isArray(value) && value.length === 3 && value.every((axis) => typeof axis === "number" && Number.isFinite(axis));
 }
 
+function validSpawn(value: unknown): value is WorldSpawn {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<WorldSpawn>;
+  if (
+    !validVector(candidate.position) ||
+    !Array.isArray(candidate.quaternion) ||
+    candidate.quaternion.length !== 4 ||
+    !candidate.quaternion.every(
+      (axis) => typeof axis === "number" && Number.isFinite(axis),
+    )
+  ) {
+    return false;
+  }
+  const length = Math.hypot(...candidate.quaternion);
+  return length >= 0.999 && length <= 1.001;
+}
+
 function isAssetUrl(value: unknown): value is string {
   return typeof value === "string" && (/^https:\/\/[^\s]+$/.test(value) || /^\/api\/jobs\/job_[a-zA-Z0-9_-]+\/output$/.test(value));
 }
@@ -56,6 +67,11 @@ export function registerContractRoutes(
   app.post("/api/scenes", async (_request, reply) => {
     const scene = await dependencies.sceneService.create();
     return reply.code(201).send({ scene_id: scene.scene_id });
+  });
+
+  app.get("/api/scenes", async (_request, reply) => {
+    const scenes = await dependencies.sceneService.list();
+    return reply.send({ scenes });
   });
 
   app.get<{ Params: { sceneId: string } }>(
@@ -103,6 +119,70 @@ export function registerContractRoutes(
         media_id: stored.media.id,
         media: stored.media,
       });
+    } catch (error) {
+      return reply.code(400).send({
+        status: "invalid_request",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+  app.post<{
+    Params: { sceneId: string };
+    Body: {
+      source_job_id?: string;
+      mask_data_url?: string;
+      activate?: boolean;
+    };
+  }>("/api/scenes/:sceneId/panorama/clean", async (request, reply) => {
+    const sourceJobId = request.body?.source_job_id;
+    const maskPng = decodePngDataUrl(request.body?.mask_data_url);
+    if (!sourceJobId || !/^job_[a-zA-Z0-9_-]+$/.test(sourceJobId) || maskPng === null) {
+      return reply.code(400).send({
+        status: "invalid_request",
+        message: "source_job_id and a base64 data:image/png mask_data_url are required.",
+      });
+    }
+    try {
+      const job = await dependencies.panoramaJobs.createClean(
+        request.params.sceneId,
+        sourceJobId,
+        maskPng,
+        request.body?.activate === true,
+      );
+      if (job === null) {
+        return reply.code(404).send({ status: "not_found", message: "Scene not found." });
+      }
+      return reply.code(202).send({ job_id: job.job_id });
+    } catch (error) {
+      const unavailable = error instanceof PanoramaCleanerUnavailableError;
+      return reply.code(unavailable ? 503 : 400).send({
+        status: unavailable ? "provider_unavailable" : "invalid_request",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+  app.post<{
+    Params: { sceneId: string };
+    Body: { job_id?: string };
+  }>("/api/scenes/:sceneId/panorama/activate-clean", async (request, reply) => {
+    const jobId = request.body?.job_id;
+    if (!jobId || !/^job_[a-zA-Z0-9_-]+$/.test(jobId)) {
+      return reply.code(400).send({
+        status: "invalid_request",
+        message: "A valid completed panorama clean job_id is required.",
+      });
+    }
+    try {
+      const job = await dependencies.panoramaJobs.activateClean(
+        request.params.sceneId,
+        jobId,
+      );
+      if (job === null) {
+        return reply.code(404).send({ status: "not_found" });
+      }
+      return reply.send(job);
     } catch (error) {
       return reply.code(400).send({
         status: "invalid_request",
@@ -192,11 +272,16 @@ export function registerContractRoutes(
     },
   );
 
-  app.patch<{ Params: { sceneId: string }; Body: { splat_url?: string; collider_url?: string } }>(
+  app.patch<{ Params: { sceneId: string }; Body: { splat_url?: string; collider_url?: string; spawn?: WorldSpawn | null } }>(
     "/api/scenes/:sceneId/world", async (request, reply) => {
-      const { splat_url: splatUrl, collider_url: colliderUrl } = request.body ?? {};
-      if (!isAssetUrl(splatUrl) || !isAssetUrl(colliderUrl)) return reply.code(400).send({ status: "invalid_request", message: "splat_url and collider_url must be safe asset URLs." });
-      const scene = await dependencies.sceneService.setWorldAssets(request.params.sceneId, splatUrl, colliderUrl);
+      const { splat_url: splatUrl, collider_url: colliderUrl, spawn = null } = request.body ?? {};
+      if (!isAssetUrl(splatUrl) || !isAssetUrl(colliderUrl) || (spawn !== null && !validSpawn(spawn))) {
+        return reply.code(400).send({
+          status: "invalid_request",
+          message: "splat_url and collider_url must be safe asset URLs; spawn must be null or a finite position and normalized quaternion.",
+        });
+      }
+      const scene = await dependencies.sceneService.setWorldAssets(request.params.sceneId, splatUrl, colliderUrl, spawn);
       return scene ? reply.send(scene) : reply.code(404).send({ status: "not_found" });
     },
   );
@@ -305,6 +390,21 @@ export function registerContractRoutes(
       return reply.code(404).send({ status: "not_found" });
     },
   );
+}
+
+function decodePngDataUrl(value: unknown): Uint8Array | null {
+  if (typeof value !== "string") return null;
+  const match = value.match(/^data:image\/png;base64,([A-Za-z0-9+/]+={0,2})$/);
+  if (!match) return null;
+  const decoded = Buffer.from(match[1]!, "base64");
+  if (
+    decoded.length < 8 ||
+    decoded.length > 10 * 1024 * 1024 ||
+    !decoded.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+  ) {
+    return null;
+  }
+  return decoded;
 }
 
 function isMemoryRequestInput(value: unknown): value is MemoryRequestInput {

@@ -3,8 +3,8 @@ import type { AnalysisInput, AnalysisResult, MemoryAnalyzer } from "./service.js
 export class BailianUnavailableError extends Error {}
 
 export async function bailianJson(content: unknown[], system: string): Promise<unknown> {
-  const key = process.env.DASHSCOPE_API_KEY;
-  const base = process.env.DASHSCOPE_BASE_URL ?? "https://dashscope.aliyuncs.com/compatible-mode/v1";
+  const key = process.env.DASHSCOPE_API_KEY ?? process.env.BAILIAN_API_KEY;
+  const base = process.env.DASHSCOPE_BASE_URL ?? process.env.BAILIAN_HOST ?? "https://dashscope.aliyuncs.com/compatible-mode/v1";
   if (!key) throw new BailianUnavailableError("DASHSCOPE_API_KEY is not configured.");
   const url = new URL(base.replace(/\/$/, "") + "/chat/completions");
   if (url.protocol !== "https:" || !url.hostname.endsWith(".aliyuncs.com")) {
@@ -14,7 +14,7 @@ export async function bailianJson(content: unknown[], system: string): Promise<u
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: process.env.DASHSCOPE_MODEL ?? "qwen3.8-omni-flash",
+      model: process.env.DASHSCOPE_MODEL ?? process.env.BAILIAN_MODEL ?? "qwen3.8-omni-flash",
       messages: [{ role: "system", content: system }, { role: "user", content }],
       max_tokens: 16000,
       stream: false,

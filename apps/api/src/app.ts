@@ -4,6 +4,10 @@ import { MemoryAnalysisService, type MemoryAnalyzer } from "./ai/memory/service.
 import { BailianWorldGrounder, WorldGroundingService, type WorldGrounder } from "./ai/grounding/service.js";
 import { HeroJobService } from "./jobs/hero-service.js";
 import { PanoramaJobService } from "./jobs/service.js";
+import {
+  CommandPanoramaCleaner,
+  type PanoramaCleaner,
+} from "./jobs/panorama-cleaner.js";
 import { WorldJobService } from "./jobs/world-service.js";
 import { MediaService } from "./media/service.js";
 import { MemoryRequestService } from "./memory-requests/service.js";
@@ -33,6 +37,7 @@ export interface BuildAppOptions {
   heroProviders?: HeroProvider[];
   memoryAnalyzer?: MemoryAnalyzer;
   worldGrounder?: WorldGrounder;
+  panoramaCleaner?: PanoramaCleaner;
 }
 
 export function buildApp(options: BuildAppOptions = {}) {
@@ -68,6 +73,7 @@ export function buildApp(options: BuildAppOptions = {}) {
     sceneService,
     mediaService,
     gpuWorker,
+    options.panoramaCleaner ?? new CommandPanoramaCleaner(),
   );
   const memoryAnalysis = new MemoryAnalysisService(sceneService, mediaService, panoramaJobs, options.memoryAnalyzer ?? new BailianMemoryAnalyzer());
   const worldGrounding = new WorldGroundingService(sceneService, options.worldGrounder ?? new BailianWorldGrounder());

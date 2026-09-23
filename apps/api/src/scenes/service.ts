@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { HeroState, MediaAsset, Memory, Scene, Vector3, WorldGrounding } from "@placeecho/shared";
+import type { HeroState, MediaAsset, Memory, Scene, Vector3, WorldGrounding, WorldSpawn } from "@placeecho/shared";
 import type { SceneRepository } from "./repository.js";
 
 export class SceneService {
@@ -13,6 +13,10 @@ export class SceneService {
 
   async get(sceneId: string): Promise<Scene | null> {
     return this.scenes.get(sceneId);
+  }
+
+  async list(): Promise<Scene[]> {
+    return this.scenes.list();
   }
 
   async addMedia(sceneId: string, media: MediaAsset): Promise<Scene | null> {
@@ -61,11 +65,17 @@ export class SceneService {
     return scene;
   }
 
-  async setWorldAssets(sceneId: string, splatUrl: string, colliderUrl: string): Promise<Scene | null> {
+  async setWorldAssets(
+    sceneId: string,
+    splatUrl: string,
+    colliderUrl: string,
+    spawn: WorldSpawn | null = null,
+  ): Promise<Scene | null> {
     const scene = await this.scenes.get(sceneId);
     if (!scene) return null;
     scene.world.splat_url = splatUrl;
     scene.world.collider_url = colliderUrl;
+    scene.world.spawn = spawn;
     for (const memory of scene.memories) {
       memory.anchor.world_grounding = null;
       memory.anchor.position = null;

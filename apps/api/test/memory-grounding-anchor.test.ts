@@ -54,8 +54,9 @@ test("analyzes selected media, grounds final views, and persists Web geometry", 
 
   const beforeWorld = await app.inject({ method: "POST", url: `/api/scenes/${sceneId}/world-grounding`, payload: { views: [] } });
   assert.equal(beforeWorld.statusCode, 400);
-  const register = await app.inject({ method: "PATCH", url: `/api/scenes/${sceneId}/world`, payload: { splat_url: "https://example.com/world.spz", collider_url: "https://example.com/collider.glb" } });
+  const register = await app.inject({ method: "PATCH", url: `/api/scenes/${sceneId}/world`, payload: { splat_url: "https://example.com/world.spz", collider_url: "https://example.com/collider.glb", spawn: { position: [0, 0, 0], quaternion: [0, 0, 0, 1] } } });
   assert.equal(register.statusCode, 200);
+  assert.deepEqual(register.json<Scene>().world.spawn, { position: [0, 0, 0], quaternion: [0, 0, 0, 1] });
   const ground = await app.inject({ method: "POST", url: `/api/scenes/${sceneId}/world-grounding`, payload: { views: [{ view_id: "front", width: 100, height: 100, image_data_url: "data:image/png;base64,YQ==" }] } });
   assert.equal(ground.statusCode, 200, ground.body);
   current = ground.json<Scene>();
