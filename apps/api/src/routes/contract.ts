@@ -7,7 +7,10 @@ import {
   HeroProviderUnavailableError,
   type HeroJobService,
 } from "../jobs/hero-service.js";
-import type { PanoramaJobService } from "../jobs/service.js";
+import {
+  PANORAMA_IMPORT_MAX_BYTES,
+  type PanoramaJobService,
+} from "../jobs/service.js";
 import { PanoramaCleanerUnavailableError } from "../jobs/panorama-cleaner.js";
 import {
   MarbleProviderUnavailableError,
@@ -136,35 +139,45 @@ export function registerContractRoutes(
 
   app.post<{
     Params: { sceneId: string };
-    Querystring: { width?: string; height?: string };
+    Querystring: { filename?: string };
     Body: Buffer;
-  }>("/api/scenes/:sceneId/panorama/import", async (request, reply) => {
-    const width = Number(request.query.width);
-    const height = Number(request.query.height);
-    if (!Buffer.isBuffer(request.body) || request.body.length === 0) {
-      return reply.code(400).send({
-        status: "invalid_request",
-        message: "Send a non-empty 2:1 JPEG or PNG as application/octet-stream.",
-      });
-    }
-    try {
-      const job = await dependencies.panoramaJobs.importPanorama(
-        request.params.sceneId,
-        request.body,
-        width,
-        height,
-      );
-      if (job === null) {
-        return reply.code(404).send({ status: "not_found" });
+  }>(
+    "/api/scenes/:sceneId/panorama/import",
+    { bodyLimit: PANORAMA_IMPORT_MAX_BYTES },
+    async (request, reply) => {
+      if (!request.query.filename?.trim()) {
+        return reply.code(400).send({
+          status: "invalid_request",
+          message: "The filename query parameter is required.",
+        });
       }
-      return reply.code(201).send({ job_id: job.job_id, job });
-    } catch (error) {
-      return reply.code(400).send({
-        status: "invalid_request",
-        message: error instanceof Error ? error.message : String(error),
-      });
-    }
-  });
+      if (!Buffer.isBuffer(request.body) || request.body.length === 0) {
+        return reply.code(400).send({
+          status: "invalid_request",
+          message: "Send a non-empty 2:1 JPEG as application/octet-stream.",
+        });
+      }
+      try {
+        const job = await dependencies.panoramaJobs.importPanorama(
+          request.params.sceneId,
+          request.query.filename,
+          request.body,
+        );
+        if (job === null) {
+          return reply.code(404).send({
+            status: "not_found",
+            message: "Scene not found.",
+          });
+        }
+        return reply.code(201).send({ job_id: job.job_id, job });
+      } catch (error) {
+        return reply.code(400).send({
+          status: "invalid_request",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+  );
 
   app.post<{
     Params: { sceneId: string };
