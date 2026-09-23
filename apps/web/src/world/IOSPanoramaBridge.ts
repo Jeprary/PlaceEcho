@@ -1,7 +1,4 @@
-import {
-  importPanorama,
-  type PanoramaAsset,
-} from "./panorama";
+import { importPanorama, type PanoramaAsset } from "./panorama";
 import { parseIOSNativeMessage } from "./iosPanoramaMessage";
 
 const MESSAGE_HANDLER_NAME = "placeecho";
@@ -25,7 +22,11 @@ export interface IOSCaptureRequest {
 }
 
 export type IOSBridgeStatus =
-  | { type: "ready"; asset: PanoramaAsset }
+  | {
+      type: "ready";
+      asset: PanoramaAsset;
+      availability: "device" | "durable";
+    }
   | {
       type: "staged";
       sceneId: string;
@@ -41,10 +42,10 @@ export function isIOSPanoramaCaptureAvailable(): boolean {
 export function requestIOSPanoramaCapture(sceneId: string): void {
   const messageHandler = getMessageHandler();
   if (!messageHandler) {
-    throw new Error("PlaceEcho is not running inside the iOS capture shell.");
+    throw new Error("当前页面不在 PlaceEcho iOS 拍摄环境中。");
   }
   if (!sceneId.trim()) {
-    throw new Error("A scene ID is required before starting panorama capture.");
+    throw new Error("开始全景拍摄前需要有效的场景 ID。");
   }
 
   const request: IOSCaptureRequest = {
@@ -68,7 +69,17 @@ export function installIOSPanoramaBridge(
 
   const receiveMessage = (value: unknown) => {
     const message = parseIOSNativeMessage(value);
-    if (!message) return;
+    if (!message) {
+      const sceneId = rejectedReadySceneId(value);
+      if (sceneId) {
+        onStatus?.({
+          type: "failed",
+          sceneId,
+          message: "拍摄结果地址不可用，未能导入全景图。",
+        });
+      }
+      return;
+    }
 
     if (message.type === "capture_failed") {
       onStatus?.({
@@ -98,13 +109,19 @@ export function installIOSPanoramaBridge(
       availability: message.availability,
     };
     void importPanorama(asset)
-      .then(() => onStatus?.({ type: "ready", asset }))
+      .then(() =>
+        onStatus?.({
+          type: "ready",
+          asset,
+          availability: message.availability,
+        }),
+      )
       .catch((error: unknown) => {
         onStatus?.({
           type: "failed",
           sceneId: message.scene_id,
           message:
-            error instanceof Error ? error.message : "Panorama import failed.",
+            error instanceof Error ? error.message : "全景图导入失败。",
         });
       });
   };
@@ -123,4 +140,18 @@ export function installIOSPanoramaBridge(
 function getMessageHandler(): IOSMessageHandler | undefined {
   const bridgeWindow = window as IOSBridgeWindow;
   return bridgeWindow.webkit?.messageHandlers?.[MESSAGE_HANDLER_NAME];
+}
+
+function rejectedReadySceneId(value: unknown): string | null {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("type" in value) ||
+    value.type !== "panorama_ready" ||
+    !("scene_id" in value) ||
+    typeof value.scene_id !== "string"
+  ) {
+    return null;
+  }
+  return value.scene_id;
 }

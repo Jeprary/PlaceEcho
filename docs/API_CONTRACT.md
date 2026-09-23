@@ -357,18 +357,23 @@ Reports `queued`, `running`, `completed`, or `failed`. `GET
 
 ## Native-to-Web Bridge — Implemented acquisition boundary, not an HTTP API
 
-Durable-success message shape:
+Ready message shape:
 
 ```json
 {
   "type": "panorama_ready",
   "scene_id": "scene_001",
-  "url": "...",
+  "url": "placeecho://capture/550E8400-E29B-41D4-A716-446655440000.jpg",
   "width": 8192,
-  "height": 4096
+  "height": 4096,
+  "availability": "device"
 }
 ```
 
-The Web converts this to a `PanoramaAsset` and invokes `importPanorama(asset)`.
-The current X5 shell emits `panorama_staged` after local export because durable
-upload is still pending; staged local file URLs are deliberately not imported.
+`availability` is either `device` for an app-private
+`placeecho://capture/<uuid>.jpg` URL or `durable` for an HTTPS URL returned
+after server synchronization. The Web validates the availability/URL pairing,
+converts the result to a `PanoramaAsset`, and invokes `importPanorama(asset)`.
+Device availability permits the current creation flow to continue but does not
+claim cloud persistence. The legacy `panorama_staged` message remains accepted
+for older shells but is not emitted by the current X5 flow.

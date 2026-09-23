@@ -13,10 +13,12 @@ Current responsibilities:
 - shut down the SDK camera session after the local export finishes;
 - return capture status through the WKWebView bridge.
 
-Cloud/local API upload is not implemented yet. Until an uploader is added, the
-native shell keeps the exported JPEG inside the app sandbox and reports only a
-staged status to Web. It never exposes that non-Web-readable `file://` URL as a
-completed panorama asset.
+Cloud/local API upload is not implemented yet. The native shell keeps the
+exported JPEG under `Application Support/PlaceEcho/Captures`, exposes only that
+bounded directory through `placeecho://capture/<uuid>.jpg`, and reports a ready
+result with `availability: "device"`. This lets the current Web creation flow use
+the panorama immediately without treating it as cloud-persisted. It never
+exposes an arbitrary `file://` URL or sends the image as base64 through JavaScript.
 
 ## Bridge
 
@@ -29,20 +31,23 @@ Web-to-native request:
 }
 ```
 
-Native-to-Web local-export status:
+Native-to-Web device-local ready status:
 
 ```json
 {
-  "type": "panorama_staged",
+  "type": "panorama_ready",
   "scene_id": "scene_001",
+  "url": "placeecho://capture/550E8400-E29B-41D4-A716-446655440000.jpg",
   "width": 11904,
-  "height": 5952
+  "height": 5952,
+  "availability": "device"
 }
 ```
 
 This means capture, camera download, stitching, and SDK camera-session shutdown
-completed. In Personal Team builds, Wi-Fi selection remains manual. This status
-does not call `importPanorama()`.
+completed. In Personal Team builds, Wi-Fi selection remains manual. Web validates
+the device-only URL and calls `importPanorama()`; server synchronization remains
+pending.
 
 The capture request first opens a transient native acquisition screen backed by
 `INSCameraSessionPlayer`. This screen owns only the X5 live preview, shutter, and
@@ -55,8 +60,7 @@ the native loading cover reveals a `直接使用 X5 拍摄` recovery action. It 
 same transient acquisition controller and keeps the core capture path usable
 without duplicating the Web-owned manager UI.
 
-Native-to-Web durable success, after a future upload adapter returns a Web-readable
-URL:
+After upload, the equivalent durable result uses an HTTPS URL:
 
 ```json
 {
@@ -64,13 +68,16 @@ URL:
   "scene_id": "scene_001",
   "url": "...",
   "width": 8192,
-  "height": 4096
+  "height": 4096,
+  "availability": "durable"
 }
 ```
 
-Only `panorama_ready` is converted into a `PanoramaAsset` and passed to
-`importPanorama(asset)`. Everything after that boundary remains independent of
-acquisition source.
+`panorama_ready` is converted into a `PanoramaAsset` and passed to
+`importPanorama(asset)` after its URL matches its declared availability.
+Everything after that boundary remains independent of acquisition source.
+`panorama_staged` remains accepted only for backward compatibility with older
+shells.
 
 Native-to-Web failure:
 
@@ -207,9 +214,9 @@ with a Personal Team.
 ## Pending device validation
 
 - sign with the Personal Team and install on an iPhone;
-- verify X5 capture with current firmware;
+- verify device-local `panorama_ready` import with current X5 firmware;
 - verify download and Media SDK export duration/memory use;
-- add network-restoration gating plus upload, then emit `panorama_ready` with the
-  durable returned URL;
+- add network-restoration gating plus API upload, then upgrade the result to
+  `availability: "durable"` with the returned HTTPS URL;
 - optionally retrieve the X5 SSID/password over Bluetooth instead of scheme
   environment variables.

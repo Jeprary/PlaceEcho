@@ -82,7 +82,6 @@ struct PlaceEchoWebView: UIViewRepresentable {
         weak var webView: WKWebView?
         fileprivate let bundledWebAppHandler = BundledWebAppSchemeHandler()
         private let captureProvider: PanoramaCaptureProviding
-        private var stagedCaptures: [String: CapturedPanorama] = [:]
         private weak var captureViewController: UIViewController?
         private weak var loadingView: UIView?
         private weak var loadingLabel: UILabel?
@@ -91,6 +90,8 @@ struct PlaceEchoWebView: UIViewRepresentable {
         private var isNativeRecoveryCapture = false
         private var isPreparingCapture = false
         private var didRetryTerminatedWebContent = false
+        private var isWebReady = false
+        private var pendingNativeMessages: [[String: Any]] = []
 
         init(captureProvider: PanoramaCaptureProviding) {
             self.captureProvider = captureProvider
@@ -163,9 +164,18 @@ struct PlaceEchoWebView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             print("PlaceEcho Web: loaded \(webView.url?.absoluteString ?? "unknown URL")")
+            isWebReady = true
             recoveryWorkItem?.cancel()
             recoveryWorkItem = nil
             loadingView?.removeFromSuperview()
+            flushPendingMessages()
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            didStartProvisionalNavigation navigation: WKNavigation!
+        ) {
+            isWebReady = false
         }
 
         func webView(
@@ -186,6 +196,7 @@ struct PlaceEchoWebView: UIViewRepresentable {
 
         func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
             print("PlaceEcho Web: WebContent process terminated")
+            isWebReady = false
             recoveryWorkItem?.cancel()
             recoveryWorkItem = nil
             loadingLabel?.text = "页面进程已停止，你可以直接使用 X5 拍摄。"
@@ -228,7 +239,7 @@ struct PlaceEchoWebView: UIViewRepresentable {
                 send([
                     "type": "capture_failed",
                     "scene_id": sceneID,
-                    "message": "An X5 capture screen is already open.",
+                    "message": "X5 拍摄页面已经打开。",
                 ])
                 return
             }
@@ -266,7 +277,7 @@ struct PlaceEchoWebView: UIViewRepresentable {
                             self.send([
                                 "type": "capture_failed",
                                 "scene_id": sceneID,
-                                "message": "Could not present the X5 capture screen.",
+                                "message": "无法打开 X5 拍摄页面。",
                             ])
                             return
                         }
@@ -300,12 +311,30 @@ struct PlaceEchoWebView: UIViewRepresentable {
             isNativeRecoveryCapture = false
             switch result {
             case .success(let panorama):
-                stagedCaptures[panorama.sceneID] = panorama
+                guard let captureURL = bundledWebAppHandler.webURL(for: panorama.url) else {
+                    send([
+                        "type": "capture_failed",
+                        "scene_id": panorama.sceneID,
+                        "message": "全景图已拍摄，但无法提供给当前页面。",
+                    ])
+                    if shouldShowNativeResult {
+                        showNativeCaptureResult(.failure(NSError(
+                            domain: "dev.placeecho.capture-store",
+                            code: 1,
+                            userInfo: [
+                                NSLocalizedDescriptionKey: "全景图已拍摄，但无法提供给当前页面。",
+                            ]
+                        )))
+                    }
+                    return
+                }
                 send([
-                    "type": "panorama_staged",
+                    "type": "panorama_ready",
                     "scene_id": panorama.sceneID,
+                    "url": captureURL.absoluteString,
                     "width": panorama.width,
                     "height": panorama.height,
+                    "availability": "device",
                 ])
             case .failure(let error):
                 send([
@@ -333,7 +362,7 @@ struct PlaceEchoWebView: UIViewRepresentable {
             switch result {
             case .success:
                 title = "拍摄完成"
-                message = "全景图已经保存在 PlaceEcho 中。恢复正常网络后即可继续上传。"
+                message = "全景图已保存在这台 iPhone，并已进入当前创建流程；恢复正常网络后会继续同步。"
             case .failure(let error):
                 title = "拍摄未完成"
                 message = error.localizedDescription
@@ -348,6 +377,20 @@ struct PlaceEchoWebView: UIViewRepresentable {
         }
 
         private func send(_ message: [String: Any]) {
+            guard isWebReady else {
+                pendingNativeMessages.append(message)
+                return
+            }
+            evaluate(message)
+        }
+
+        private func flushPendingMessages() {
+            let messages = pendingNativeMessages
+            pendingNativeMessages.removeAll()
+            messages.forEach(evaluate)
+        }
+
+        private func evaluate(_ message: [String: Any]) {
             guard
                 JSONSerialization.isValidJSONObject(message),
                 let data = try? JSONSerialization.data(withJSONObject: message),
@@ -363,35 +406,38 @@ struct PlaceEchoWebView: UIViewRepresentable {
 fileprivate final class BundledWebAppSchemeHandler: NSObject, WKURLSchemeHandler {
     static let scheme = "placeecho"
 
-    func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
+    func webURL(for localCaptureURL: URL) -> URL? {
         guard
-            let requestURL = urlSchemeTask.request.url,
-            requestURL.host == "app",
-            let bundleResourceURL = Bundle.main.resourceURL
+            localCaptureURL.isFileURL,
+            let captureRoot = try? Self.captureRoot(),
+            Self.isDescendant(localCaptureURL, of: captureRoot),
+            Self.isCaptureFile(localCaptureURL.lastPathComponent)
         else {
-            urlSchemeTask.didFailWithError(Self.error("Invalid bundled Web request."))
-            return
+            return nil
         }
-        let resourceRoot = bundleResourceURL
-            .appendingPathComponent("WebApp", isDirectory: true)
-            .standardizedFileURL
+        return URL(
+            string: "\(Self.scheme)://capture/\(localCaptureURL.lastPathComponent)"
+        )
+    }
 
-        let resourcePath = requestURL.path.removingPercentEncoding?
-            .trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? ""
-        let relativePath = resourcePath.isEmpty ? "index.html" : resourcePath
-        guard !relativePath.split(separator: "/").contains("..") else {
-            urlSchemeTask.didFailWithError(Self.error("Invalid bundled Web path."))
+    func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
+        guard let requestURL = urlSchemeTask.request.url else {
+            urlSchemeTask.didFailWithError(Self.error("无效的 PlaceEcho 资源请求。"))
             return
         }
 
-        let fileURL = resourceRoot
-            .appendingPathComponent(relativePath, isDirectory: false)
-            .standardizedFileURL
-        let rootPath = resourceRoot.path.hasSuffix("/")
-            ? resourceRoot.path
-            : resourceRoot.path + "/"
-        guard fileURL.path.hasPrefix(rootPath) else {
-            urlSchemeTask.didFailWithError(Self.error("Bundled Web path is outside WebApp."))
+        let fileURL: URL
+        do {
+            switch requestURL.host {
+            case "app":
+                fileURL = try Self.bundledFileURL(for: requestURL)
+            case "capture":
+                fileURL = try Self.captureFileURL(for: requestURL)
+            default:
+                throw Self.error("不支持的 PlaceEcho 资源地址。")
+            }
+        } catch {
+            urlSchemeTask.didFailWithError(error)
             return
         }
 
@@ -407,12 +453,76 @@ fileprivate final class BundledWebAppSchemeHandler: NSObject, WKURLSchemeHandler
             urlSchemeTask.didReceive(data)
             urlSchemeTask.didFinish()
         } catch {
-            print("PlaceEcho Web: missing bundled resource \(relativePath): \(error)")
+            print("PlaceEcho Web: missing resource \(requestURL): \(error)")
             urlSchemeTask.didFailWithError(error)
         }
     }
 
     func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
+
+    private static func bundledFileURL(for requestURL: URL) throws -> URL {
+        guard let bundleResourceURL = Bundle.main.resourceURL else {
+            throw error("找不到内置 Web 资源。")
+        }
+        let resourceRoot = bundleResourceURL
+            .appendingPathComponent("WebApp", isDirectory: true)
+            .standardizedFileURL
+        let resourcePath = requestURL.path.removingPercentEncoding?
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? ""
+        let relativePath = resourcePath.isEmpty ? "index.html" : resourcePath
+        guard !relativePath.split(separator: "/").contains("..") else {
+            throw error("无效的内置 Web 资源路径。")
+        }
+        let fileURL = resourceRoot
+            .appendingPathComponent(relativePath, isDirectory: false)
+            .standardizedFileURL
+        guard isDescendant(fileURL, of: resourceRoot) else {
+            throw error("Web 资源路径超出允许范围。")
+        }
+        return fileURL
+    }
+
+    private static func captureFileURL(for requestURL: URL) throws -> URL {
+        let filename = requestURL.path.removingPercentEncoding?
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? ""
+        guard isCaptureFile(filename) else {
+            throw error("无效的本机全景图路径。")
+        }
+        let root = try captureRoot()
+        let fileURL = root
+            .appendingPathComponent(filename, isDirectory: false)
+            .standardizedFileURL
+        guard isDescendant(fileURL, of: root) else {
+            throw error("全景图路径超出允许范围。")
+        }
+        return fileURL
+    }
+
+    private static func captureRoot() throws -> URL {
+        try FileManager.default.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        .appendingPathComponent("PlaceEcho", isDirectory: true)
+        .appendingPathComponent("Captures", isDirectory: true)
+        .standardizedFileURL
+    }
+
+    private static func isCaptureFile(_ filename: String) -> Bool {
+        let url = URL(fileURLWithPath: filename)
+        return !filename.contains("/")
+            && url.pathExtension.lowercased() == "jpg"
+            && UUID(uuidString: url.deletingPathExtension().lastPathComponent) != nil
+    }
+
+    private static func isDescendant(_ fileURL: URL, of rootURL: URL) -> Bool {
+        let rootPath = rootURL.path.hasSuffix("/")
+            ? rootURL.path
+            : rootURL.path + "/"
+        return fileURL.standardizedFileURL.path.hasPrefix(rootPath)
+    }
 
     private static func mimeType(for pathExtension: String, data: Data) -> String {
         // Development thumbnails are transcoded to JPEG for older iOS WebKit

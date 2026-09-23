@@ -14,7 +14,7 @@ enum PanoramaCaptureError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notConfigured:
-            return "Native panorama capture is not configured. Add the Insta360 adapter or a development mock URL."
+            return "尚未配置原生全景拍摄，请接入 Insta360 模块或开发用全景地址。"
         }
     }
 }
@@ -52,13 +52,13 @@ enum Insta360CapturePluginError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .frameworkMissing:
-            return "The Insta360 capture module is missing from this build."
+            return "当前安装包缺少 Insta360 拍摄模块。"
         case .frameworkLoadFailed(let message):
-            return "Could not load the Insta360 capture module: \(message)"
+            return "无法加载 Insta360 拍摄模块：\(message)"
         case .invalidPlugin:
-            return "The Insta360 capture module is not compatible with this app."
+            return "Insta360 拍摄模块与当前 App 不兼容。"
         case .directCaptureUnsupported:
-            return "Open the X5 capture screen before taking a panorama."
+            return "请先打开 X5 拍摄页面，再拍摄全景图。"
         }
     }
 }
@@ -199,7 +199,7 @@ final class Insta360CapturePluginProvider: PanoramaCaptureViewControllerProvidin
         fallbackSceneID: String
     ) -> Result<CapturedPanorama, Error> {
         guard userInfo["success"] as? Bool == true else {
-            let message = userInfo["message"] as? String ?? "X5 capture failed."
+            let message = userInfo["message"] as? String ?? "X5 拍摄失败。"
             return .failure(NSError(
                 domain: "dev.placeecho.capture-plugin",
                 code: 1,

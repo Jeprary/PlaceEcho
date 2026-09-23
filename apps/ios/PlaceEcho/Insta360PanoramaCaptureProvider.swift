@@ -9,22 +9,25 @@ enum Insta360CaptureError: LocalizedError {
     case downloadFailed(String)
     case exportFailed(String)
     case invalidExport
+    case localSaveFailed(String)
     case captureAlreadyRunning
 
     var errorDescription: String? {
         switch self {
         case .cameraNotConnected:
-            return "Connect the iPhone to the Insta360 X5 Wi-Fi, then try again."
+            return "请先将 iPhone 连接到 Insta360 X5 的 Wi-Fi，然后重试。"
         case .captureReturnedNoFile:
-            return "The X5 completed the capture but did not return a photo file."
+            return "X5 已完成拍摄，但没有返回照片文件。"
         case .downloadFailed(let message):
-            return "Could not download the X5 photo: \(message)"
+            return "无法下载 X5 照片：\(message)"
         case .exportFailed(let message):
-            return "Could not stitch the X5 panorama: \(message)"
+            return "无法拼接 X5 全景图：\(message)"
         case .invalidExport:
-            return "The stitched panorama could not be read."
+            return "无法读取拼接后的全景图。"
+        case .localSaveFailed(let message):
+            return "无法将全景图保存到 PlaceEcho：\(message)"
         case .captureAlreadyRunning:
-            return "A panorama capture is already running."
+            return "当前已有一项全景拍摄正在进行。"
         }
     }
 }
@@ -117,25 +120,58 @@ final class Insta360PanoramaCaptureProvider: PanoramaCaptureProviding {
         sceneID: String,
         completion: @escaping (Result<CapturedPanorama, Error>) -> Void
     ) {
-        INSCameraManager.shared().commandManager.takePicture(with: nil) { [weak self] error, photoInfo in
+        let commandManager = INSCameraManager.shared().commandManager
+        // X5 firmware expects the SDK app identity before accepting photography
+        // commands. The vendor's X5 sample performs this handshake immediately
+        // before configuring or taking a picture.
+        commandManager.setAppidCompletion { [weak self] appIDError in
             guard let self else { return }
-            if let error {
-                self.finish(.failure(error), completion: completion)
+            if let appIDError {
+                self.finish(.failure(appIDError), completion: completion)
                 return
             }
-            guard let uri = photoInfo?.uri, !uri.isEmpty else {
-                self.finish(
-                    .failure(Insta360CaptureError.captureReturnedNoFile),
+
+            let options = INSTakePictureOptions()
+            // PlaceEcho already presents its own visible three-second countdown.
+            // Explicitly disable the camera-side timer so the user does not wait
+            // through a second countdown after the native UI reaches zero.
+            options.countDown = 0
+            commandManager.takePicture(with: options) { [weak self] error, photoInfo in
+                guard let self else { return }
+                if let error {
+                    self.finish(.failure(error), completion: completion)
+                    return
+                }
+
+                var candidateURIs: [String] = []
+                if let uri = photoInfo?.uri, !uri.isEmpty {
+                    candidateURIs.append(uri)
+                }
+                if let hdrURIs = photoInfo?.hdrUris {
+                    candidateURIs.append(contentsOf: hdrURIs.filter { !$0.isEmpty })
+                }
+                if let burstURIs = photoInfo?.burstUris {
+                    candidateURIs.append(contentsOf: burstURIs.filter { !$0.isEmpty })
+                }
+
+                guard let uri = candidateURIs.first else {
+                    self.finish(
+                        .failure(Insta360CaptureError.captureReturnedNoFile),
+                        completion: completion
+                    )
+                    return
+                }
+                print(
+                    "PlaceEcho X5 capture: received \(candidateURIs.count) file URI(s), "
+                        + "using \(uri)"
+                )
+                let remoteURL = INSHTTPURLForResourceURI(uri)
+                self.downloadAndExport(
+                    remoteURL: remoteURL,
+                    sceneID: sceneID,
                     completion: completion
                 )
-                return
             }
-            let remoteURL = INSHTTPURLForResourceURI(uri)
-            self.downloadAndExport(
-                remoteURL: remoteURL,
-                sceneID: sceneID,
-                completion: completion
-            )
         }
     }
 
@@ -209,10 +245,25 @@ final class Insta360PanoramaCaptureProvider: PanoramaCaptureProviding {
                 )
                 return
             }
+            let storedURL: URL
+            do {
+                storedURL = try Self.persistExport(at: outputURL)
+                try? FileManager.default.removeItem(
+                    at: inputURL.deletingLastPathComponent()
+                )
+            } catch {
+                self.finish(
+                    .failure(Insta360CaptureError.localSaveFailed(
+                        error.localizedDescription
+                    )),
+                    completion: completion
+                )
+                return
+            }
             self.finish(
                 .success(CapturedPanorama(
                     sceneID: sceneID,
-                    url: outputURL,
+                    url: storedURL,
                     width: size.width,
                     height: size.height
                 )),
@@ -245,5 +296,32 @@ final class Insta360PanoramaCaptureProvider: PanoramaCaptureProviding {
             return nil
         }
         return (width, height)
+    }
+
+    private static func persistExport(at temporaryURL: URL) throws -> URL {
+        let fileManager = FileManager.default
+        var captureDirectory = try fileManager.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        .appendingPathComponent("PlaceEcho", isDirectory: true)
+        .appendingPathComponent("Captures", isDirectory: true)
+        try fileManager.createDirectory(
+            at: captureDirectory,
+            withIntermediateDirectories: true
+        )
+
+        var resourceValues = URLResourceValues()
+        resourceValues.isExcludedFromBackup = true
+        try? captureDirectory.setResourceValues(resourceValues)
+
+        let storedURL = captureDirectory.appendingPathComponent(
+            UUID().uuidString + ".jpg",
+            isDirectory: false
+        )
+        try fileManager.moveItem(at: temporaryURL, to: storedURL)
+        return storedURL
     }
 }
