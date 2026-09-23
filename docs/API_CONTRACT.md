@@ -141,6 +141,8 @@ Creates an asynchronous Marble World API job from the Scene's completed 2:1 pano
 
 The job submits the panorama, polls the provider operation, and persists the returned `world_id`, Marble URL, and asset manifest. Provider asset URLs should be copied to durable project storage before long-term use; that download/copy step is not yet implemented.
 
+When `WLT_API_KEY` is absent, the route returns HTTP 503 before creating a job.
+
 ## Anchor Persistence
 
 ### `PATCH /api/scenes/:sceneId/memories/:memoryId/anchor` — Stub

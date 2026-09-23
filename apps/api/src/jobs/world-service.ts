@@ -17,6 +17,8 @@ export interface WorldJob {
   error: string | null;
 }
 
+export class MarbleProviderUnavailableError extends Error {}
+
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
@@ -33,6 +35,11 @@ export class WorldJobService {
     sceneId: string,
     options: { prompt?: string } = {},
   ): Promise<WorldJob | null> {
+    if (this.marble.isConfigured?.() === false) {
+      throw new MarbleProviderUnavailableError(
+        "Marble is deployed but WLT_API_KEY is not configured.",
+      );
+    }
     const scene = await this.scenes.get(sceneId);
     if (scene === null) return null;
     const panoramaJobId = scene.world.panorama_url?.match(

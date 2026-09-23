@@ -14,6 +14,7 @@ export interface MarbleWorld {
 }
 
 export interface MarbleClient {
+  isConfigured?(): boolean;
   generateFromPanorama(
     image: Uint8Array,
     options?: { prompt?: string; displayName?: string },
@@ -28,6 +29,10 @@ export class HttpMarbleClient implements MarbleClient {
     private readonly baseUrl = "https://api.worldlabs.ai/marble/v1",
     private readonly model = "Marble 0.1-mini",
   ) {}
+
+  isConfigured(): boolean {
+    return this.apiKey.length > 0;
+  }
 
   async generateFromPanorama(
     image: Uint8Array,

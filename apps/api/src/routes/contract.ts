@@ -4,7 +4,10 @@ import {
   type HeroJobService,
 } from "../jobs/hero-service.js";
 import type { PanoramaJobService } from "../jobs/service.js";
-import type { WorldJobService } from "../jobs/world-service.js";
+import {
+  MarbleProviderUnavailableError,
+  type WorldJobService,
+} from "../jobs/world-service.js";
 import type { MediaService } from "../media/service.js";
 import type { SceneService } from "../scenes/service.js";
 import type {
@@ -147,8 +150,9 @@ export function registerContractRoutes(
       if (job === null) return reply.code(404).send({ status: "not_found" });
       return reply.code(202).send({ job_id: job.job_id });
     } catch (error) {
-      return reply.code(400).send({
-        status: "invalid_request",
+      const unavailable = error instanceof MarbleProviderUnavailableError;
+      return reply.code(unavailable ? 503 : 400).send({
+        status: unavailable ? "provider_unavailable" : "invalid_request",
         message: error instanceof Error ? error.message : String(error),
       });
     }
