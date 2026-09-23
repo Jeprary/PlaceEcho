@@ -5,7 +5,7 @@ Web app in `WKWebView`; it does not reimplement the Web product.
 
 Current responsibilities:
 
-- load the configured PlaceEcho Web URL;
+- build and load a bundled offline copy of the PlaceEcho Web product;
 - receive a `capture_panorama` message from Web;
 - use an iPhone connection to the Insta360 X5 Wi-Fi;
 - present a native live spherical preview and three-second capture countdown;
@@ -99,8 +99,17 @@ so X5 capture must be validated on an iPhone.
 ## Xcode run configuration
 
 Open `PlaceEcho.xcodeproj`, select a development team, and use an iPhone target.
-For the current Personal Team build, manually connect the iPhone to the X5 Wi-Fi
-before pressing the Web capture button. Set this scheme environment variable:
+The Xcode build phase runs the Web production build and embeds it as `WebApp`, so
+the interface remains available while the iPhone switches between normal Wi-Fi
+and the X5 hotspot. Node.js and pnpm must be available in the macOS login shell.
+
+For the current Personal Team build, open the app on normal Wi-Fi, press the Web
+capture button, and then manually connect the iPhone to the X5 Wi-Fi. The bundled
+Web product remains loaded during that switch. After capture, reconnect normal
+Wi-Fi before a future upload step.
+
+For optional live Web development, enable this disabled Scheme environment
+variable; remote mode is not suitable for testing the X5 Wi-Fi switch:
 
 - `PLACE_ECHO_WEB_URL` — the Mac LAN URL serving the Web app;
 

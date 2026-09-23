@@ -55,7 +55,7 @@
          <EnvironmentVariable
             key = "PLACE_ECHO_WEB_URL"
             value = "http://172.20.9.133:5173"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </EnvironmentVariable>
       </EnvironmentVariables>
    </LaunchAction>

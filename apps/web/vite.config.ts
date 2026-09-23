@@ -45,5 +45,6 @@ function localWorldAssets(): Plugin {
 }
 
 export default defineConfig({
+  base: "./",
   plugins: [react(), localWorldAssets()],
 });

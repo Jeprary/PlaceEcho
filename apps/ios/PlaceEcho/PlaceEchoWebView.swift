@@ -24,7 +24,7 @@ struct PlaceEchoWebView: UIViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         context.coordinator.webView = webView
-        webView.load(URLRequest(url: Self.webURL))
+        Self.loadWebProduct(in: webView)
         return webView
     }
 
@@ -38,20 +38,34 @@ struct PlaceEchoWebView: UIViewRepresentable {
         coordinator.webView = nil
     }
 
-    private static var webURL: URL {
+    private static func loadWebProduct(in webView: WKWebView) {
         if
             let rawValue = ProcessInfo.processInfo.environment["PLACE_ECHO_WEB_URL"],
+            !rawValue.isEmpty,
             let environmentURL = URL(string: rawValue)
         {
-            return environmentURL
+            webView.load(URLRequest(url: environmentURL))
+            return
+        }
+        if
+            let indexURL = Bundle.main.url(
+                forResource: "index",
+                withExtension: "html",
+                subdirectory: "WebApp"
+            )
+        {
+            let webRoot = indexURL.deletingLastPathComponent()
+            webView.loadFileURL(indexURL, allowingReadAccessTo: webRoot)
+            return
         }
         if
             let rawValue = Bundle.main.object(forInfoDictionaryKey: "PlaceEchoWebURL") as? String,
             let configuredURL = URL(string: rawValue)
         {
-            return configuredURL
+            webView.load(URLRequest(url: configuredURL))
+            return
         }
-        return URL(string: "http://127.0.0.1:5173")!
+        assertionFailure("PlaceEcho has neither a bundled WebApp nor a configured Web URL.")
     }
 
     final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
