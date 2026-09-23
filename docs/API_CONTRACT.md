@@ -1,9 +1,9 @@
 # PlaceEcho API Contract v0.1
 
 This document freezes the high-level collaboration routes. Scene, binary media,
-Memory request, panorama, Marble world, Hero, and job routes below are
-implemented. Memory analysis, final-world grounding, world registration, and
-Anchor persistence remain explicit HTTP 501 boundaries in this branch.
+Memory request, panorama, Marble world, Hero, job, Memory Analysis, final-world
+grounding, world registration, and Anchor persistence routes below are
+implemented. Routes marked Stub remain explicit HTTP 501 boundaries.
 
 ## Status Legend
 
@@ -91,15 +91,15 @@ continues to use the Media route.
 
 ## Memory Analysis
 
-### `POST /api/scenes/:sceneId/analyze` — Stub
+### `POST /api/scenes/:sceneId/analyze` — Implemented for uploaded images
 
-Will analyze the panorama, selected media, and optional Scene Context. It persists Memory groups, names, summaries, cues, and source-panorama grounding. One model call may cover semantic analysis and source grounding, but the responsibilities remain distinct.
+Body: `{ "media_ids": ["media_..."] }` (optional; defaults to uploaded JPG, PNG, and WebP media, excluding INSP captures). Requires 2–12 distinct uploaded image assets and a completed panorama stitch. Uses Bailian (`DASHSCOPE_API_KEY`, optional `DASHSCOPE_BASE_URL` and `DASHSCOPE_MODEL`) to group images and identify source-panorama cues. The backend supplies Memory IDs, validates that every selected media ID appears exactly once in a group or `unassigned_media_ids`, and checks source pixels against the original panorama dimensions. Unselected Scene media remains unassigned. Returns the updated Scene. Analysis replaces the previous Memory groups; clients should only rerun it when that loss is intended. The current API media upload supports images only. Missing provider configuration returns 503; invalid input or model output returns 400.
 
 ## Final World Grounding
 
-### `POST /api/scenes/:sceneId/world-grounding` — Stub
+### `POST /api/scenes/:sceneId/world-grounding` — Implemented
 
-Will match known cues against final-world render views and return/persist 2D grounding:
+Requires registered splat and Collider URLs. Body contains 1–8 known final-world render views, each with `view_id`, `width`, `height`, and `image_data_url` (`data:image/jpeg`, PNG, or WebP base64). The API sends cues and these views to Bailian, validates that every Memory has one result and each pixel lies inside its named view, then persists 2D grounding. A changed grounding clears existing 3D position and normal. Returns the updated Scene. Example result within a Memory:
 
 ```json
 {
@@ -116,9 +116,9 @@ This route must not return authoritative 3D position or normal.
 
 ## World
 
-### `PATCH /api/scenes/:sceneId/world` — Stub
+### `PATCH /api/scenes/:sceneId/world` — Implemented for existing assets
 
-Will register existing or generated splat, Collider, and related world metadata.
+Body: `{ "splat_url": "https://...", "collider_url": "https://..." }`. Registers existing asset URLs and clears stale world grounding and 3D Anchor geometry. This does not upload assets or verify their contents.
 
 ### `POST /api/scenes/:sceneId/world/generate` — Implemented
 
@@ -129,9 +129,9 @@ still the separate world-registration boundary above.
 
 ## Anchor Persistence
 
-### `PATCH /api/scenes/:sceneId/memories/:memoryId/anchor` — Stub
+### `PATCH /api/scenes/:sceneId/memories/:memoryId/anchor` — Implemented
 
-Will persist authoritative geometry computed by the Web runtime:
+Persists authoritative geometry computed by Web Geometry after a world grounding exists. `position` is a finite three-number vector; `normal` is an optional nonzero finite three-number vector or null. Returns the updated Scene; unknown Scene or Memory returns 404, invalid geometry or missing world grounding returns 400:
 
 ```json
 {

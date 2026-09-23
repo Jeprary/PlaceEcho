@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { HeroState, MediaAsset, Scene } from "@placeecho/shared";
+import type { HeroState, MediaAsset, Memory, Scene, Vector3, WorldGrounding } from "@placeecho/shared";
 import type { SceneRepository } from "./repository.js";
 
 export class SceneService {
@@ -48,6 +48,54 @@ export class SceneService {
     const memory = scene?.memories.find((candidate) => candidate.id === memoryId);
     if (!scene || !memory) return null;
     memory.anchor.hero = hero;
+    await this.scenes.save(scene);
+    return scene;
+  }
+
+  async setAnalysis(sceneId: string, memories: Memory[], unassigned: string[]): Promise<Scene | null> {
+    const scene = await this.scenes.get(sceneId);
+    if (!scene) return null;
+    scene.memories = memories;
+    scene.unassigned_media_ids = unassigned;
+    await this.scenes.save(scene);
+    return scene;
+  }
+
+  async setWorldAssets(sceneId: string, splatUrl: string, colliderUrl: string): Promise<Scene | null> {
+    const scene = await this.scenes.get(sceneId);
+    if (!scene) return null;
+    scene.world.splat_url = splatUrl;
+    scene.world.collider_url = colliderUrl;
+    for (const memory of scene.memories) {
+      memory.anchor.world_grounding = null;
+      memory.anchor.position = null;
+      memory.anchor.normal = null;
+    }
+    await this.scenes.save(scene);
+    return scene;
+  }
+
+  async setWorldGroundings(sceneId: string, results: { memory_id: string; world_grounding: WorldGrounding | null }[]): Promise<Scene | null> {
+    const scene = await this.scenes.get(sceneId);
+    if (!scene) return null;
+    for (const result of results) {
+      const memory = scene.memories.find((candidate) => candidate.id === result.memory_id);
+      if (!memory) throw new Error("Memory no longer exists.");
+      memory.anchor.world_grounding = result.world_grounding;
+      memory.anchor.position = null;
+      memory.anchor.normal = null;
+    }
+    await this.scenes.save(scene);
+    return scene;
+  }
+
+  async setAnchor(sceneId: string, memoryId: string, position: Vector3, normal: Vector3 | null): Promise<Scene | null> {
+    const scene = await this.scenes.get(sceneId);
+    const memory = scene?.memories.find((candidate) => candidate.id === memoryId);
+    if (!scene || !memory) return null;
+    if (!memory.anchor.world_grounding) throw new Error("World grounding is required before persisting 3D geometry.");
+    memory.anchor.position = position;
+    memory.anchor.normal = normal;
     await this.scenes.save(scene);
     return scene;
   }

@@ -115,6 +115,10 @@ Memory AI owns media grouping, Memory names, summaries, and cues. Spatial AI own
 
 AI must never produce authoritative final 3D coordinates.
 
+The implemented API analysis service reads selected uploaded image bytes and the stitched panorama, calls a replaceable `MemoryAnalyzer`, validates the model's grouping and source pixels, then persists Memory groups. The default analyzer calls Bailian. Image-only API upload and a completed stitched panorama are current prerequisites; the standalone Python multimedia prototype is not the API runtime. Reanalysis replaces prior Memory groups.
+
+The implemented World Grounding service receives explicit final-world render images with stable view IDs and dimensions. A replaceable `WorldGrounder` finds cue pixels in those renders; the API validates and persists only `world_grounding`. Registering new world assets or recomputing grounding clears stale 3D geometry. Web Geometry remains solely responsible for raycast position and normal, sent through the Anchor persistence route. The API does not infer a 3D point from AI output.
+
 ## Source Grounding vs World Grounding
 
 `source_grounding` is an `(x, y)` coordinate in the original 360 panorama. It identifies the intended cue.
