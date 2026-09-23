@@ -17,6 +17,7 @@ const localMarbleDirectory = resolve(
   localDataDirectory,
   "marble/4907920b-f2b4-4362-a3ed-8e628869fd2c",
 );
+const localHeroDirectory = resolve(localDataDirectory, "hero-tests");
 const localWorldFiles = new Set(["collider.glb", "world.spz"]);
 const localMemoryFiles = new Set([
   "01-arrival.jpg",
@@ -32,6 +33,7 @@ const localMarbleFiles = new Set([
   "splat-full.spz",
   "thumbnail.webp",
 ]);
+const localHeroFiles = new Set(["IMG_0194-aholo-g1.glb"]);
 const localContentTypes: Record<string, string> = {
   ".glb": "model/gltf-binary",
   ".jpg": "image/jpeg",
@@ -56,18 +58,25 @@ function localSceneAssets(): Plugin {
         const marbleFile = pathname.startsWith("/local-marble/")
           ? pathname.slice("/local-marble/".length)
           : "";
+        const heroFile = pathname.startsWith("/local-hero/")
+          ? pathname.slice("/local-hero/".length)
+          : "";
         const directory = localWorldFiles.has(worldFile)
           ? localWorldDirectory
           : localMemoryFiles.has(memoryFile)
             ? localMemoryDirectory
             : localMarbleFiles.has(marbleFile)
               ? localMarbleDirectory
+              : localHeroFiles.has(heroFile)
+                ? localHeroDirectory
             : null;
         const fileName = directory === localWorldDirectory
           ? worldFile
           : directory === localMemoryDirectory
             ? memoryFile
-            : marbleFile;
+            : directory === localMarbleDirectory
+              ? marbleFile
+              : heroFile;
         if (!directory || !fileName) {
           next();
           return;

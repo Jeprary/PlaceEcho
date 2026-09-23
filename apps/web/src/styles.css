@@ -305,6 +305,38 @@ button {
   pointer-events: none;
 }
 
+.memory-hero {
+  position: relative;
+  z-index: 2;
+  grid-column: 1;
+  grid-row: 1;
+  align-self: center;
+  justify-self: center;
+  width: min(38vw, 32rem);
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(181, 222, 198, 0.16), rgba(7, 15, 12, 0) 68%);
+  filter: drop-shadow(0 1.5rem 2.5rem rgba(0, 0, 0, 0.35));
+}
+
+.memory-hero canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.memory-hero > span {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(226, 237, 231, 0.72);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+}
+
 .memory-overlay--with-hero .memory-card {
   grid-column: 2;
   grid-row: 1;
@@ -631,6 +663,12 @@ button {
   }
 
   .memory-overlay--with-hero::before {
+    grid-column: 1;
+    grid-row: 1;
+    width: min(66vw, 17rem);
+  }
+
+  .memory-hero {
     grid-column: 1;
     grid-row: 1;
     width: min(66vw, 17rem);

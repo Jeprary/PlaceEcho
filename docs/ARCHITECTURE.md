@@ -150,6 +150,19 @@ generic pending presentation. Management cards render the persisted
 derive or overwrite that title. Demo fixture titles are seeded sample data and
 must not be represented as model output.
 
+The Web creation boundary carries the actual panorama `File`, selected media
+`File` objects, recorded audio `Blob`, and optional typed context. Web uploads
+the currently supported panorama/image binaries sequentially through the Media
+route before creating the processing receipt. Video, audio, and typed context
+remain explicit deferred inputs while their backend persistence routes are
+absent; they must never be represented as uploaded or transcribed.
+
+A completed optional Hero asset is currently rendered as a transparent Three.js
+turntable beside the Memory Reveal. This presentation renderer is intentionally
+independent of the Gaussian world and does not claim world-space placement at
+the Anchor. A future in-world Hero needs explicit scale/orientation placement
+metadata before `SpatialRuntime` may attach it to Anchor geometry.
+
 The implemented World Grounding service receives explicit final-world render images with stable view IDs and dimensions. A replaceable `WorldGrounder` finds cue pixels in those renders; the API validates and persists only `world_grounding`. Registering new world assets or recomputing grounding clears stale 3D geometry. Web Geometry remains solely responsible for raycast position and normal, sent through the Anchor persistence route. The API does not infer a 3D point from AI output.
 
 The Web capture module binds every stable view ID to its exact perspective-camera

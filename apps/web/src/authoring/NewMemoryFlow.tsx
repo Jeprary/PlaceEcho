@@ -1,33 +1,30 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import type {
+  NewMemoryRequest,
+  SelectedMemoryMedia,
+} from "./memorySubmission";
+
 type NewMemoryFlowProps = {
   sceneId: string;
   captureState?: "idle" | "requesting" | "staged" | "ready" | "failed";
   onCapturePanorama?: () => void;
   onCancel: () => void;
   onCreate: (request: NewMemoryRequest) => void;
+  submitting?: boolean;
+  submissionError?: string | null;
 };
 
-type SelectedMedia = {
+type SelectedMedia = SelectedMemoryMedia & {
   clientKey: string;
-  name: string;
-  kind: "照片" | "视频" | "声音";
-  size: string;
-};
-
-export type NewMemoryRequest = {
-  sceneId: string;
-  panoramaName: string;
-  media: Array<Omit<SelectedMedia, "clientKey">>;
-  hasVoiceRecording: boolean;
 };
 
 const demoMedia: SelectedMedia[] = [
-  { clientKey: "demo-1", name: "窗边合影.jpg", kind: "照片", size: "2.4 MB" },
-  { clientKey: "demo-2", name: "夏日晚餐.mov", kind: "视频", size: "18.7 MB" },
-  { clientKey: "demo-3", name: "阳台植物.jpg", kind: "照片", size: "3.1 MB" },
-  { clientKey: "demo-4", name: "雨声.m4a", kind: "声音", size: "1.8 MB" },
-  { clientKey: "demo-5", name: "搬家第一天.jpg", kind: "照片", size: "2.8 MB" },
-  { clientKey: "demo-6", name: "深夜厨房.jpg", kind: "照片", size: "2.2 MB" },
+  { clientKey: "demo-1", name: "窗边合影.jpg", kind: "照片", size: "2.4 MB", file: null },
+  { clientKey: "demo-2", name: "夏日晚餐.mov", kind: "视频", size: "18.7 MB", file: null },
+  { clientKey: "demo-3", name: "阳台植物.jpg", kind: "照片", size: "3.1 MB", file: null },
+  { clientKey: "demo-4", name: "雨声.m4a", kind: "声音", size: "1.8 MB", file: null },
+  { clientKey: "demo-5", name: "搬家第一天.jpg", kind: "照片", size: "2.8 MB", file: null },
+  { clientKey: "demo-6", name: "深夜厨房.jpg", kind: "照片", size: "2.2 MB", file: null },
 ];
 
 export function NewMemoryFlow({
@@ -36,10 +33,14 @@ export function NewMemoryFlow({
   onCapturePanorama,
   onCancel,
   onCreate,
+  submitting = false,
+  submissionError = null,
 }: NewMemoryFlowProps) {
   const [step, setStep] = useState<0 | 1 | 2>(0);
   const [panoramaName, setPanoramaName] = useState<string | null>(null);
-  const [voiceState, setVoiceState] = useState<"idle" | "requesting" | "recording" | "recorded" | "error">("idle");
+  const [panoramaFile, setPanoramaFile] = useState<File | null>(null);
+  const [contextText, setContextText] = useState("");
+  const [voiceState, setVoiceState] = useState<"idle" | "requesting" | "recording" | "saving" | "recorded" | "error">("idle");
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [waveform, setWaveform] = useState(() => Array.from({ length: 27 }, (_, index) => 7 + (index % 4) * 2));
   const [media, setMedia] = useState<SelectedMedia[]>([]);
@@ -67,12 +68,13 @@ export function NewMemoryFlow({
 
   function choosePanorama(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
-    if (file) completePanorama(file.name);
+    if (file) completePanorama(file.name, file);
     event.target.value = "";
   }
 
-  function completePanorama(name: string) {
+  function completePanorama(name: string, file: File | null = null) {
     setPanoramaName(name);
+    setPanoramaFile(file);
     setStep(1);
   }
 
@@ -89,6 +91,7 @@ export function NewMemoryFlow({
         name: file.name || "未命名文件",
         kind: file.type.startsWith("video") ? "视频" : file.type.startsWith("audio") ? "声音" : "照片",
         size: formatFileSize(file.size),
+        file,
       };
     });
     setMedia((current) => [...current, ...selectedFiles]);
@@ -99,14 +102,24 @@ export function NewMemoryFlow({
     releaseAudioResources();
     onCreate({
       sceneId,
-      panoramaName: panoramaName ?? "演示空间全景.jpg",
-      media: media.map(({ name, kind, size }) => ({ name, kind, size })),
-      hasVoiceRecording: Boolean(recordedAudioRef.current),
+      panorama: {
+        name: panoramaName ?? "演示空间全景.jpg",
+        file: panoramaFile,
+      },
+      media: media.map(({ name, kind, size, file }) => ({
+        name,
+        kind,
+        size,
+        file,
+      })),
+      voiceRecording: recordedAudioRef.current,
+      contextText: contextText.trim() || null,
     });
   }
 
   async function startRecording() {
     releaseAudioResources();
+    recordedAudioRef.current = null;
     setVoiceState("requesting");
     setRecordingSeconds(0);
 
@@ -130,6 +143,7 @@ export function NewMemoryFlow({
         };
         recorder.onstop = () => {
           recordedAudioRef.current = new Blob(recordedChunksRef.current, { type: recorder.mimeType || "audio/webm" });
+          setVoiceState("recorded");
         };
         recorder.start();
         recorderRef.current = recorder;
@@ -171,10 +185,14 @@ export function NewMemoryFlow({
 
   function stopRecording() {
     const recorder = recorderRef.current;
-    if (recorder && recorder.state !== "inactive") recorder.stop();
+    if (recorder && recorder.state !== "inactive") {
+      setVoiceState("saving");
+      recorder.stop();
+    } else {
+      setVoiceState("error");
+    }
     recorderRef.current = null;
     releaseAudioResources(false);
-    setVoiceState("recorded");
   }
 
   function releaseAudioResources(stopRecorder = true) {
@@ -288,7 +306,7 @@ export function NewMemoryFlow({
               <div className="panel-title"><h2 ref={stepHeadingRef} tabIndex={-1}>说说这个空间</h2><p>它是什么地方？你为什么想把它留下？</p></div>
               <div className={`voice-recorder voice-recorder-${voiceState}`}>
                 <strong>{formatDuration(recordingSeconds)}</strong>
-                <small role={voiceState === "error" ? "alert" : "status"} aria-live={voiceState === "error" ? "assertive" : "polite"}>{voiceState === "requesting" ? "正在连接麦克风" : voiceState === "recording" ? "正在录音" : voiceState === "recorded" ? "录音已完成" : voiceState === "error" ? "请允许麦克风访问" : "最长 60 秒"}</small>
+                <small role={voiceState === "error" ? "alert" : "status"} aria-live={voiceState === "error" ? "assertive" : "polite"}>{voiceState === "requesting" ? "正在连接麦克风" : voiceState === "recording" ? "正在录音" : voiceState === "saving" ? "正在保存录音" : voiceState === "recorded" ? "录音已完成" : voiceState === "error" ? "请允许麦克风访问" : "最长 60 秒"}</small>
                 <div className="voice-wave" aria-hidden="true">{waveform.map((height, index) => <i style={{ height }} key={index} />)}</div>
                 {voiceState === "recorded" ? (
                   <span className="record-button record-complete" aria-hidden="true"><CheckIcon /></span>
@@ -299,6 +317,16 @@ export function NewMemoryFlow({
                 )}
                 {voiceState === "recorded" && <button className="rerecord-button" type="button" onClick={startRecording}>重新录制</button>}
               </div>
+              <label className="memory-note-field">
+                <textarea
+                  value={contextText}
+                  maxLength={500}
+                  onChange={(event) => setContextText(event.target.value)}
+                  placeholder="也可以直接写下这个空间对你意味着什么（选填）"
+                />
+                <span>{contextText.length}/500</span>
+              </label>
+              {submissionError && <p role="alert">{submissionError}</p>}
             </div>
           )}
 
@@ -306,7 +334,7 @@ export function NewMemoryFlow({
             {step === 1 ? (
               <button className="primary-button" type="button" disabled={!canContinue} onClick={() => setStep((step + 1) as 1 | 2)}>继续</button>
             ) : (
-              <button className="primary-button" type="button" disabled={voiceState === "requesting" || voiceState === "recording"} onClick={createMemory}>创建回忆</button>
+              <button className="primary-button" type="button" disabled={submitting || voiceState === "requesting" || voiceState === "recording" || voiceState === "saving"} onClick={createMemory}>{submitting ? "正在保存…" : "创建回忆"}</button>
             )}
           </footer>}
         </section>

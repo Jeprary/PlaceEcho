@@ -48,6 +48,11 @@ for Scene IDs.
 Accepts a non-empty `application/octet-stream` body, persists it through
 `StorageProvider`, and returns an application-generated `media_id` plus media
 record. `GET /api/scenes/:sceneId/media/:mediaId` returns the stored bytes.
+The current Web client sends supported panorama and image `File` bodies through
+this route one at a time. Video files, audio files/recordings, and typed context
+have no binary/context persistence route in v0.1 and therefore must remain
+clearly marked deferred inputs; the client must not silently discard them or
+pretend that audio was transcribed.
 
 ## Panorama
 

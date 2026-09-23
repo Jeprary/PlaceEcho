@@ -3,12 +3,14 @@ import type {
   MemoryPresentation,
   MemoryPresentationSlide,
 } from "./memoryPresentation";
+import { HeroObject } from "./HeroObject";
 
 type MemorySlidesOverlayProps = {
   active: boolean;
   memoryId: string;
   presentation: MemoryPresentation | null;
   heroLayout?: boolean;
+  heroAssetUrl?: string | null;
   audibleAutoplay?: boolean;
   preloadEnabled?: boolean;
   onFinished: () => void;
@@ -22,6 +24,7 @@ export function MemorySlidesOverlay({
   memoryId,
   presentation,
   heroLayout = false,
+  heroAssetUrl = null,
   audibleAutoplay = false,
   preloadEnabled = true,
   onFinished,
@@ -179,9 +182,10 @@ export function MemorySlidesOverlay({
         heroLayout ? " memory-overlay--with-hero" : ""
       }${slide.kind === "video" ? " memory-overlay--video" : ""}`}
       role="dialog"
-      aria-label="Memory reveal"
+      aria-label="回忆播放"
       aria-modal="true"
     >
+      {heroAssetUrl && <HeroObject assetUrl={heroAssetUrl} />}
       {previousSlide && (
         <div
           key={`ambient-previous-${previousSlide.src}`}
@@ -304,7 +308,7 @@ export function MemorySlidesOverlay({
           <button
             className="memory-video-badge"
             type="button"
-            aria-label={paused ? "Play memory video" : "Enable memory audio"}
+            aria-label={paused ? "继续播放回忆视频" : "打开回忆声音"}
             onClick={() => {
               setPaused(false);
               setVideoMuted(false);
@@ -319,7 +323,7 @@ export function MemorySlidesOverlay({
           </button>
         )}
       </div>
-      <div className="memory-progress" aria-label="Memory progress">
+      <div className="memory-progress" aria-label="回忆播放进度">
         {slides.map((_, slideIndex) => (
           <span
             className={slideIndex === index ? "active" : ""}
@@ -328,7 +332,7 @@ export function MemorySlidesOverlay({
         ))}
       </div>
       <button className="memory-close" type="button" onClick={onFinished}>
-        Skip
+        跳过
       </button>
     </div>
   );

@@ -10,9 +10,12 @@ import {
 import demoSceneFixture from "../../../assets/demo/demo-scene.json";
 import {
   MemoryManager,
-  type MemoryRequestReceipt,
 } from "./authoring/SceneManagerPreview";
-import type { NewMemoryRequest } from "./authoring/NewMemoryFlow";
+import {
+  submitNewMemoryRequest,
+  type MemorySubmissionReceipt,
+  type NewMemoryRequest,
+} from "./authoring/memorySubmission";
 import "./authoring/scene-manager-preview.css";
 import {
   createExperienceState,
@@ -44,6 +47,8 @@ const debugOrigin =
   new URLSearchParams(window.location.search).get("debugOrigin") === "1";
 const debugHeroLayout =
   new URLSearchParams(window.location.search).get("heroLayout") === "1";
+const debugHeroPreview =
+  new URLSearchParams(window.location.search).get("heroPreview") === "1";
 
 const initialSnapshot: SpatialRuntimeSnapshot = {
   proximity: "far",
@@ -79,6 +84,7 @@ export function App({
     createExperienceState,
   );
   const orientationSourceRef = useRef<DeviceOrientationSource | null>(null);
+  const heroPreviewStartedRef = useRef(false);
   const [openingMemoryId, setOpeningMemoryId] = useState<string | null>(null);
   const [captureStatus, setCaptureStatus] =
     useState<CaptureStatus>({ type: "idle" });
@@ -87,6 +93,18 @@ export function App({
     if (!iosCaptureAvailable) return;
     return installIOSPanoramaBridge(setCaptureStatus);
   }, [iosCaptureAvailable]);
+
+  useEffect(() => {
+    if (!debugHeroPreview || heroPreviewStartedRef.current) return;
+    const selection = {
+      sceneId: "scene_demo",
+      memoryId: "memory_demo_001",
+    };
+    if (resolveMemoryEntry(scenes, selection).status !== "ready") return;
+    heroPreviewStartedRef.current = true;
+    dispatch({ type: "open_memory", selection });
+    dispatch({ type: "wind_permission", granted: false });
+  }, [scenes]);
 
   useEffect(
     () => () => {
@@ -134,36 +152,7 @@ export function App({
 
   const persistMemoryRequest = async (
     request: NewMemoryRequest,
-  ): Promise<MemoryRequestReceipt> => {
-    const response = await fetch(
-      `/api/scenes/${encodeURIComponent(request.sceneId)}/memory-requests`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          panorama_name: request.panoramaName,
-          media: request.media,
-          has_voice_recording: request.hasVoiceRecording,
-        }),
-      },
-    );
-    if (!response.ok) {
-      throw new Error(`Memory request failed with status ${response.status}.`);
-    }
-    const receipt = (await response.json()) as {
-      request_id?: string;
-      scene_id?: string;
-      status?: string;
-    };
-    if (
-      !receipt.request_id ||
-      receipt.scene_id !== request.sceneId ||
-      receipt.status !== "processing"
-    ) {
-      throw new Error("Memory request response was invalid.");
-    }
-    return { requestId: receipt.request_id, sceneId: receipt.scene_id };
-  };
+  ): Promise<MemorySubmissionReceipt> => submitNewMemoryRequest(request);
 
   const beginMemoryRequest = async (): Promise<{ sceneId: string }> => {
     const response = await fetch("/api/scenes", { method: "POST" });
@@ -244,6 +233,7 @@ function SpatialWorld({
     useState(initialWorldProgress);
   const [audioUnlocked, setAudioUnlocked] = useState(true);
   const [motionStatus, setMotionStatus] = useState(windMode);
+  const [heroPreviewDismissed, setHeroPreviewDismissed] = useState(false);
   const presentation = useMemo(
     () =>
       buildMemoryPresentation(
@@ -253,14 +243,16 @@ function SpatialWorld({
       ),
     [memoryId, scene],
   );
-  const heroLayout =
-    debugHeroLayout ||
-    scene.memories.some(
-      (memory) =>
-        memory.id === memoryId &&
-        memory.anchor.hero.status === "completed" &&
-        Boolean(memory.anchor.hero.asset_url),
-    );
+  const selectedMemory = scene.memories.find((memory) => memory.id === memoryId);
+  const heroAssetUrl =
+    selectedMemory?.anchor.hero.status === "completed"
+      ? selectedMemory.anchor.hero.asset_url
+      : debugHeroPreview &&
+          scene.scene_id === "scene_demo" &&
+          memoryId === "memory_demo_001"
+        ? "/local-hero/IMG_0194-aholo-g1.glb"
+        : null;
+  const heroLayout = debugHeroLayout || Boolean(heroAssetUrl);
 
   useEffect(() => {
     onReachedRef.current = onReached;
@@ -310,9 +302,13 @@ function SpatialWorld({
   };
 
   const finishPresentation = useCallback(() => {
+    if (debugHeroPreview && !heroPreviewDismissed) {
+      setHeroPreviewDismissed(true);
+      return;
+    }
     runtimeRef.current?.completeReachedPresentation();
     onRevealFinished();
-  }, [onRevealFinished]);
+  }, [heroPreviewDismissed, onRevealFinished]);
 
   return (
     <main
@@ -323,10 +319,14 @@ function SpatialWorld({
     >
       <div className="spatial-runtime" ref={runtimeHost} />
       <MemorySlidesOverlay
-        active={revealActive && snapshot.reachedPresentationActive}
+        active={
+          (!heroPreviewDismissed && debugHeroPreview) ||
+          (revealActive && snapshot.reachedPresentationActive)
+        }
         memoryId={memoryId}
         presentation={presentation}
         heroLayout={heroLayout}
+        heroAssetUrl={heroAssetUrl}
         audibleAutoplay={audioUnlocked}
         preloadEnabled={worldStatus !== "loading"}
         onFinished={finishPresentation}

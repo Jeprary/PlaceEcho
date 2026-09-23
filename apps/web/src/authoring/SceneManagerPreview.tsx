@@ -1,6 +1,10 @@
 import type { Scene } from "@placeecho/shared";
 import { useRef, useState } from "react";
-import { NewMemoryFlow, type NewMemoryRequest } from "./NewMemoryFlow";
+import { NewMemoryFlow } from "./NewMemoryFlow";
+import type {
+  MemorySubmissionReceipt,
+  NewMemoryRequest,
+} from "./memorySubmission";
 import { MemoryCollection } from "../memory/MemoryCollection";
 import {
   buildMemoryItems,
@@ -10,17 +14,12 @@ import {
 
 type View = "dashboard" | "create";
 
-export type MemoryRequestReceipt = {
-  requestId: string;
-  sceneId: string;
-};
-
 type MemoryManagerProps = {
   scenes: readonly Scene[];
   openingMemoryId?: string | null;
   onOpenMemory: (intent: MemoryOpenIntent) => void;
   onBeginCreate: () => Promise<{ sceneId: string }>;
-  onCreateRequest: (request: NewMemoryRequest) => Promise<MemoryRequestReceipt>;
+  onCreateRequest: (request: NewMemoryRequest) => Promise<MemorySubmissionReceipt>;
   onCapturePanorama?: (sceneId: string) => void;
   captureState?: "idle" | "requesting" | "staged" | "ready" | "failed";
 };
@@ -41,6 +40,7 @@ export function MemoryManager({
   const [requestError, setRequestError] = useState<string | null>(null);
   const [draftSceneId, setDraftSceneId] = useState<string | null>(null);
   const [creatingDraft, setCreatingDraft] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const submittingRequest = useRef(false);
 
   async function beginCreate() {
@@ -68,7 +68,8 @@ export function MemoryManager({
     if (submittingRequest.current) return;
     submittingRequest.current = true;
     setRequestError(null);
-    let receipt: MemoryRequestReceipt;
+    setSubmitting(true);
+    let receipt: MemorySubmissionReceipt;
     try {
       receipt = await onCreateRequest(request);
     } catch (error) {
@@ -76,10 +77,11 @@ export function MemoryManager({
         error instanceof Error ? error.message : "创建请求保存失败，请重试。",
       );
       submittingRequest.current = false;
-      setView("dashboard");
+      setSubmitting(false);
       return;
     }
     submittingRequest.current = false;
+    setSubmitting(false);
     setMemories((current) => [{
       uiKey: receipt.requestId,
       sceneId: receipt.sceneId,
@@ -109,6 +111,8 @@ export function MemoryManager({
         }
         onCancel={() => setView("dashboard")}
         onCreate={createMemory}
+        submitting={submitting}
+        submissionError={requestError}
       />
     );
   }
