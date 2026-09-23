@@ -22,15 +22,30 @@ export interface WindControllerOptions {
 }
 
 const MAX_PITCH = MathUtils.degToRad(85);
-const COLLISION_REFLECTION_FRACTION = 1 / 3;
-const COLLISION_GLIDE_SCALE = 0.28;
-const COLLISION_SPEED_CAP = 0.4;
+const COLLISION_LOOK_AHEAD_SECONDS = 0.36;
+const COLLISION_MIN_LOOK_AHEAD = 0.24;
+const COLLISION_SOFT_SPEED_SCALE = 0.58;
+const COLLISION_CONTACT_SPEED_SCALE = 0.34;
+const COLLISION_STEER_RATE = MathUtils.degToRad(22);
+const COLLISION_CLEAR_SECONDS = 0.32;
+const COLLISION_STUCK_SECONDS = 0.42;
+const COLLISION_SUBSTEP_DISTANCE = 0.035;
+const MAX_COLLISION_SUBSTEPS = 4;
+const MIN_DIRECTION_LENGTH_SQ = 0.000001;
+const USER_INTENT_HOLD_SECONDS = 0.72;
+const GYRO_INTENT_RATE = MathUtils.degToRad(7);
 
 export class WindController {
   private readonly forward = new Vector3();
+  private readonly viewDirection = new Vector3();
+  private readonly movementDirection = new Vector3();
   private readonly collisionNormal = new Vector3();
+  private readonly rawCollisionNormal = new Vector3();
   private readonly collisionSlideDirection = new Vector3();
-  private readonly reflectedDirection = new Vector3();
+  private readonly candidateSlideDirection = new Vector3();
+  private readonly tangentDirection = new Vector3();
+  private readonly probePosition = new Vector3();
+  private readonly frameStartPosition = new Vector3();
   private readonly rotation = new Euler(0, 0, 0, "YXZ");
   private readonly targetRotation = new Euler(0, 0, 0, "YXZ");
   private readonly orientationSource?: WindOrientationSource;
@@ -50,14 +65,16 @@ export class WindController {
   private currentSpeed = 0;
   private windTime = 0;
   private orientationYawOffset = 0;
+  private lastOrientationYaw = 0;
+  private lastOrientationPitch = 0;
+  private hasOrientationSample = false;
+  private userIntentSeconds = 0;
   private collisionSpeedScale = 1;
   private collisionActive = false;
   private collisionClearSeconds = 0;
-  private collisionTurnElapsed = 0;
-  private collisionTurnDuration = 1;
-  private collisionTurnStartYaw = 0;
-  private collisionTurnTargetYaw = 0;
   private collisionTurnDirection = 0;
+  private collisionStuckSeconds = 0;
+  private collisionRecoveryUsed = false;
   private departureTurnActive = false;
   private captureActive = false;
   private inputLocked = false;
@@ -147,10 +164,27 @@ export class WindController {
 
   update(deltaSeconds: number): void {
     this.windTime += deltaSeconds;
+    this.userIntentSeconds = Math.max(
+      0,
+      this.userIntentSeconds - deltaSeconds,
+    );
     const orientation = this.orientationActive && !this.inputLocked
       ? this.orientationSource?.getOrientation()
       : null;
     if (orientation) {
+      if (this.hasOrientationSample) {
+        const yawDelta = Math.atan2(
+          Math.sin(orientation.yaw - this.lastOrientationYaw),
+          Math.cos(orientation.yaw - this.lastOrientationYaw),
+        );
+        const pitchDelta = orientation.pitch - this.lastOrientationPitch;
+        const angularRate = Math.hypot(yawDelta, pitchDelta) /
+          Math.max(deltaSeconds, 1 / 120);
+        if (angularRate >= GYRO_INTENT_RATE) this.registerUserIntent();
+      }
+      this.lastOrientationYaw = orientation.yaw;
+      this.lastOrientationPitch = orientation.pitch;
+      this.hasOrientationSample = true;
       this.targetRotation.set(
         MathUtils.clamp(orientation.pitch, -MAX_PITCH, MAX_PITCH),
         orientation.yaw + this.orientationYawOffset,
@@ -171,34 +205,20 @@ export class WindController {
       }
     }
 
-    if (this.collisionActive && !this.captureActive) {
-      this.collisionTurnElapsed = Math.min(
-        this.collisionTurnElapsed + deltaSeconds,
-        this.collisionTurnDuration,
-      );
-      const progress = this.collisionTurnElapsed / this.collisionTurnDuration;
-      const easedProgress = progress * progress * (3 - 2 * progress);
-      const previousYaw = this.targetRotation.y;
-      this.targetRotation.y = MathUtils.lerp(
-        this.collisionTurnStartYaw,
-        this.collisionTurnTargetYaw,
-        easedProgress,
-      );
-      this.orientationYawOffset += this.targetRotation.y - previousYaw;
+    if (
+      this.collisionActive &&
+      !this.captureActive &&
+      !this.hasActiveUserIntent()
+    ) {
+      this.steerTowardCollisionCourse(deltaSeconds);
     }
-    this.collisionSpeedScale = MathUtils.damp(
-      this.collisionSpeedScale,
-      1,
-      1.25,
-      deltaSeconds,
-    );
 
     const lookResponse = this.captureActive
       ? 3.4
       : this.departureTurnActive
         ? 1.7
-        : this.collisionActive
-          ? 3
+        : this.collisionActive && !this.hasActiveUserIntent()
+          ? 2.1
           : 14;
     const lookBlend = 1 - Math.exp(-lookResponse * deltaSeconds);
     this.rotation.x = MathUtils.lerp(
@@ -257,6 +277,19 @@ export class WindController {
       0.88 +
       Math.sin(this.windTime * 0.72) * 0.09 +
       Math.sin(this.windTime * 1.91) * 0.03;
+    this.camera.getWorldDirection(this.viewDirection);
+    const softCollision = this.updateCollisionProbe();
+    const collisionSpeedTarget = softCollision
+      ? COLLISION_SOFT_SPEED_SCALE
+      : this.collisionActive
+        ? COLLISION_CONTACT_SPEED_SCALE
+        : 1;
+    this.collisionSpeedScale = MathUtils.damp(
+      this.collisionSpeedScale,
+      collisionSpeedTarget,
+      softCollision || this.collisionActive ? 5.2 : 1.4,
+      deltaSeconds,
+    );
     const targetSpeed =
       this.glideSpeed * this.speedScale * this.collisionSpeedScale * gust;
     this.currentSpeed = MathUtils.damp(
@@ -265,101 +298,269 @@ export class WindController {
       2.4,
       deltaSeconds,
     );
-    this.camera.getWorldDirection(this.forward);
-    if (this.collisionActive) {
-      const verticalDirection = this.forward.y;
-      this.forward.copy(this.collisionSlideDirection);
-      this.forward.y = verticalDirection;
-      this.forward.normalize();
-    }
-    this.proposedPosition.copy(this.camera.position).addScaledVector(
-      this.forward,
+    this.frameStartPosition.copy(this.camera.position);
+    const contacted = this.moveWithWallSlide(
       this.currentSpeed * deltaSeconds,
+      this.viewDirection,
     );
-    const collisionNormal = this.resolvePosition?.(this.proposedPosition) ?? null;
-    this.camera.position.copy(this.proposedPosition);
-    if (collisionNormal) {
-      if (!this.collisionActive) {
-        this.collisionActive = this.beginCollisionTurn(collisionNormal);
-      }
-      this.collisionClearSeconds = 0;
-      this.collisionSpeedScale = Math.min(
-        this.collisionSpeedScale,
-        COLLISION_GLIDE_SCALE,
-      );
-      this.currentSpeed = Math.min(
-        this.currentSpeed,
-        this.glideSpeed * COLLISION_SPEED_CAP,
-      );
-    } else if (this.collisionActive) {
-      this.collisionClearSeconds += deltaSeconds;
-      if (
-        this.collisionClearSeconds >= 0.55 &&
-        this.collisionTurnElapsed >= this.collisionTurnDuration
-      ) {
-        this.collisionActive = false;
-        this.collisionClearSeconds = 0;
-        this.collisionTurnDirection = 0;
-      }
-    }
+    this.updateCollisionLifecycle(contacted, softCollision, deltaSeconds);
   }
 
-  private beginCollisionTurn(normal: Vector3): boolean {
-    this.forward.y = 0;
-    if (this.forward.lengthSq() < 0.000001) return false;
-    this.forward.normalize();
+  private updateCollisionProbe(): boolean {
+    if (!this.resolvePosition || this.captureActive) return false;
+    const lookAhead = Math.max(
+      COLLISION_MIN_LOOK_AHEAD,
+      this.currentSpeed * COLLISION_LOOK_AHEAD_SECONDS,
+    );
+    this.probePosition
+      .copy(this.camera.position)
+      .addScaledVector(this.viewDirection, lookAhead);
+    const normal = this.resolvePosition(this.probePosition);
+    if (!normal || !this.updateCollisionCourse(normal, this.viewDirection)) {
+      return false;
+    }
+    this.collisionActive = true;
+    this.collisionClearSeconds = 0;
+    return true;
+  }
 
-    this.collisionNormal.copy(normal);
-    this.collisionNormal.y = 0;
-    if (this.collisionNormal.lengthSq() < 0.000001) return false;
-    this.collisionNormal.normalize();
-
-    const incidence = MathUtils.clamp(
-      -this.forward.dot(this.collisionNormal),
-      0,
+  private moveWithWallSlide(distance: number, desiredDirection: Vector3): boolean {
+    if (distance <= 0) return false;
+    const substeps = MathUtils.clamp(
+      Math.ceil(distance / COLLISION_SUBSTEP_DISTANCE),
       1,
+      MAX_COLLISION_SUBSTEPS,
     );
-    this.reflectedDirection
-      .copy(this.forward)
-      .reflect(this.collisionNormal)
+    const stepDistance = distance / substeps;
+    let contacted = false;
+
+    this.movementDirection.copy(desiredDirection).normalize();
+    if (this.collisionActive && !this.hasActiveUserIntent()) {
+      const verticalDirection = this.movementDirection.y;
+      this.movementDirection.copy(this.collisionSlideDirection);
+      this.movementDirection.y = verticalDirection;
+      this.movementDirection.normalize();
+    } else if (this.collisionActive) {
+      const inwardAmount = Math.min(
+        this.movementDirection.dot(this.collisionNormal),
+        0,
+      );
+      this.movementDirection.addScaledVector(
+        this.collisionNormal,
+        -inwardAmount,
+      );
+      if (this.movementDirection.lengthSq() < MIN_DIRECTION_LENGTH_SQ) {
+        this.movementDirection.copy(this.collisionSlideDirection);
+      } else {
+        this.movementDirection.normalize();
+      }
+    }
+
+    for (let step = 0; step < substeps; step += 1) {
+      this.proposedPosition
+        .copy(this.camera.position)
+        .addScaledVector(this.movementDirection, stepDistance);
+      const collisionNormal =
+        this.resolvePosition?.(this.proposedPosition) ?? null;
+      this.camera.position.copy(this.proposedPosition);
+      if (!collisionNormal) continue;
+
+      contacted = true;
+      if (this.updateCollisionCourse(collisionNormal, this.movementDirection)) {
+        const verticalDirection = this.movementDirection.y;
+        this.movementDirection.copy(this.collisionSlideDirection);
+        this.movementDirection.y = verticalDirection;
+        this.movementDirection.normalize();
+      }
+    }
+    return contacted;
+  }
+
+  private updateCollisionCourse(normal: Vector3, incoming: Vector3): boolean {
+    this.candidateSlideDirection.copy(incoming);
+    this.candidateSlideDirection.y = 0;
+    if (this.candidateSlideDirection.lengthSq() < MIN_DIRECTION_LENGTH_SQ) {
+      return false;
+    }
+    this.candidateSlideDirection.normalize();
+    this.rawCollisionNormal.copy(normal);
+    this.rawCollisionNormal.y = 0;
+    if (this.rawCollisionNormal.lengthSq() < MIN_DIRECTION_LENGTH_SQ) {
+      return false;
+    }
+    this.rawCollisionNormal.normalize();
+    if (this.rawCollisionNormal.dot(this.candidateSlideDirection) > 0) {
+      this.rawCollisionNormal.negate();
+    }
+    if (
+      this.collisionActive &&
+      this.collisionNormal.lengthSq() >= MIN_DIRECTION_LENGTH_SQ &&
+      this.rawCollisionNormal.dot(this.collisionNormal) < -0.25
+    ) {
+      this.rawCollisionNormal.negate();
+    }
+    if (!this.collisionActive) {
+      this.collisionNormal.copy(this.rawCollisionNormal);
+    } else {
+      this.collisionNormal.lerp(this.rawCollisionNormal, 0.24).normalize();
+    }
+
+    const inwardAmount = Math.min(
+      this.candidateSlideDirection.dot(this.collisionNormal),
+      0,
+    );
+    this.candidateSlideDirection.addScaledVector(
+      this.collisionNormal,
+      -inwardAmount,
+    );
+
+    if (this.candidateSlideDirection.lengthSq() < 0.02) {
+      this.tangentDirection.set(
+        -this.collisionNormal.z,
+        0,
+        this.collisionNormal.x,
+      );
+      if (
+        this.collisionActive &&
+        this.tangentDirection.dot(this.collisionSlideDirection) < 0
+      ) {
+        this.tangentDirection.negate();
+      } else if (!this.collisionActive && this.collisionTurnDirection < 0) {
+        this.tangentDirection.negate();
+      }
+      this.candidateSlideDirection.copy(this.tangentDirection);
+    } else {
+      this.candidateSlideDirection.normalize();
+      if (
+        this.collisionActive &&
+        this.candidateSlideDirection.dot(this.collisionSlideDirection) < 0.1
+      ) {
+        this.tangentDirection.set(
+          -this.collisionNormal.z,
+          0,
+          this.collisionNormal.x,
+        );
+        if (this.tangentDirection.dot(this.collisionSlideDirection) < 0) {
+          this.tangentDirection.negate();
+        }
+        this.candidateSlideDirection
+          .lerp(this.tangentDirection, 0.72)
+          .normalize();
+      }
+    }
+
+    if (this.collisionTurnDirection === 0) {
+      const cross =
+        this.collisionNormal.x * this.candidateSlideDirection.z -
+        this.collisionNormal.z * this.candidateSlideDirection.x;
+      this.collisionTurnDirection = Math.sign(cross) || 1;
+    }
+    this.candidateSlideDirection
+      .addScaledVector(this.collisionNormal, 0.06)
       .normalize();
-    const incomingYaw = Math.atan2(-this.forward.x, -this.forward.z);
-    const reflectedYaw = Math.atan2(
-      -this.reflectedDirection.x,
-      -this.reflectedDirection.z,
+    if (!this.collisionActive) {
+      this.collisionSlideDirection.copy(this.candidateSlideDirection);
+    } else {
+      this.collisionSlideDirection
+        .lerp(this.candidateSlideDirection, 0.32)
+        .normalize();
+    }
+    return true;
+  }
+
+  private steerTowardCollisionCourse(deltaSeconds: number): void {
+    if (this.collisionSlideDirection.lengthSq() < MIN_DIRECTION_LENGTH_SQ) return;
+    const desiredYaw = Math.atan2(
+      -this.collisionSlideDirection.x,
+      -this.collisionSlideDirection.z,
     );
-    const reflectionDelta = Math.atan2(
-      Math.sin(reflectedYaw - incomingYaw),
-      Math.cos(reflectedYaw - incomingYaw),
-    );
-    this.collisionTurnDirection = Math.sign(reflectionDelta) || 1;
-    const directedReflectionDelta =
-      Math.abs(reflectionDelta) * this.collisionTurnDirection;
-    const desiredYaw =
-      incomingYaw + directedReflectionDelta * COLLISION_REFLECTION_FRACTION;
     const yawDelta = Math.atan2(
       Math.sin(desiredYaw - this.targetRotation.y),
       Math.cos(desiredYaw - this.targetRotation.y),
     );
-    this.collisionTurnStartYaw = this.targetRotation.y;
-    this.collisionTurnTargetYaw = this.targetRotation.y + yawDelta;
-    this.collisionSlideDirection
-      .set(-this.collisionNormal.z, 0, this.collisionNormal.x)
-      .multiplyScalar(this.collisionTurnDirection)
-      .addScaledVector(this.collisionNormal, 0.18)
-      .normalize();
-    this.collisionTurnElapsed = 0;
-    this.collisionTurnDuration = MathUtils.clamp(
-      1.25 + Math.abs(yawDelta) * 0.65 + incidence * 0.5,
-      1.4,
-      2.8,
+    const easedDelta = Math.sign(yawDelta) * Math.min(
+      Math.abs(yawDelta) * (1 - Math.exp(-1.35 * deltaSeconds)),
+      COLLISION_STEER_RATE * deltaSeconds,
     );
-    return true;
+    this.targetRotation.y += easedDelta;
+    this.orientationYawOffset += easedDelta;
+  }
+
+  private updateCollisionLifecycle(
+    contacted: boolean,
+    softCollision: boolean,
+    deltaSeconds: number,
+  ): void {
+    if (contacted || softCollision) {
+      this.collisionActive = true;
+      this.collisionClearSeconds = 0;
+      if (contacted) {
+        this.collisionSpeedScale = Math.min(
+          this.collisionSpeedScale,
+          COLLISION_CONTACT_SPEED_SCALE,
+        );
+      }
+      const expectedDistance = this.currentSpeed * deltaSeconds;
+      const actualDistance = this.camera.position.distanceTo(
+        this.frameStartPosition,
+      );
+      if (expectedDistance > 0.002 && actualDistance < expectedDistance * 0.12) {
+        this.collisionStuckSeconds += deltaSeconds;
+      } else {
+        this.collisionStuckSeconds = Math.max(
+          0,
+          this.collisionStuckSeconds - deltaSeconds * 2,
+        );
+      }
+      if (
+        this.collisionStuckSeconds >= COLLISION_STUCK_SECONDS &&
+        !this.collisionRecoveryUsed
+      ) {
+        this.collisionRecoveryUsed = true;
+        this.tangentDirection.set(
+          -this.collisionNormal.z,
+          0,
+          this.collisionNormal.x,
+        );
+        if (this.tangentDirection.dot(this.collisionSlideDirection) < 0) {
+          this.tangentDirection.negate();
+        }
+        this.collisionSlideDirection
+          .lerp(this.tangentDirection, 0.55)
+          .addScaledVector(this.collisionNormal, 0.14)
+          .normalize();
+        this.collisionSpeedScale = Math.min(
+          this.collisionSpeedScale,
+          COLLISION_CONTACT_SPEED_SCALE,
+        );
+      }
+      return;
+    }
+
+    if (!this.collisionActive) return;
+    this.collisionClearSeconds += deltaSeconds;
+    if (this.collisionClearSeconds < COLLISION_CLEAR_SECONDS) return;
+    this.collisionActive = false;
+    this.collisionClearSeconds = 0;
+    this.collisionStuckSeconds = 0;
+    this.collisionRecoveryUsed = false;
+    this.collisionTurnDirection = 0;
+  }
+
+  private registerUserIntent(): void {
+    this.userIntentSeconds = USER_INTENT_HOLD_SECONDS;
+  }
+
+  private hasActiveUserIntent(): boolean {
+    return this.userIntentSeconds > 0;
   }
 
   private readonly handleTrackpad = (event: WheelEvent): void => {
     if (this.orientationActive || this.inputLocked) return;
     event.preventDefault();
+    if (Math.abs(event.deltaX) + Math.abs(event.deltaY) > 0.2) {
+      this.registerUserIntent();
+    }
     this.targetRotation.y -= event.deltaX * this.lookSensitivity;
     this.targetRotation.x = MathUtils.clamp(
       this.targetRotation.x - event.deltaY * this.lookSensitivity,
@@ -388,6 +589,9 @@ export class WindController {
     const deltaY = event.clientY - this.lastPointerY;
     this.lastPointerX = event.clientX;
     this.lastPointerY = event.clientY;
+    if (Math.abs(deltaX) + Math.abs(deltaY) > 0.5) {
+      this.registerUserIntent();
+    }
     this.targetRotation.y -= deltaX * this.lookSensitivity;
     this.targetRotation.x = MathUtils.clamp(
       this.targetRotation.x - deltaY * this.lookSensitivity,
