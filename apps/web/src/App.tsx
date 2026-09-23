@@ -379,7 +379,7 @@ function SpatialWorld({
         onClick={onReturnToManager}
         aria-label="返回记忆空间"
       >
-        <span aria-hidden="true">←</span> 返回
+        <span aria-hidden="true">…</span>
       </button>
     </main>
   );
