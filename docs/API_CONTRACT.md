@@ -54,14 +54,23 @@ input. `GET /api/scenes/:sceneId/media/:mediaId` returns the stored bytes.
 
 ## Panorama
 
-### `POST /api/scenes/:sceneId/panorama/import?width=...&height=...` — Implemented
+### `POST /api/scenes/:sceneId/panorama/import?filename=...` — Implemented
 
-Imports an already-stitched JPEG or PNG equirectangular panorama as an
-`application/octet-stream` body. Dimensions must describe a valid 2:1 image and
-are retained for source-grounding bounds. The API creates a completed panorama
-job and activates its immutable output without invoking the GPU worker. This is
-the acquisition-independent path used for existing 360 files; INSP capture uses
-the stitch route below.
+Imports an already-stitched JPEG equirectangular panorama as a non-empty
+`application/octet-stream` body. `filename` is required and must be a safe JPG
+or JPEG filename. The body is limited to 64 MiB. The API decodes the JPEG,
+rejects invalid or undecodable input, reads dimensions from the stored image
+rather than trusting client metadata, limits dimensions to 16384×8192, and
+requires an approximately 2:1 ratio within 1%.
+
+The API generates a new `job_id`, persists the original JPEG through the active
+`StorageProvider`, creates a completed `panorama_import` job, exposes its
+immutable bytes at `GET /api/jobs/:jobId/output`, and activates that URL and the
+server-read dimensions on the Scene. It never invokes stitching and never adds
+the panorama to `Scene.media`. Re-importing creates and activates a new job;
+prior job records and outputs remain readable for diagnostics. This is the
+acquisition-independent durable path for the complete 2:1 JPEG exported by X5
+or another trusted acquisition UI.
 
 ### `POST /api/scenes/:sceneId/panorama/stitch` — Implemented
 
@@ -172,8 +181,9 @@ accepts 1–4000
 characters of direct user description and enters the same request as
 Scene-level semantic evidence. It is not presented as a transcript and cannot
 independently authorize a source pixel or final 3D coordinate.
-Requires 1–12 distinct supported uploaded image/audio/video assets and a
-completed panorama stitch. Uses Bailian (`DASHSCOPE_API_KEY`, optional
+Requires 1–12 distinct supported uploaded image/audio/video assets and an
+active completed panorama import, stitch, or clean output. Uses Bailian
+(`DASHSCOPE_API_KEY`, optional
 `DASHSCOPE_BASE_URL` and `DASHSCOPE_MODEL`; legacy `BAILIAN_API_KEY`,
 `BAILIAN_HOST`/`BAILIAN_API_HOST`, and `BAILIAN_MODEL` aliases are accepted) to
 produce 1–3 Memory groups and identify source-panorama cues. The default model
@@ -355,8 +365,10 @@ The queued response is:
 
 ### `GET /api/jobs/:jobId` — Implemented
 
-Reports `queued`, `running`, `completed`, or `failed`. `GET
-/api/jobs/:jobId/output` returns supported panorama or Hero binary output.
+Reports `queued`, `running`, `completed`, or `failed`. A successful panorama
+import is immediately `completed` with type `panorama_import`. `GET
+/api/jobs/:jobId/output` returns supported panorama or Hero binary output,
+including original imported JPEG bytes.
 
 ## Native-to-Web Bridge — Implemented acquisition boundary, not an HTTP API
 

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import type { Scene } from "@placeecho/shared";
+import sharp from "sharp";
 import { buildApp } from "../src/app.js";
 import { OSSStorageProvider } from "../src/storage/oss.js";
 import type { StorageProvider } from "../src/storage/provider.js";
@@ -109,15 +110,28 @@ test("imports an existing 2:1 panorama without a GPU stitch", async (t) => {
 
   const created = await app.inject({ method: "POST", url: "/api/scenes" });
   const sceneId = created.json<{ scene_id: string }>().scene_id;
-  const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+  const jpeg = await sharp({
+    create: {
+      width: 8,
+      height: 4,
+      channels: 3,
+      background: { r: 20, g: 40, b: 60 },
+    },
+  }).jpeg().toBuffer();
   const imported = await app.inject({
     method: "POST",
-    url: `/api/scenes/${sceneId}/panorama/import?width=4000&height=2000`,
+    url: `/api/scenes/${sceneId}/panorama/import?filename=x5-panorama.jpg`,
     headers: { "content-type": "application/octet-stream" },
     payload: jpeg,
   });
   assert.equal(imported.statusCode, 201, imported.body);
-  const jobId = imported.json<{ job_id: string }>().job_id;
+  const importedBody = imported.json<{
+    job_id: string;
+    job: { type: string; source_name: string; width: number; height: number };
+  }>();
+  const jobId = importedBody.job_id;
+  assert.equal(importedBody.job.type, "panorama_import");
+  assert.equal(importedBody.job.source_name, "x5-panorama.jpg");
   assert.equal(worker.requests.length, 0);
 
   const scene = await app.inject({
@@ -125,13 +139,47 @@ test("imports an existing 2:1 panorama without a GPU stitch", async (t) => {
     url: `/api/scenes/${sceneId}`,
   });
   assert.equal(scene.json<Scene>().world.panorama_url, `/api/jobs/${jobId}/output`);
-  assert.equal(scene.json<Scene>().world.panorama_width, 4000);
-  assert.equal(scene.json<Scene>().world.panorama_height, 2000);
+  assert.equal(scene.json<Scene>().world.panorama_width, 8);
+  assert.equal(scene.json<Scene>().world.panorama_height, 4);
+  assert.deepEqual(scene.json<Scene>().media, []);
   const output = await app.inject({
     method: "GET",
     url: `/api/jobs/${jobId}/output`,
   });
   assert.deepEqual(output.rawPayload, jpeg);
+
+  const replacementJpeg = await sharp({
+    create: {
+      width: 10,
+      height: 5,
+      channels: 3,
+      background: { r: 80, g: 60, b: 40 },
+    },
+  }).jpeg().toBuffer();
+  const replacement = await app.inject({
+    method: "POST",
+    url: `/api/scenes/${sceneId}/panorama/import?filename=x5-recapture.jpeg`,
+    headers: { "content-type": "application/octet-stream" },
+    payload: replacementJpeg,
+  });
+  assert.equal(replacement.statusCode, 201, replacement.body);
+  const replacementJobId = replacement.json<{ job_id: string }>().job_id;
+  assert.notEqual(replacementJobId, jobId);
+  const replacedScene = await app.inject({
+    method: "GET",
+    url: `/api/scenes/${sceneId}`,
+  });
+  assert.equal(
+    replacedScene.json<Scene>().world.panorama_url,
+    `/api/jobs/${replacementJobId}/output`,
+  );
+  assert.equal(replacedScene.json<Scene>().world.panorama_width, 10);
+  assert.equal(replacedScene.json<Scene>().world.panorama_height, 5);
+  const retainedOutput = await app.inject({
+    method: "GET",
+    url: `/api/jobs/${jobId}/output`,
+  });
+  assert.deepEqual(retainedOutput.rawPayload, jpeg);
 });
 
 test("uploads INSP media and completes a panorama stitch job", async (t) => {

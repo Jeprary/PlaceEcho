@@ -107,7 +107,7 @@ block upload or stitching, and no private inputs or generated outputs are tracke
 ### API
 
 Current responsibilities include Scene lifecycle and listing, authoritative
-system-ID generation, persistence, local/mounted/OSS storage, stitch/clean
+system-ID generation, persistence, local/mounted/OSS storage, import/stitch/clean
 panorama jobs, Memory analysis, final-world 2D grounding, Marble world jobs,
 world registration, Anchor persistence, and Hero provider jobs. The world
 pipeline also selects and persists each Scene's management thumbnail; Web never
@@ -193,7 +193,7 @@ under `ai/memory/` and `ai/grounding/`.
 AI must never produce authoritative final 3D coordinates.
 
 The implemented API analysis service reads 1–12 selected uploaded image, audio,
-or video assets and the stitched panorama, calls a replaceable
+or video assets and the active panorama output, calls a replaceable
 `MemoryAnalyzer`, validates the model's 1–3 groups and source pixels, then
 persists Memory groups. The default analyzer calls Bailian
 `qwen3.8-omni-flash` through the OpenAI-compatible Chat Completions API using
@@ -202,8 +202,14 @@ image-compatible panorama capture upload but is excluded from automatic Memory
 analysis selection. Large visual inputs are decoded with EXIF orientation and
 converted in memory to bounded JPEG inference copies (2048×1024 panorama;
 1280×1280 media box); authoritative stored originals are never overwritten or
-brightness-normalized. A completed stitched panorama remains a prerequisite; the
-standalone Python multimedia prototype is not the API runtime. Reanalysis
+brightness-normalized. The active panorama may be the immutable output of a
+completed `panorama_import`, `panorama_stitch`, or activated `panorama_clean`
+job. The import path server-decodes the complete JPEG, derives its dimensions,
+validates its near-2:1 geometry, and persists the original bytes without
+registering them as personal Memory media. Memory analysis and world generation
+resolve all three panorama job types through the same output boundary. A
+completed active panorama remains a prerequisite; the standalone Python
+multimedia prototype is not the API runtime. Reanalysis
 replaces prior Memory groups. A validated `scene_context_text` from that same
 analysis may update `scene_context.text`; when the selection contains exactly
 one audio asset, its registered URL is persisted as `scene_context.audio_url`.
@@ -227,7 +233,8 @@ must not be represented as model output.
 The Web creation boundary carries the actual panorama `File`, selected media
 `File` objects, recorded audio `Blob`, and optional typed context. Web uploads
 supported Memory binaries sequentially through the Media route, imports an
-already-stitched 2:1 JPEG/PNG panorama directly or starts the INSP stitch job,
+already-stitched 2:1 JPEG through the durable import job or starts the INSP
+stitch job,
 persists the processing receipt, waits for panorama readiness, and starts
 Memory analysis. Typed context is stored on the processing receipt and passed
 to analysis as Scene-level semantic evidence; it is never represented as an
