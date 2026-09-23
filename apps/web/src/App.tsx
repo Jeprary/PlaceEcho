@@ -95,17 +95,6 @@ export function App() {
         </p>
       )}
 
-      <section
-        className="reached-prompt"
-        role="status"
-        aria-live="polite"
-        aria-hidden={!snapshot.reachedPresentationActive}
-      >
-        <p>Memory reached</p>
-        <h2>{snapshot.memoryName}</h2>
-        <span>Memory Reveal will begin here in a later prototype.</span>
-      </section>
-
       {gyroStatus !== "active" && (
         <section className="mobile-wind-gate">
           <p>PlaceEcho</p>

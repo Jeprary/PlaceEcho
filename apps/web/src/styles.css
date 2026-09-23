@@ -170,54 +170,6 @@ button {
   background: #fff0bd;
 }
 
-.reached-prompt {
-  position: absolute;
-  z-index: 3;
-  top: 50%;
-  left: 50%;
-  width: min(27rem, calc(100% - 2.5rem));
-  padding: clamp(1.6rem, 4vw, 2.6rem);
-  border: 1px solid rgba(240, 219, 174, 0.38);
-  border-radius: 1.25rem;
-  text-align: center;
-  background: rgba(8, 18, 15, 0.82);
-  box-shadow: 0 1.5rem 5rem rgba(0, 0, 0, 0.38);
-  backdrop-filter: blur(20px);
-  opacity: 0;
-  pointer-events: none;
-  transform: translate(-50%, -45%) scale(0.96);
-  transition:
-    opacity 420ms ease,
-    transform 420ms ease;
-}
-
-.spatial-shell--reached-presentation .reached-prompt {
-  opacity: 1;
-  transform: translate(-50%, -50%) scale(1);
-}
-
-.reached-prompt p {
-  margin: 0 0 0.45rem;
-  color: #b6d2c6;
-  font-size: 0.68rem;
-  font-weight: 650;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-}
-
-.reached-prompt h2 {
-  margin: 0 0 0.85rem;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(1.8rem, 5vw, 3.2rem);
-  font-weight: 400;
-  letter-spacing: -0.035em;
-}
-
-.reached-prompt span {
-  color: rgba(229, 238, 232, 0.7);
-  font-size: 0.88rem;
-}
-
 .mobile-wind-gate {
   display: none;
 }
@@ -351,7 +303,6 @@ button {
 
 @media (prefers-reduced-motion: reduce) {
   .approach-veil,
-  .reached-prompt,
   .world-loading-cover {
     transition: none;
   }
