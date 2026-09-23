@@ -86,6 +86,9 @@ struct PlaceEchoWebView: UIViewRepresentable {
         private weak var captureViewController: UIViewController?
         private weak var loadingView: UIView?
         private weak var loadingLabel: UILabel?
+        private weak var recoveryCaptureButton: UIButton?
+        private var recoveryWorkItem: DispatchWorkItem?
+        private var isNativeRecoveryCapture = false
         private var didRetryTerminatedWebContent = false
 
         init(captureProvider: PanoramaCaptureProviding) {
@@ -103,14 +106,33 @@ struct PlaceEchoWebView: UIViewRepresentable {
 
             let label = UILabel()
             label.translatesAutoresizingMaskIntoConstraints = false
-            label.text = "正在打开 PlaceEcho…"
+            label.text = "PlaceEcho"
             label.textColor = .secondaryLabel
             label.font = .preferredFont(forTextStyle: .body)
             label.textAlignment = .center
             label.numberOfLines = 0
 
+            var recoveryConfiguration = UIButton.Configuration.filled()
+            recoveryConfiguration.title = "直接使用 X5 拍摄"
+            recoveryConfiguration.cornerStyle = .capsule
+            recoveryConfiguration.contentInsets = NSDirectionalEdgeInsets(
+                top: 14,
+                leading: 24,
+                bottom: 14,
+                trailing: 24
+            )
+            let recoveryButton = UIButton(configuration: recoveryConfiguration)
+            recoveryButton.translatesAutoresizingMaskIntoConstraints = false
+            recoveryButton.isHidden = true
+            recoveryButton.addTarget(
+                self,
+                action: #selector(openNativeCaptureRecovery),
+                for: .touchUpInside
+            )
+
             container.addSubview(indicator)
             container.addSubview(label)
+            container.addSubview(recoveryButton)
             webView.addSubview(container)
             NSLayoutConstraint.activate([
                 container.leadingAnchor.constraint(equalTo: webView.leadingAnchor),
@@ -122,13 +144,27 @@ struct PlaceEchoWebView: UIViewRepresentable {
                 label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 28),
                 label.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -28),
                 label.topAnchor.constraint(equalTo: indicator.bottomAnchor, constant: 16),
+                recoveryButton.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+                recoveryButton.topAnchor.constraint(equalTo: label.bottomAnchor, constant: 22),
             ])
             loadingView = container
             loadingLabel = label
+            recoveryCaptureButton = recoveryButton
+
+            recoveryWorkItem?.cancel()
+            let workItem = DispatchWorkItem { [weak self, weak recoveryButton] in
+                guard let self, self.loadingView != nil else { return }
+                self.loadingLabel?.text = "页面启动较慢，你仍可直接完成 X5 拍摄。"
+                recoveryButton?.isHidden = false
+            }
+            recoveryWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4, execute: workItem)
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             print("PlaceEcho Web: loaded \(webView.url?.absoluteString ?? "unknown URL")")
+            recoveryWorkItem?.cancel()
+            recoveryWorkItem = nil
             loadingView?.removeFromSuperview()
         }
 
@@ -150,18 +186,28 @@ struct PlaceEchoWebView: UIViewRepresentable {
 
         func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
             print("PlaceEcho Web: WebContent process terminated")
+            recoveryWorkItem?.cancel()
+            recoveryWorkItem = nil
+            loadingLabel?.text = "页面进程已停止，你可以直接使用 X5 拍摄。"
+            recoveryCaptureButton?.isHidden = false
             if !didRetryTerminatedWebContent {
                 didRetryTerminatedWebContent = true
-                loadingLabel?.text = "网页进程正在重新启动…"
                 webView.reload()
-            } else {
-                loadingLabel?.text = "页面启动失败，请关闭 App 后重新打开。"
             }
         }
 
         private func showLoadFailure(_ error: Error) {
             print("PlaceEcho Web: navigation failed: \(error.localizedDescription)")
-            loadingLabel?.text = "页面加载失败：\(error.localizedDescription)"
+            recoveryWorkItem?.cancel()
+            recoveryWorkItem = nil
+            loadingLabel?.text = "页面加载失败，你仍可直接使用 X5 拍摄。"
+            recoveryCaptureButton?.isHidden = false
+        }
+
+        @objc private func openNativeCaptureRecovery() {
+            guard captureViewController == nil else { return }
+            isNativeRecoveryCapture = true
+            presentX5Capture(sceneID: "scene_manager_window")
         }
 
         func userContentController(
@@ -244,6 +290,8 @@ struct PlaceEchoWebView: UIViewRepresentable {
             _ result: Result<CapturedPanorama, Error>,
             fallbackSceneID: String
         ) {
+            let shouldShowNativeResult = isNativeRecoveryCapture
+            isNativeRecoveryCapture = false
             switch result {
             case .success(let panorama):
                 stagedCaptures[panorama.sceneID] = panorama
@@ -260,6 +308,37 @@ struct PlaceEchoWebView: UIViewRepresentable {
                     "message": error.localizedDescription,
                 ])
             }
+            if shouldShowNativeResult {
+                showNativeCaptureResult(result)
+            }
+        }
+
+        private func showNativeCaptureResult(
+            _ result: Result<CapturedPanorama, Error>
+        ) {
+            guard
+                let webView,
+                let presenter = webView.nearestViewController
+            else {
+                return
+            }
+            let title: String
+            let message: String
+            switch result {
+            case .success:
+                title = "拍摄完成"
+                message = "全景图已经保存在 PlaceEcho 中。恢复正常网络后即可继续上传。"
+            case .failure(let error):
+                title = "拍摄未完成"
+                message = error.localizedDescription
+            }
+            let alert = UIAlertController(
+                title: title,
+                message: message,
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "好", style: .default))
+            presenter.present(alert, animated: true)
         }
 
         private func send(_ message: [String: Any]) {

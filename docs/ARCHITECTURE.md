@@ -116,6 +116,11 @@ The iOS build embeds the production Web bundle and serves it through an internal
 resource handler, so changing temporarily to X5 Wi-Fi does not remove the home
 UI. The Spatial Runtime is a separate lazy Web chunk and is loaded only after a
 ready Memory is opened; neither it nor the capture kit may block the manager UI.
+The device-orientation adapter is part of that same deferred spatial boundary and
+must not make Three.js an initial manager dependency. If the system WebContent
+process does not become interactive promptly, the shell exposes a native recovery
+control that opens only the existing X5 acquisition screen. This is a capture
+availability fallback, not a second implementation of the product home UI.
 
 ## StorageProvider Abstraction
 

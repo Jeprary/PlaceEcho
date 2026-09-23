@@ -50,6 +50,11 @@ three-second countdown; the surrounding create-Memory flow remains Web-owned.
 The camera socket is initialized lazily when that acquisition screen opens, so
 launching the Web shell never waits for an unavailable X5 connection.
 
+If iOS WebKit takes more than four seconds to make the bundled manager available,
+the native loading cover reveals a `直接使用 X5 拍摄` recovery action. It opens the
+same transient acquisition controller and keeps the core capture path usable
+without duplicating the Web-owned manager UI.
+
 Native-to-Web durable success, after a future upload adapter returns a Web-readable
 URL:
 

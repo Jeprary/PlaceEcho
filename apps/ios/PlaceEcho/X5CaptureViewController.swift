@@ -85,14 +85,14 @@ final class X5CaptureViewController: UIViewController {
         view.addSubview(previewHost)
 
         statusLabel.translatesAutoresizingMaskIntoConstraints = false
-        statusLabel.text = "Connecting to Insta360 X5…"
+        statusLabel.text = "正在连接 Insta360 X5…"
         statusLabel.textColor = .white
         statusLabel.font = .preferredFont(forTextStyle: .headline)
         statusLabel.textAlignment = .center
         view.addSubview(statusLabel)
 
         detailLabel.translatesAutoresizingMaskIntoConstraints = false
-        detailLabel.text = "Keep this iPhone connected to the camera Wi-Fi."
+        detailLabel.text = "请保持这台 iPhone 连接到相机 Wi-Fi。"
         detailLabel.textColor = UIColor.white.withAlphaComponent(0.72)
         detailLabel.font = .preferredFont(forTextStyle: .subheadline)
         detailLabel.textAlignment = .center
@@ -107,7 +107,7 @@ final class X5CaptureViewController: UIViewController {
         view.addSubview(countdownLabel)
 
         var shutterConfiguration = UIButton.Configuration.filled()
-        shutterConfiguration.title = "Take panorama"
+        shutterConfiguration.title = "拍摄全景图"
         shutterConfiguration.baseBackgroundColor = .systemRed
         shutterConfiguration.baseForegroundColor = .white
         shutterConfiguration.cornerStyle = .capsule
@@ -124,7 +124,7 @@ final class X5CaptureViewController: UIViewController {
         view.addSubview(shutterButton)
 
         var closeConfiguration = UIButton.Configuration.gray()
-        closeConfiguration.title = "Close"
+        closeConfiguration.title = "关闭"
         closeConfiguration.baseForegroundColor = .white
         closeConfiguration.cornerStyle = .capsule
         closeButton.configuration = closeConfiguration
@@ -167,8 +167,8 @@ final class X5CaptureViewController: UIViewController {
 
     private func beginPreviewConnection() {
         connectionAttemptsRemaining = 30
-        statusLabel.text = "Connecting to Insta360 X5…"
-        detailLabel.text = "Keep this iPhone connected to the camera Wi-Fi."
+        statusLabel.text = "正在连接 Insta360 X5…"
+        detailLabel.text = "请保持这台 iPhone 连接到相机 Wi-Fi。"
         shutterButton.isEnabled = false
         isPreviewReady = false
         activityIndicator.startAnimating()
@@ -184,9 +184,9 @@ final class X5CaptureViewController: UIViewController {
         }
         guard connectionAttemptsRemaining > 0 else {
             activityIndicator.stopAnimating()
-            statusLabel.text = "X5 is not connected"
-            detailLabel.text = "Connect this iPhone to the X5 Wi-Fi in Settings, return here, then retry."
-            shutterButton.configuration?.title = "Retry connection"
+            statusLabel.text = "尚未连接 X5"
+            detailLabel.text = "请在系统设置中连接 X5 Wi-Fi，返回此处后重试。"
+            shutterButton.configuration?.title = "重新连接"
             shutterButton.isEnabled = true
             return
         }
@@ -229,9 +229,9 @@ final class X5CaptureViewController: UIViewController {
                     }
                     INSCameraManager.shared().commandManager.requestIFrame { _ in }
                     self.activityIndicator.stopAnimating()
-                    self.statusLabel.text = "Live preview"
-                    self.detailLabel.text = "Place the X5 steadily, step away from the camera, then take the panorama."
-                    self.shutterButton.configuration?.title = "Take panorama"
+                    self.statusLabel.text = "实时预览"
+                    self.detailLabel.text = "请将 X5 放稳，离开相机视野后再拍摄。"
+                    self.shutterButton.configuration?.title = "拍摄全景图"
                     self.isPreviewReady = true
                     self.shutterButton.isEnabled = true
                 }
@@ -242,9 +242,9 @@ final class X5CaptureViewController: UIViewController {
     private func showPreviewError(_ message: String) {
         isPreviewReady = false
         activityIndicator.stopAnimating()
-        statusLabel.text = "Preview unavailable"
+        statusLabel.text = "预览暂不可用"
         detailLabel.text = message
-        shutterButton.configuration?.title = "Retry preview"
+        shutterButton.configuration?.title = "重试预览"
         shutterButton.isEnabled = true
     }
 
@@ -266,8 +266,8 @@ final class X5CaptureViewController: UIViewController {
         countdownLabel.isHidden = false
         shutterButton.isEnabled = false
         closeButton.isEnabled = false
-        statusLabel.text = "Get out of the X5's view"
-        detailLabel.text = "The panorama will be captured automatically."
+        statusLabel.text = "请离开 X5 的视野"
+        detailLabel.text = "倒计时结束后将自动拍摄。"
 
         countdownTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] timer in
             guard let self else {
@@ -287,8 +287,8 @@ final class X5CaptureViewController: UIViewController {
     }
 
     private func takePanorama() {
-        statusLabel.text = "Capturing panorama…"
-        detailLabel.text = "Keep the X5 still while PlaceEcho captures, downloads, and stitches the image."
+        statusLabel.text = "正在拍摄全景图…"
+        detailLabel.text = "拍摄、下载和拼接过程中请保持 X5 静止。"
         activityIndicator.startAnimating()
         stopPreview { [weak self] in
             guard let self else { return }

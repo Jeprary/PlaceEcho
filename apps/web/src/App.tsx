@@ -21,7 +21,7 @@ import {
   resolveMemoryEntry,
   type MemorySelection,
 } from "./integration/experienceFlow";
-import { DeviceOrientationSource } from "./world/DeviceOrientationSource";
+import type { DeviceOrientationSource } from "./world/DeviceOrientationSource";
 import {
   installIOSPanoramaBridge,
   isIOSPanoramaCaptureAvailable,
@@ -71,6 +71,12 @@ export function App({ initialScenes }: AppProps) {
     if (resolution.status !== "ready") return;
 
     setOpeningMemoryId(selection.memoryId);
+    // DeviceOrientationSource depends on Three.js. Import it only when a
+    // completed Memory is actually opened so the manager/capture home screen
+    // does not preload the spatial runtime on iOS.
+    const { DeviceOrientationSource } = await import(
+      "./world/DeviceOrientationSource"
+    );
     const orientationSource = new DeviceOrientationSource();
     orientationSourceRef.current?.disconnect();
     orientationSourceRef.current = orientationSource;
