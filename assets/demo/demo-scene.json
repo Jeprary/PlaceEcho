@@ -33,7 +33,7 @@
         "cue": { "label": "movie_poster" },
         "source_grounding": { "x": 1560, "y": 720 },
         "world_grounding": null,
-        "position": [0, 0.03, -0.65],
+        "position": [-0.32, 0.03, -1.15],
         "normal": [0, 1, 0],
         "hero": {
           "status": "not_requested",

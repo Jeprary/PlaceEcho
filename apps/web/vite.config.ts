@@ -30,9 +30,17 @@ function localWorldAssets(): Plugin {
           const filePath = resolve(localWorldDirectory, fileName);
           try {
             const file = statSync(filePath);
+            const etag = `W/"${file.size}-${Math.floor(file.mtimeMs)}"`;
+            response.setHeader("ETag", etag);
+            response.setHeader("Last-Modified", file.mtime.toUTCString());
+            response.setHeader("Cache-Control", "private, max-age=3600");
+            if (request.headers["if-none-match"] === etag) {
+              response.statusCode = 304;
+              response.end();
+              return;
+            }
             response.setHeader("Content-Type", "application/octet-stream");
             response.setHeader("Content-Length", file.size);
-            response.setHeader("Cache-Control", "no-store");
             createReadStream(filePath).pipe(response);
           } catch {
             response.statusCode = 404;
