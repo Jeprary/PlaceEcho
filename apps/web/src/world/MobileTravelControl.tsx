@@ -7,37 +7,54 @@ import {
 } from "react";
 
 interface MobileTravelControlProps {
-  onThrottleChange: (throttle: number) => void;
+  onTravelChange: (strafe: number, forward: number) => void;
 }
 
 const KEYBOARD_STEP = 0.35;
-const THUMB_TRAVEL_PX = 28;
+const THUMB_TRAVEL_PX = 30;
 
-function clampThrottle(value: number): number {
-  return Math.max(-1, Math.min(1, value));
+interface TravelInput {
+  strafe: number;
+  forward: number;
+}
+
+function clampTravelInput(strafe: number, forward: number): TravelInput {
+  const magnitude = Math.hypot(strafe, forward);
+  if (magnitude <= 1) return { strafe, forward };
+  return {
+    strafe: strafe / magnitude,
+    forward: forward / magnitude,
+  };
 }
 
 export function MobileTravelControl({
-  onThrottleChange,
+  onTravelChange,
 }: MobileTravelControlProps) {
   const controlRef = useRef<HTMLDivElement>(null);
   const activePointerRef = useRef<number | null>(null);
-  const [throttle, setThrottle] = useState(0);
+  const [travel, setTravel] = useState<TravelInput>({
+    strafe: 0,
+    forward: 0,
+  });
 
-  const updateThrottle = useCallback(
-    (nextThrottle: number) => {
-      const next = clampThrottle(nextThrottle);
-      setThrottle(next);
-      onThrottleChange(next);
+  const updateTravel = useCallback(
+    (strafe: number, forward: number) => {
+      const next = clampTravelInput(strafe, forward);
+      setTravel(next);
+      onTravelChange(next.strafe, next.forward);
     },
-    [onThrottleChange],
+    [onTravelChange],
   );
 
   const updateFromPointer = (event: PointerEvent<HTMLDivElement>) => {
     const bounds = controlRef.current?.getBoundingClientRect();
     if (!bounds) return;
+    const centerX = bounds.left + bounds.width / 2;
     const centerY = bounds.top + bounds.height / 2;
-    updateThrottle((centerY - event.clientY) / THUMB_TRAVEL_PX);
+    updateTravel(
+      (event.clientX - centerX) / THUMB_TRAVEL_PX,
+      (centerY - event.clientY) / THUMB_TRAVEL_PX,
+    );
   };
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
@@ -60,34 +77,36 @@ export function MobileTravelControl({
     event.preventDefault();
     event.stopPropagation();
     activePointerRef.current = null;
-    updateThrottle(0);
+    updateTravel(0, 0);
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "ArrowUp") {
       event.preventDefault();
-      updateThrottle(throttle + KEYBOARD_STEP);
+      updateTravel(travel.strafe, travel.forward + KEYBOARD_STEP);
     } else if (event.key === "ArrowDown") {
       event.preventDefault();
-      updateThrottle(throttle - KEYBOARD_STEP);
+      updateTravel(travel.strafe, travel.forward - KEYBOARD_STEP);
+    } else if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      updateTravel(travel.strafe - KEYBOARD_STEP, travel.forward);
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      updateTravel(travel.strafe + KEYBOARD_STEP, travel.forward);
     } else if (event.key === " " || event.key === "Escape") {
       event.preventDefault();
-      updateThrottle(0);
+      updateTravel(0, 0);
     }
   };
 
   return (
     <div className="mobile-travel-control-shell">
-      <span className="mobile-travel-control__hint">倾斜转向</span>
       <div
         ref={controlRef}
         className="mobile-travel-control"
-        role="slider"
+        role="group"
         tabIndex={0}
-        aria-label="移动摇杆：向上前进，向下后退"
-        aria-valuemin={-100}
-        aria-valuemax={100}
-        aria-valuenow={Math.round(throttle * 100)}
+        aria-label="移动摇杆：前后左右移动，移动方向跟随相机朝向"
         onKeyDown={handleKeyDown}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -95,17 +114,13 @@ export function MobileTravelControl({
         onPointerCancel={releasePointer}
         onLostPointerCapture={releasePointer}
       >
-        <span className="mobile-travel-control__direction" aria-hidden="true">
-          ↑
-        </span>
         <span
           className="mobile-travel-control__thumb"
-          style={{ transform: `translateY(${-throttle * THUMB_TRAVEL_PX}px)` }}
+          style={{
+            transform: `translate(${travel.strafe * THUMB_TRAVEL_PX}px, ${-travel.forward * THUMB_TRAVEL_PX}px)`,
+          }}
           aria-hidden="true"
         />
-        <span className="mobile-travel-control__direction" aria-hidden="true">
-          ↓
-        </span>
       </div>
     </div>
   );

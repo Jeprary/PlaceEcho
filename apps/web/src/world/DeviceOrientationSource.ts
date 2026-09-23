@@ -3,10 +3,7 @@ import type {
   WindOrientation,
   WindOrientationSource,
 } from "./WindController";
-
-type PermissionAwareDeviceOrientationEvent = typeof DeviceOrientationEvent & {
-  requestPermission?: () => Promise<"granted" | "denied">;
-};
+import { requestDeviceOrientationPermission } from "./deviceOrientationPermission";
 
 const SCREEN_AXIS = new Vector3(0, 0, 1);
 const DEVICE_TO_CAMERA = new Quaternion(
@@ -40,14 +37,15 @@ export class DeviceOrientationSource implements WindOrientationSource {
   private hasBaseline = false;
   private connected = false;
 
+  constructor(private permissionGranted = false) {}
+
   async connect(): Promise<boolean> {
     if (this.connected) return true;
     if (typeof DeviceOrientationEvent === "undefined") return false;
 
-    const eventType = DeviceOrientationEvent as PermissionAwareDeviceOrientationEvent;
-    if (eventType.requestPermission) {
-      const permission = await eventType.requestPermission();
-      if (permission !== "granted") return false;
+    if (!this.permissionGranted) {
+      this.permissionGranted = await requestDeviceOrientationPermission();
+      if (!this.permissionGranted) return false;
     }
 
     window.addEventListener("deviceorientation", this.handleOrientation, true);

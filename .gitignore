@@ -13,6 +13,7 @@ xcuserdata/
 uploads/
 outputs/
 tmp/
+.local-build/
 
 *.spz
 *.splat

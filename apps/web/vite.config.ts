@@ -130,6 +130,9 @@ function localSceneAssets(): Plugin {
 }
 
 export default defineConfig({
+  // iOS embeds the same production bundle under an internal URL, so all
+  // generated asset references must stay relative to this single entry.
+  base: "./",
   plugins: [react(), localSceneAssets()],
   server: {
     proxy: {

@@ -1,16 +1,14 @@
 import type { Scene } from "@placeecho/shared";
 import {
-  useCallback,
+  lazy,
+  Suspense,
   useEffect,
-  useMemo,
   useReducer,
   useRef,
   useState,
 } from "react";
 import demoSceneFixture from "../../../assets/demo/demo-scene.json";
-import {
-  MemoryManager,
-} from "./authoring/SceneManagerPreview";
+import { MemoryManager } from "./authoring/SceneManagerPreview";
 import {
   submitNewMemoryRequest,
   type MemorySubmissionReceipt,
@@ -23,55 +21,19 @@ import {
   resolveMemoryEntry,
   type MemorySelection,
 } from "./integration/experienceFlow";
-import { MemorySlidesOverlay } from "./memory/MemorySlidesOverlay";
-import {
-  buildMemoryPresentation,
-  demoMediaPresentationOverrides,
-} from "./memory/memoryPresentation";
-import { DeviceOrientationSource } from "./world/DeviceOrientationSource";
-import { MobileTravelControl } from "./world/MobileTravelControl";
+import type { DeviceOrientationSource } from "./world/DeviceOrientationSource";
+import { requestDeviceOrientationPermission } from "./world/deviceOrientationPermission";
 import {
   installIOSPanoramaBridge,
   isIOSPanoramaCaptureAvailable,
   requestIOSPanoramaCapture,
   type IOSBridgeStatus,
 } from "./world/IOSPanoramaBridge";
-import {
-  SpatialRuntime,
-  type SpatialRuntimeSnapshot,
-  type WorldLoadProgress,
-  type WorldLoadStatus,
-} from "./world/SpatialRuntime";
 
+const SpatialExperience = lazy(() => import("./SpatialExperience"));
 const demoScene = demoSceneFixture as unknown as Scene;
-const debugOrigin =
-  new URLSearchParams(window.location.search).get("debugOrigin") === "1";
-const debugHeroLayout =
-  new URLSearchParams(window.location.search).get("heroLayout") === "1";
 const debugHeroPreview =
   new URLSearchParams(window.location.search).get("heroPreview") === "1";
-
-const initialSnapshot: SpatialRuntimeSnapshot = {
-  proximity: "far",
-  distance: Number.POSITIVE_INFINITY,
-  anchorId: "",
-  memoryId: "",
-  memoryName: "",
-  reachedPresentationActive: false,
-};
-
-const initialWorldProgress: WorldLoadProgress = {
-  phase: "opening",
-  value: 0.02,
-};
-
-function shouldUseMobileTravelControl(): boolean {
-  return (
-    window.matchMedia?.("(pointer: coarse)").matches === true ||
-    navigator.maxTouchPoints > 0 ||
-    window.innerWidth <= 760
-  );
-}
 
 type CaptureStatus =
   | { type: "idle" }
@@ -82,9 +44,7 @@ export interface AppProps {
   initialScenes?: readonly Scene[];
 }
 
-export function App({
-  initialScenes = [demoScene],
-}: AppProps) {
+export function App({ initialScenes = [demoScene] }: AppProps) {
   const scenes = initialScenes;
   const [iosCaptureAvailable] = useState(isIOSPanoramaCaptureAvailable);
   const [experience, dispatch] = useReducer(
@@ -127,21 +87,32 @@ export function App({
     if (resolution.status !== "ready") return;
 
     setOpeningMemoryId(selection.memoryId);
-    const orientationSource = new DeviceOrientationSource();
     orientationSourceRef.current?.disconnect();
+
+    let permissionGranted = false;
+    try {
+      // Invoke the iOS permission request before the first await so it remains
+      // inside the card-click activation. Three.js stays in the lazy chunk.
+      permissionGranted = await requestDeviceOrientationPermission();
+    } catch {
+      permissionGranted = false;
+    }
+
+    const { DeviceOrientationSource } = await import(
+      "./world/DeviceOrientationSource"
+    );
+    const orientationSource = new DeviceOrientationSource(permissionGranted);
     orientationSourceRef.current = orientationSource;
 
-    let granted = false;
+    let enabled = false;
     try {
-      // connect() requests iOS motion permission synchronously from this card
-      // click. Runtime mounting is intentionally deferred until it resolves.
-      granted = await orientationSource.connect();
+      enabled = permissionGranted && await orientationSource.connect();
     } catch {
-      granted = false;
+      enabled = false;
     }
 
     dispatch({ type: "open_memory", selection });
-    dispatch({ type: "wind_permission", granted });
+    dispatch({ type: "wind_permission", granted: enabled });
     setOpeningMemoryId(null);
   };
 
@@ -183,18 +154,30 @@ export function App({
     const resolution = resolveMemoryEntry(scenes, experience.selection);
     if (resolution.status === "ready") {
       return (
-        <SpatialWorld
-          scene={resolution.scene}
-          memoryId={resolution.memory.id}
-          orientationSource={orientationSourceRef.current}
-          windMode={experience.windMode}
-          revealActive={experience.view === "reveal"}
-          onReached={(memoryId) =>
-            dispatch({ type: "runtime_reached", memoryId })
+        <Suspense
+          fallback={
+            <main className="spatial-shell">
+              <div className="world-loading-cover world-loading-cover--loading">
+                <div className="world-loading-indicator">
+                  <p>正在打开空间</p>
+                </div>
+              </div>
+            </main>
           }
-          onRevealFinished={() => dispatch({ type: "reveal_finished" })}
-          onReturnToManager={returnToManager}
-        />
+        >
+          <SpatialExperience
+            scene={resolution.scene}
+            memoryId={resolution.memory.id}
+            orientationSource={orientationSourceRef.current}
+            windMode={experience.windMode}
+            revealActive={experience.view === "reveal"}
+            onReached={(memoryId) =>
+              dispatch({ type: "runtime_reached", memoryId })
+            }
+            onRevealFinished={() => dispatch({ type: "reveal_finished" })}
+            onReturnToManager={returnToManager}
+          />
+        </Suspense>
       );
     }
   }
@@ -209,189 +192,5 @@ export function App({
       onCreateRequest={persistMemoryRequest}
       onOpenMemory={openMemory}
     />
-  );
-}
-
-interface SpatialWorldProps {
-  scene: Scene;
-  memoryId: string;
-  orientationSource: DeviceOrientationSource | null;
-  windMode: "idle" | "requesting" | "active" | "denied";
-  revealActive: boolean;
-  onReached: (memoryId: string) => void;
-  onRevealFinished: () => void;
-  onReturnToManager: () => void;
-}
-
-function SpatialWorld({
-  scene,
-  memoryId,
-  orientationSource,
-  windMode,
-  revealActive,
-  onReached,
-  onRevealFinished,
-  onReturnToManager,
-}: SpatialWorldProps) {
-  const runtimeHost = useRef<HTMLDivElement>(null);
-  const runtimeRef = useRef<SpatialRuntime | null>(null);
-  const onReachedRef = useRef(onReached);
-  const [snapshot, setSnapshot] = useState(initialSnapshot);
-  const [worldStatus, setWorldStatus] = useState<WorldLoadStatus>("loading");
-  const [worldProgress, setWorldProgress] =
-    useState(initialWorldProgress);
-  const [audioUnlocked, setAudioUnlocked] = useState(true);
-  const [motionStatus, setMotionStatus] = useState(windMode);
-  const [heroPreviewDismissed, setHeroPreviewDismissed] = useState(false);
-  const [mobileTravel] = useState(shouldUseMobileTravelControl);
-  const presentation = useMemo(
-    () =>
-      buildMemoryPresentation(
-        scene,
-        memoryId,
-        demoMediaPresentationOverrides,
-      ),
-    [memoryId, scene],
-  );
-  const selectedMemory = scene.memories.find((memory) => memory.id === memoryId);
-  const heroAssetUrl =
-    selectedMemory?.anchor.hero.status === "completed"
-      ? selectedMemory.anchor.hero.asset_url
-      : debugHeroPreview &&
-          scene.scene_id === "scene_demo" &&
-          memoryId === "memory_demo_001"
-        ? "/local-hero/IMG_0194-aholo-g1.glb"
-        : null;
-  const heroLayout = debugHeroLayout || Boolean(heroAssetUrl);
-
-  useEffect(() => {
-    onReachedRef.current = onReached;
-  }, [onReached]);
-
-  const handleSnapshot = useCallback((next: SpatialRuntimeSnapshot) => {
-    setSnapshot(next);
-    if (next.reachedPresentationActive) {
-      onReachedRef.current(next.memoryId);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!runtimeHost.current) return;
-    const runtime = new SpatialRuntime(runtimeHost.current, {
-      scene,
-      targetMemoryId: memoryId,
-      onSnapshot: handleSnapshot,
-      onWorldStatus: setWorldStatus,
-      onWorldProgress: setWorldProgress,
-      orientationSource: orientationSource ?? new DeviceOrientationSource(),
-      manualTravel: mobileTravel,
-      reachedPresentationControl: "external",
-    });
-    runtimeRef.current = runtime;
-    runtime.start();
-    return () => {
-      runtimeRef.current = null;
-      runtime.dispose();
-    };
-  }, [handleSnapshot, memoryId, mobileTravel, orientationSource, scene]);
-
-  const handleTravelThrottle = useCallback((throttle: number) => {
-    runtimeRef.current?.setTravelThrottle(throttle);
-  }, []);
-
-  useEffect(() => {
-    setMotionStatus(windMode);
-    if (windMode === "active") {
-      void runtimeRef.current?.enableGyroscope();
-    }
-  }, [windMode]);
-
-  const retryMotionAccess = async () => {
-    try {
-      const enabled = await runtimeRef.current?.enableGyroscope();
-      setMotionStatus(enabled ? "active" : "denied");
-    } catch {
-      setMotionStatus("denied");
-      // The compact retry remains available without blocking desktop input.
-    }
-  };
-
-  const finishPresentation = useCallback(() => {
-    if (debugHeroPreview && !heroPreviewDismissed) {
-      setHeroPreviewDismissed(true);
-      return;
-    }
-    runtimeRef.current?.completeReachedPresentation();
-    onRevealFinished();
-  }, [heroPreviewDismissed, onRevealFinished]);
-
-  return (
-    <main
-      onPointerDownCapture={() => setAudioUnlocked(true)}
-      className={`spatial-shell spatial-shell--${snapshot.proximity}${
-        revealActive ? " spatial-shell--reached-presentation" : ""
-      }`}
-    >
-      <div className="spatial-runtime" ref={runtimeHost} />
-      <MemorySlidesOverlay
-        active={
-          (!heroPreviewDismissed && debugHeroPreview) ||
-          (revealActive && snapshot.reachedPresentationActive)
-        }
-        memoryId={memoryId}
-        presentation={presentation}
-        heroLayout={heroLayout}
-        heroAssetUrl={heroAssetUrl}
-        audibleAutoplay={audioUnlocked}
-        preloadEnabled={worldStatus !== "loading"}
-        onFinished={finishPresentation}
-      />
-      <div className="approach-veil" aria-hidden="true" />
-      <div
-        className={`world-loading-cover world-loading-cover--${worldStatus} world-loading-cover--${worldProgress.phase}`}
-        aria-hidden={worldStatus !== "loading"}
-      >
-        <div className="world-loading-indicator">
-          <p>正在打开空间</p>
-          <div className="world-loading-track">
-            <span style={{ transform: `scaleX(${worldProgress.value})` }} />
-          </div>
-        </div>
-      </div>
-
-      {debugOrigin && (
-        <p className={`proximity proximity--${snapshot.proximity}`}>
-          <span className="proximity__dot" />
-          {snapshot.proximity}
-        </p>
-      )}
-
-      {debugOrigin && (
-        <p className="debug-origin-label">
-          World origin [0, 0, 0] · axes + 1.55 m white mast
-        </p>
-      )}
-
-      {motionStatus === "denied" && (
-        <button
-          className="motion-access-retry"
-          type="button"
-          onClick={retryMotionAccess}
-        >
-          启用体感控制
-        </button>
-      )}
-      {mobileTravel && (
-        <MobileTravelControl onThrottleChange={handleTravelThrottle} />
-      )}
-      <button
-        className="world-entry-return"
-        type="button"
-        onClick={onReturnToManager}
-        aria-label="返回记忆空间"
-      >
-        <span aria-hidden="true">…</span>
-      </button>
-    </main>
   );
 }

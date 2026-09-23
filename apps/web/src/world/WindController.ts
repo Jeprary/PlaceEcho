@@ -45,6 +45,9 @@ export class WindController {
   private readonly camera: PerspectiveCamera;
   private readonly canvas: HTMLCanvasElement;
   private readonly forward = new Vector3();
+  private readonly right = new Vector3();
+  private readonly travelDirection = new Vector3();
+  private readonly worldUp = new Vector3(0, 1, 0);
   private readonly collisionNormal = new Vector3();
   private readonly collisionEscapeDirection = new Vector3();
   private readonly reflectedDirection = new Vector3();
@@ -69,7 +72,8 @@ export class WindController {
   private orientationActive = false;
   private glideActive: boolean;
   private manualTravel: boolean;
-  private travelThrottle = 0;
+  private travelStrafe = 0;
+  private travelForward = 0;
   private speedScale = 1;
   private currentSpeed = 0;
   private windTime = 0;
@@ -151,19 +155,26 @@ export class WindController {
     this.speedScale = MathUtils.clamp(scale, 0, 1);
   }
 
-  setTravelThrottle(throttle: number): void {
+  setTravelInput(strafe: number, forward: number): void {
     this.manualTravel = true;
-    this.travelThrottle = this.inputLocked
-      ? 0
-      : MathUtils.clamp(throttle, -1, 1);
-    if (Math.abs(this.travelThrottle) > 0.02) this.onSteeringInput?.();
+    if (this.inputLocked) {
+      this.travelStrafe = 0;
+      this.travelForward = 0;
+      return;
+    }
+    const magnitude = Math.hypot(strafe, forward);
+    const scale = magnitude > 1 ? 1 / magnitude : 1;
+    this.travelStrafe = strafe * scale;
+    this.travelForward = forward * scale;
+    if (magnitude > 0.02) this.onSteeringInput?.();
   }
 
   setInputLocked(locked: boolean): void {
     this.inputLocked = locked;
     this.canvas.dataset.inputLocked = String(locked);
     if (!locked) return;
-    this.travelThrottle = 0;
+    this.travelStrafe = 0;
+    this.travelForward = 0;
     this.dragPointerId = null;
     this.canvas.dataset.dragging = "false";
   }
@@ -338,7 +349,9 @@ export class WindController {
       0.88 +
       Math.sin(this.windTime * 0.72) * 0.09 +
       Math.sin(this.windTime * 1.91) * 0.03;
-    const travelRequest = this.manualTravel ? this.travelThrottle : 1;
+    const travelRequest = this.manualTravel
+      ? Math.hypot(this.travelStrafe, this.travelForward)
+      : 1;
     const targetSpeed =
       this.glideSpeed * this.speedScale * this.collisionSpeedScale * gust
       * travelRequest;
@@ -349,17 +362,27 @@ export class WindController {
       deltaSeconds,
     );
     if (
-      Math.abs(this.currentSpeed) < 0.0001 &&
-      Math.abs(targetSpeed) < 0.0001
+      this.currentSpeed < 0.0001 &&
+      targetSpeed < 0.0001
     ) {
       this.currentSpeed = 0;
       return;
     }
-    this.camera.getWorldDirection(this.forward);
-    const travelDirection = Math.sign(this.currentSpeed)
-      || Math.sign(targetSpeed)
-      || 1;
-    this.forward.multiplyScalar(travelDirection);
+    if (this.manualTravel) {
+      if (travelRequest < 0.0001) return;
+      this.camera.getWorldDirection(this.forward);
+      this.right.crossVectors(this.forward, this.worldUp);
+      if (this.right.lengthSq() < 0.000001) this.right.set(1, 0, 0);
+      else this.right.normalize();
+      this.travelDirection
+        .copy(this.forward)
+        .multiplyScalar(this.travelForward)
+        .addScaledVector(this.right, this.travelStrafe);
+      if (this.travelDirection.lengthSq() < 0.000001) return;
+      this.forward.copy(this.travelDirection).normalize();
+    } else {
+      this.camera.getWorldDirection(this.forward);
+    }
     if (!this.captureActive && this.resolvePosition) {
       this.probePosition
         .copy(this.camera.position)
@@ -382,7 +405,7 @@ export class WindController {
     if (collisionNormal) {
       this.collisionActive = this.updateCollisionResponse(
         collisionNormal,
-        true,
+        !this.manualTravel,
       );
       this.collisionClearSeconds = 0;
       this.collisionSpeedScale = Math.min(
@@ -391,7 +414,7 @@ export class WindController {
       );
       this.currentSpeed = MathUtils.clamp(
         this.currentSpeed,
-        -this.glideSpeed * COLLISION_SPEED_CAP,
+        0,
         this.glideSpeed * COLLISION_SPEED_CAP,
       );
     } else if (this.collisionActive) {

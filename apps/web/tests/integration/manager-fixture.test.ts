@@ -20,8 +20,13 @@ test("the single manager fixture exposes two independent ready spaces", async ()
   ) as ManagerFixture;
   const items = buildMemoryItems(fixture.scenes);
 
+  assert.equal(items.length, 2);
   assert.equal(items.filter((item) => item.canEnterSpace).length, 2);
-  assert.equal(items.filter((item) => !item.canEnterSpace).length, 1);
+  assert.equal(items.filter((item) => !item.canEnterSpace).length, 0);
+  assert.equal(
+    items.find((item) => item.sceneId === "scene_demo")?.coverUrl,
+    "/local-memory/04-stage-blue.jpg",
+  );
   assert.equal(
     items.find((item) => item.sceneId === "scene_marble_origin")?.title,
     "窗边那束光",

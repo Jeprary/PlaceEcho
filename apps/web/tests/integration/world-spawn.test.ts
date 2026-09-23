@@ -96,7 +96,7 @@ test("Wind preserves a Scene-specific camera roll during Anchor capture", () => 
   assert.ok(Math.abs(Math.abs(rotation.z) - Math.PI) < 0.000001);
 });
 
-test("mobile travel throttle controls forward, stop, and reverse independently", () => {
+test("mobile joystick moves relative to the camera in four directions", () => {
   const canvas = {
     dataset: {},
     addEventListener() {},
@@ -111,18 +111,31 @@ test("mobile travel throttle controls forward, stop, and reverse independently",
   for (let frame = 0; frame < 60; frame += 1) controller.update(1 / 60);
   assert.deepEqual(camera.position.toArray(), [0, 0, 0]);
 
-  controller.setTravelThrottle(1);
+  controller.setTravelInput(0, 1);
   for (let frame = 0; frame < 60; frame += 1) controller.update(1 / 60);
   const forwardZ = camera.position.z;
   assert.ok(forwardZ < -0.3);
 
-  controller.setTravelThrottle(0);
+  controller.setTravelInput(0, 0);
   for (let frame = 0; frame < 180; frame += 1) controller.update(1 / 60);
   const stoppedZ = camera.position.z;
   controller.update(1 / 60);
   assert.ok(Math.abs(camera.position.z - stoppedZ) < 0.0001);
 
-  controller.setTravelThrottle(-1);
+  controller.setTravelInput(0, -1);
   for (let frame = 0; frame < 60; frame += 1) controller.update(1 / 60);
   assert.ok(camera.position.z > stoppedZ + 0.3);
+
+  const beforeStrafeX = camera.position.x;
+  controller.setTravelInput(1, 0);
+  for (let frame = 0; frame < 60; frame += 1) controller.update(1 / 60);
+  assert.ok(camera.position.x > beforeStrafeX + 0.3);
+
+  controller.setTravelInput(0, 0);
+  controller.turnBy(-Math.PI / 2);
+  for (let frame = 0; frame < 180; frame += 1) controller.update(1 / 60);
+  const beforeCameraRelativeForwardX = camera.position.x;
+  controller.setTravelInput(0, 1);
+  for (let frame = 0; frame < 60; frame += 1) controller.update(1 / 60);
+  assert.ok(camera.position.x > beforeCameraRelativeForwardX + 0.3);
 });

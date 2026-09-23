@@ -1,10 +1,15 @@
-import { StrictMode } from "react";
+import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import type { Scene } from "@placeecho/shared";
 import previewConfigFixture from "../../../assets/demo/scene-manager-preview.json";
 import { App } from "./App";
-import { GroundingVerification } from "./authoring/GroundingVerification";
 import "./styles.css";
+
+const GroundingVerification = lazy(() =>
+  import("./authoring/GroundingVerification").then((module) => ({
+    default: module.GroundingVerification,
+  })),
+);
 
 type LocalPreviewConfig = {
   scenes: Scene[];
@@ -18,10 +23,12 @@ const groundingApiBaseUrl = search.get("apiBase") ?? "";
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     {groundingSceneId ? (
-      <GroundingVerification
-        sceneId={groundingSceneId}
-        apiBaseUrl={groundingApiBaseUrl}
-      />
+      <Suspense fallback={<main className="grounding-verification" />}>
+        <GroundingVerification
+          sceneId={groundingSceneId}
+          apiBaseUrl={groundingApiBaseUrl}
+        />
+      </Suspense>
     ) : (
       <App initialScenes={previewConfig.scenes} />
     )}

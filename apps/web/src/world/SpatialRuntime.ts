@@ -218,7 +218,7 @@ export class SpatialRuntime {
     this.renderer.domElement.setAttribute(
       "aria-label",
       options.manualTravel
-        ? "PlaceEcho 空间。倾斜手机或拖动画面转向，使用移动摇杆前进或后退。"
+        ? "PlaceEcho 空间。倾斜手机或拖动画面转向，使用移动摇杆前后左右移动。"
         : "PlaceEcho 空间。使用触控板或拖动画面转向。",
     );
     this.container.append(this.renderer.domElement);
@@ -272,9 +272,9 @@ export class SpatialRuntime {
     return this.windController.enableGyroscope();
   }
 
-  setTravelThrottle(throttle: number): void {
+  setTravelInput(strafe: number, forward: number): void {
     if (this.mode !== "experience") return;
-    this.windController.setTravelThrottle(throttle);
+    this.windController.setTravelInput(strafe, forward);
   }
 
   async prepareGrounding(

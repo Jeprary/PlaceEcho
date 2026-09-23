@@ -126,6 +126,32 @@ The thin shell hosts the same Web app in a WKWebView and supplies X5 preview,
 countdown, capture, local download, and Media SDK export. Durable upload remains
 pending. It must not reimplement the Web product or introduce a second home UI.
 
+The application executable does not link the large Insta360 binaries. It embeds
+a signed `PlaceEchoCaptureKit` framework without linking it, and dynamically
+loads that framework only after the user opens X5 acquisition. The capture kit
+owns the SDK-linked provider and native capture controller; a process-local
+request/result bridge returns the staged panorama to the shell. This keeps SDK
+class registration and media initialization out of the Web shell launch path.
+The shell prepares the dynamic framework on a dedicated background queue after
+that explicit action, then creates and presents UIKit controllers on the main
+thread, so first-use SDK loading cannot block Web gestures or manager animation.
+
+The iOS build embeds the production Web bundle and serves it through an internal
+resource handler, so changing temporarily to X5 Wi-Fi does not remove the home
+UI. The Spatial Runtime is a separate lazy Web chunk and is loaded only after a
+ready Memory is opened; neither it nor the capture kit may block the manager UI.
+The device-orientation adapter is part of that same deferred spatial boundary and
+must not make Three.js an initial manager dependency. If the system WebContent
+process does not become interactive promptly, the shell exposes a native recovery
+control that opens only the existing X5 acquisition screen. This is a capture
+availability fallback, not a second implementation of the product home UI.
+Development iOS builds may copy the small set of already-referenced Revisit
+artifacts from ignored `.local-data` into the embedded Web bundle. They retain
+the same `/local-world`, `/local-marble`, and `/local-memory` URL namespace used
+by the development server; this is an offline packaging step, not a second asset
+contract. Source media, PLY/LOD intermediates, and other large generated files
+remain outside Git and outside the app.
+
 ## StorageProvider Abstraction
 
 API business modules access storage through a replaceable `StorageProvider`, not scattered filesystem calls. v0.1 supports `LocalStorageProvider`, a mounted-volume local provider, and `OSSStorageProvider`, including Memory request records. Selecting local, mounted, or OSS storage changes environment configuration, not Web, AI, or job contracts.

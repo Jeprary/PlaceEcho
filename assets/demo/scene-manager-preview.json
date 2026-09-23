@@ -11,7 +11,7 @@
       "panorama_height": 2048,
       "splat_url": "/local-world/world.spz",
       "collider_url": "/local-world/collider.glb",
-      "thumbnail_url": "/memory/photo-01.svg",
+      "thumbnail_url": "/local-memory/04-stage-blue.jpg",
       "asset_transform": null,
       "spawn": {
         "position": [-1.12, 1.55, 1.3],
@@ -78,49 +78,6 @@
           "world_grounding": null,
           "position": [-2.006887302, -0.9030992859, 0],
           "normal": [0.1431431029, 0.9861203941, -0.0841226507],
-          "hero": { "status": "not_requested", "job_id": null, "asset_url": null }
-        }
-      }
-    ],
-    "unassigned_media_ids": []
-  },
-  {
-    "schema_version": "0.1",
-    "scene_id": "scene_manager_balcony",
-    "status": "processing",
-    "scene_context": { "text": "A fictional balcony garden used only for preview content.", "audio_url": null },
-    "world": {
-      "panorama_url": null,
-      "panorama_width": 4096,
-      "panorama_height": 2048,
-      "splat_url": null,
-      "collider_url": null,
-      "thumbnail_url": null,
-      "asset_transform": null,
-      "spawn": null
-    },
-    "media": [
-      { "id": "media_plant_01", "source_name": "first-plant.jpg", "type": "image", "url": null },
-      { "id": "media_plant_02", "source_name": "new-leaf-01.jpg", "type": "image", "url": null },
-      { "id": "media_plant_03", "source_name": "watering.mov", "type": "video", "url": null },
-      { "id": "media_plant_04", "source_name": "balcony-spring.jpg", "type": "image", "url": null },
-      { "id": "media_plant_05", "source_name": "new-leaf-02.jpg", "type": "image", "url": null },
-      { "id": "media_plant_06", "source_name": "balcony-summer.jpg", "type": "image", "url": null }
-    ],
-    "memories": [
-      {
-        "id": "memory_plant",
-        "name": "新叶长出来之后",
-        "summary": "从搬进来的第一盆植物，到阳台渐渐有了自己的季节。",
-        "media_ids": ["media_plant_01", "media_plant_02", "media_plant_03", "media_plant_04", "media_plant_05", "media_plant_06"],
-        "reflection": "生活没有突然变好，但某天回头，绿色已经长满了角落。",
-        "anchor": {
-          "id": "anchor_plant",
-          "cue": { "label": "阳台旁的龟背竹" },
-          "source_grounding": { "x": 910, "y": 840 },
-          "world_grounding": { "view_id": "left_01", "x": 430, "y": 520 },
-          "position": [-1.1, 0.8, -2.1],
-          "normal": [0.2, 0, 0.98],
           "hero": { "status": "not_requested", "job_id": null, "asset_url": null }
         }
       }

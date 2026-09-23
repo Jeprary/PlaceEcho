@@ -32,7 +32,9 @@ enum Insta360CaptureError: LocalizedError {
 /// Minimal X5 flow: Wi-Fi connection -> capture -> local download -> 2:1 JPEG.
 /// Upload remains a separate adapter so capture does not depend on API rollout.
 final class Insta360PanoramaCaptureProvider: PanoramaCaptureProviding {
-    private let cameraManager = INSCameraManager.socket()
+    // Even obtaining the socket manager can start the SDK's connection path.
+    // Keep it lazy so launching the Web shell never contacts the X5 endpoint.
+    private lazy var cameraManager = INSCameraManager.socket()
     private let workQueue = DispatchQueue(
         label: "dev.placeecho.insta360-export",
         qos: .userInitiated
@@ -44,10 +46,6 @@ final class Insta360PanoramaCaptureProvider: PanoramaCaptureProviding {
     /// remains available for a paid team with the Hotspot entitlement enabled.
     private var automaticWiFiEnabled: Bool {
         ProcessInfo.processInfo.environment["PLACE_ECHO_AUTOMATIC_X5_WIFI"] == "1"
-    }
-
-    deinit {
-        cameraManager.shutdown()
     }
 
     func capture(
