@@ -207,6 +207,7 @@ test("the pipeline PATCHes only Collider hits and submits camera metadata", asyn
       { memory_id: "memory_uncertain", status: "grounding_missing" },
     ],
   );
+  assert.deepEqual(result.views, [view]);
   assert.equal(requests.length, 2);
   assert.equal(
     (requests[0]?.body as { views: GroundingRenderView[] }).views[0]?.camera

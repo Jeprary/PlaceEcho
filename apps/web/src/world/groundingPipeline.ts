@@ -84,6 +84,8 @@ export interface ResolveWorldAnchorsOptions {
 export interface ResolveWorldAnchorsResult {
   scene: PlaceEchoScene;
   anchors: AnchorResolutionResult[];
+  /** Exact renderer captures used by AI and Web Geometry for visual QA. */
+  views: readonly GroundingRenderView[];
 }
 
 const DEFAULT_VIEW_ORIENTATIONS: readonly GroundingViewOrientation[] = [
@@ -429,5 +431,5 @@ export async function resolveWorldAnchors(
     anchors.push({ memory_id: memory.id, status: "persisted", hit });
   }
 
-  return { scene, anchors };
+  return { scene, anchors, views: options.views };
 }

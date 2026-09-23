@@ -4,12 +4,15 @@ import {
   AdditiveBlending,
   AxesHelper,
   Box3,
+  BufferGeometry,
   Clock,
   Color,
   CylinderGeometry,
   DoubleSide,
   Fog,
   Group,
+  Line,
+  LineBasicMaterial,
   MathUtils,
   Mesh,
   MeshBasicMaterial,
@@ -305,6 +308,7 @@ export class SpatialRuntime {
         fetchImplementation: options.fetchImplementation,
         placementOffsetMeters: options.placementOffsetMeters,
       });
+      this.showGroundingDiagnostics(result);
       this.groundingPreparation.complete();
       return result;
     } catch (error) {
@@ -947,5 +951,65 @@ export class SpatialRuntime {
     eyeHeight.position.y = 0.775;
     marker.add(eyeHeight);
     return marker;
+  }
+
+  /**
+   * Keep the visual proof in the same coordinate frame as the Collider hit:
+   * cyan = camera ray, amber = raw surface, green = persisted Anchor,
+   * magenta = camera-facing surface normal.
+   */
+  private showGroundingDiagnostics(result: ResolveWorldAnchorsResult): void {
+    const marker = new Group();
+    marker.name = "placeecho-grounding-diagnostics";
+    const views = new Map(result.views.map((view) => [view.view_id, view]));
+
+    const line = (from: Vector3, to: Vector3, color: number) => {
+      const geometry = new BufferGeometry().setFromPoints([from, to]);
+      const material = new LineBasicMaterial({
+        color,
+        depthTest: false,
+        transparent: true,
+        opacity: 0.92,
+      });
+      const visual = new Line(geometry, material);
+      visual.renderOrder = 34;
+      marker.add(visual);
+    };
+    const sphere = (at: Vector3, color: number, radius: number) => {
+      const visual = new Mesh(
+        new SphereGeometry(radius, 18, 12),
+        new MeshBasicMaterial({ color, depthTest: false }),
+      );
+      visual.position.copy(at);
+      visual.renderOrder = 35;
+      marker.add(visual);
+    };
+
+    for (const resolution of result.anchors) {
+      if (resolution.status !== "persisted" || !resolution.hit) continue;
+      const memory = result.scene.memories.find(
+        (candidate) => candidate.id === resolution.memory_id,
+      );
+      const grounding = memory?.anchor.world_grounding;
+      const view = grounding ? views.get(grounding.view_id) : undefined;
+      if (!view) continue;
+
+      const camera = new Vector3().fromArray(view.camera.position);
+      const surface = new Vector3().fromArray(resolution.hit.surface_position);
+      const anchor = new Vector3().fromArray(resolution.hit.position);
+      line(camera, surface, 0x22d3ee);
+      sphere(surface, 0xf59e0b, 0.035);
+      sphere(anchor, 0x22c55e, 0.055);
+      if (resolution.hit.normal) {
+        const normalTip = surface
+          .clone()
+          .addScaledVector(
+            new Vector3().fromArray(resolution.hit.normal),
+            0.35,
+          );
+        line(surface, normalTip, 0xf472b6);
+      }
+    }
+    this.scene.add(marker);
   }
 }
