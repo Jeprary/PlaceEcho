@@ -46,10 +46,6 @@ final class Insta360PanoramaCaptureProvider: PanoramaCaptureProviding {
         ProcessInfo.processInfo.environment["PLACE_ECHO_AUTOMATIC_X5_WIFI"] == "1"
     }
 
-    init() {
-        cameraManager.setup()
-    }
-
     deinit {
         cameraManager.shutdown()
     }

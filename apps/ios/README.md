@@ -47,6 +47,8 @@ does not call `importPanorama()`.
 The capture request first opens a transient native acquisition screen backed by
 `INSCameraSessionPlayer`. This screen owns only the X5 live preview, shutter, and
 three-second countdown; the surrounding create-Memory flow remains Web-owned.
+The camera socket is initialized lazily when that acquisition screen opens, so
+launching the Web shell never waits for an unavailable X5 connection.
 
 Native-to-Web durable success, after a future upload adapter returns a Web-readable
 URL:
