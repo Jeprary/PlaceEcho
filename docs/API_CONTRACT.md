@@ -156,17 +156,48 @@ Will persist authoritative geometry computed by the Web runtime:
 
 ## Hero Object
 
-### `POST /api/scenes/:sceneId/memories/:memoryId/hero` — Stub
+### `POST /api/scenes/:sceneId/memories/:memoryId/hero` — Implemented for Aholo Lux3D
 
-Will create an optional GPU Hero job and return an application-generated job ID:
+Creates an optional asynchronous Hero Object job through the selected provider.
+The current external provider is `aholo`; `trellis` and `trellis2` are reserved
+provider names until their isolated runtimes are connected to this public job
+boundary. Aholo accepts one to eight HTTPS image URLs and defaults to G1-Turbo.
+`confirm_external_processing` must be exactly `true`, because submitting this
+request sends the source URLs to Aholo and may consume provider credits:
+
+```json
+{
+  "provider": "aholo",
+  "image_urls": ["https://example.invalid/object-front.jpg"],
+  "version": "G1-Turbo",
+  "face_count": 200000,
+  "enable_pbr": true,
+  "ai_predict_size": true,
+  "confirm_external_processing": true
+}
+```
+
+The API key is read only from server-side `AHOLO_API_KEY`; `AHOLO_REGION` may be
+`cn` (default) or `com`. The browser never sends a key. PlaceEcho does not
+persist the submitted image URLs in the job record. A configured job returns
+HTTP 202 with an application-generated ID:
 
 ```json
 { "job_id": "job_001" }
 ```
 
-### `GET /api/jobs/:jobId` — Implemented for panorama and Marble world jobs
+An unconfigured provider returns HTTP 503. Validation or missing consent returns
+HTTP 400. A completed Aholo job sets `Memory.anchor.hero.asset_url` to the HTTPS
+GLB. Hero failure sets Hero state to `failed` and does not invalidate the Anchor
+or block Memory Reveal.
+
+### `GET /api/jobs/:jobId` — Implemented for panorama, Marble world, and Hero jobs
 
 Reports `queued`, `running`, `completed`, or `failed`. Completed panorama jobs include `output_url`, dimensions, elapsed worker time, and whether CUDA was enabled. Completed Marble jobs include `world_id`, `world_marble_url`, and the provider asset manifest. Failed jobs include a bounded error message.
+
+Hero jobs include the selected provider, external provider task ID, source image
+count, model version, and (when completed) the GLB `asset_url`. Source image URLs
+and provider credentials are never returned by the job endpoint.
 
 ### `GET /api/jobs/:jobId/output` — Implemented
 

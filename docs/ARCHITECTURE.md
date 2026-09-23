@@ -31,6 +31,7 @@ Web authoring/runtime
        ├── Memory AI boundary
        ├── Spatial AI grounding boundary
        ├── Marble World API job boundary
+       ├── Hero job boundary -> Aholo Lux3D | isolated local providers
        └── GPU job boundary -> FastAPI GPU Worker
             └── panorama acquisition normalization (INSP -> 2:1 JPEG)
 ```
@@ -100,6 +101,16 @@ The Alibaba Cloud Linux GPU host runs this worker inside an Ubuntu 22.04 NVIDIA 
 Worker requests use storage keys constrained below configured input/output roots. The initial ECS deployment mounts private host directories and binds the worker HTTP port to loopback only. A production API job may stage those keys from OSS through `StorageProvider`; this must not change the worker or Web panorama contracts.
 
 Hero Object generation remains optional; failure must not block Memory Reveal. The intended A10 pipeline is SAM 3 for text/point/box-driven masks followed by a selectable TRELLIS or TRELLIS 2 image-to-3D backend. These model runtimes are isolated services and run one GPU job at a time. SAM 3D Objects remains an optional higher-memory backend and is not an A10 deployment target because its official minimum is 32 GB VRAM. No weights or checkpoints are committed.
+
+Hero generation is selected through a backend `HeroProvider` boundary. `aholo`
+uses the external Aholo Lux3D Open API, while `trellis` and `trellis2` are
+reserved for isolated local runtimes. External-provider requests require an
+explicit per-request consent flag because they transmit the supplied image URLs
+to a third party and may consume paid credits. Provider credentials remain
+server-side environment variables; source image URLs are used only by the
+in-memory runner and are not persisted in PlaceEcho job records. The first Aholo
+adapter requests a GLB from G1 or G1-Turbo and persists only the returned asset
+URL in Hero state. Provider failure leaves the existing Memory and Anchor usable.
 
 ### Optional iOS Capture Shell
 

@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import { HeroJobService } from "./jobs/hero-service.js";
 import { PanoramaJobService } from "./jobs/service.js";
 import { WorldJobService } from "./jobs/world-service.js";
 import { MediaService } from "./media/service.js";
@@ -13,6 +14,8 @@ import {
   type GpuWorkerClient,
 } from "./services/gpu/client.js";
 import { HttpMarbleClient, type MarbleClient } from "./services/marble/client.js";
+import { AholoHeroProvider } from "./services/hero/aholo.js";
+import type { HeroProvider } from "./services/hero/provider.js";
 
 export interface BuildAppOptions {
   localDataDirectory?: string;
@@ -21,6 +24,7 @@ export interface BuildAppOptions {
   workerStorageProvider?: StorageProvider;
   gpuWorkerClient?: GpuWorkerClient;
   marbleClient?: MarbleClient;
+  heroProviders?: HeroProvider[];
 }
 
 export function buildApp(options: BuildAppOptions = {}) {
@@ -69,6 +73,11 @@ export function buildApp(options: BuildAppOptions = {}) {
     panoramaJobs,
     marble,
   );
+  const heroJobs = new HeroJobService(
+    storage,
+    sceneService,
+    options.heroProviders ?? [AholoHeroProvider.fromEnvironment()],
+  );
 
   app.get("/health", async () => ({ status: "ok" }));
   registerContractRoutes(app, {
@@ -76,6 +85,7 @@ export function buildApp(options: BuildAppOptions = {}) {
     mediaService,
     panoramaJobs,
     worldJobs,
+    heroJobs,
   });
 
   return app;

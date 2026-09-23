@@ -80,6 +80,24 @@ It does not change any security-group rule. If the OSS console reports `NoPermis
 
 The API implements the asynchronous World Labs boundary at `POST /api/scenes/:sceneId/world/generate`. Put `WLT_API_KEY` only in `/etc/placeecho/api.env` with mode `0600`; never commit it. `MARBLE_API_BASE_URL` and `MARBLE_MODEL` are optional overrides. The ECS only needs outbound HTTPS access—no inbound security-group rule is required.
 
+## Aholo Lux3D Hero Objects
+
+The optional Aholo provider uses outbound HTTPS and does not require a new
+security-group rule. Create the key in the matching Aholo region, then place it
+only in `/etc/placeecho/api.env` (mode `0600`):
+
+```text
+AHOLO_API_KEY=<secret managed outside Git>
+AHOLO_REGION=cn
+```
+
+Use `AHOLO_REGION=com` only with a Global Aholo key. Restart the API after the
+environment file changes. Do not paste the key into chat, commit it, put it in a
+container image, or send it in a browser request. A real Hero request transmits
+the supplied image URLs to Aholo and may consume credits, so the public route
+requires `confirm_external_processing: true` on every submission. Contract tests
+use an injected fake provider and never upload media or create a paid task.
+
 ## End-to-end smoke test
 
 From the ECS host, pass one or more private `.insp` paths to:

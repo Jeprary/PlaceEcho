@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { MediaAsset, Scene } from "@placeecho/shared";
+import type { HeroState, MediaAsset, Scene } from "@placeecho/shared";
 import type { SceneRepository } from "./repository.js";
 
 export class SceneService {
@@ -35,6 +35,19 @@ export class SceneService {
     scene.world.panorama_url = panoramaUrl;
     scene.world.panorama_width = width;
     scene.world.panorama_height = height;
+    await this.scenes.save(scene);
+    return scene;
+  }
+
+  async setHero(
+    sceneId: string,
+    memoryId: string,
+    hero: HeroState,
+  ): Promise<Scene | null> {
+    const scene = await this.scenes.get(sceneId);
+    const memory = scene?.memories.find((candidate) => candidate.id === memoryId);
+    if (!scene || !memory) return null;
+    memory.anchor.hero = hero;
     await this.scenes.save(scene);
     return scene;
   }

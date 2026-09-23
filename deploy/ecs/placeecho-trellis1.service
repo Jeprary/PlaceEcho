@@ -1,0 +1,19 @@
+[Unit]
+Description=PlaceEcho TRELLIS 1 Worker
+After=network-online.target placeecho-gpu-worker.service
+
+[Service]
+Type=simple
+User=placeecho
+Group=placeecho
+EnvironmentFile=/etc/placeecho/trellis1.env
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/placeecho/envs/trellis/bin/python -m uvicorn placeecho_trellis_worker.main:app --app-dir /opt/placeecho/trellis-worker/src --host 127.0.0.1 --port 8002 --workers 1
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=180
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

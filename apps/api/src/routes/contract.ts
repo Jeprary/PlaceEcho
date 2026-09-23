@@ -1,8 +1,16 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
+import {
+  HeroProviderUnavailableError,
+  type HeroJobService,
+} from "../jobs/hero-service.js";
 import type { PanoramaJobService } from "../jobs/service.js";
 import type { WorldJobService } from "../jobs/world-service.js";
 import type { MediaService } from "../media/service.js";
 import type { SceneService } from "../scenes/service.js";
+import type {
+  HeroGenerationVersion,
+  HeroProviderName,
+} from "../services/hero/provider.js";
 
 const notImplemented = (reply: FastifyReply, capability: string) =>
   reply.code(501).send({
@@ -16,6 +24,7 @@ export interface ContractRouteDependencies {
   mediaService: MediaService;
   panoramaJobs: PanoramaJobService;
   worldJobs: WorldJobService;
+  heroJobs: HeroJobService;
 }
 
 export function registerContractRoutes(
@@ -150,9 +159,50 @@ export function registerContractRoutes(
     async (_request, reply) => notImplemented(reply, "persist_anchor"),
   );
 
-  app.post(
+  app.post<{
+    Params: { sceneId: string; memoryId: string };
+    Body: {
+      provider?: HeroProviderName;
+      image_urls?: string[];
+      version?: HeroGenerationVersion;
+      face_count?: number;
+      enable_pbr?: boolean;
+      ai_predict_size?: boolean;
+      confirm_external_processing?: boolean;
+    };
+  }>(
     "/api/scenes/:sceneId/memories/:memoryId/hero",
-    async (_request, reply) => notImplemented(reply, "create_hero_job"),
+    async (request, reply) => {
+      try {
+        if (!request.body?.provider) {
+          return reply.code(400).send({
+            status: "invalid_request",
+            message: "provider is required.",
+          });
+        }
+        const job = await dependencies.heroJobs.create(
+          request.params.sceneId,
+          request.params.memoryId,
+          {
+            provider: request.body.provider,
+            image_urls: request.body.image_urls ?? [],
+            version: request.body.version,
+            face_count: request.body.face_count,
+            enable_pbr: request.body.enable_pbr,
+            ai_predict_size: request.body.ai_predict_size,
+            confirm_external_processing: request.body.confirm_external_processing,
+          },
+        );
+        if (job === null) return reply.code(404).send({ status: "not_found" });
+        return reply.code(202).send({ job_id: job.job_id });
+      } catch (error) {
+        const unavailable = error instanceof HeroProviderUnavailableError;
+        return reply.code(unavailable ? 503 : 400).send({
+          status: unavailable ? "provider_unavailable" : "invalid_request",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
   );
 
   app.get<{ Params: { jobId: string } }>(
@@ -160,7 +210,8 @@ export function registerContractRoutes(
     async (request, reply) => {
       const job =
         (await dependencies.panoramaJobs.get(request.params.jobId)) ??
-        (await dependencies.worldJobs.get(request.params.jobId));
+        (await dependencies.worldJobs.get(request.params.jobId)) ??
+        (await dependencies.heroJobs.get(request.params.jobId));
       if (job === null) return reply.code(404).send({ status: "not_found" });
       return reply.send(job);
     },
