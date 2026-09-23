@@ -203,10 +203,10 @@
 				};
 			};
 			buildConfigurationList = 10F000000000000000000001 /* Build configuration list for PBXProject "PlaceEcho" */;
-			developmentRegion = en;
+			developmentRegion = "zh-Hans";
 			hasScannedForEncodings = 0;
 			knownRegions = (
-				en,
+				"zh-Hans",
 				Base,
 			);
 			mainGroup = 10D000000000000000000001;

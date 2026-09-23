@@ -11,6 +11,7 @@ import {
   type MemoryItem,
   type MemoryOpenIntent,
 } from "../memory/fixtures";
+import type { PanoramaAsset } from "../world/panorama";
 
 type View = "dashboard" | "create";
 
@@ -22,6 +23,7 @@ type MemoryManagerProps = {
   onCreateRequest: (request: NewMemoryRequest) => Promise<MemorySubmissionReceipt>;
   onCapturePanorama?: (sceneId: string) => void;
   captureState?: "idle" | "requesting" | "staged" | "ready" | "failed";
+  capturedPanorama?: PanoramaAsset | null;
 };
 
 export function MemoryManager({
@@ -32,6 +34,7 @@ export function MemoryManager({
   onCreateRequest,
   onCapturePanorama,
   captureState = "idle",
+  capturedPanorama = null,
 }: MemoryManagerProps) {
   const [view, setView] = useState<View>("dashboard");
   const [memories, setMemories] = useState<MemoryItem[]>(() =>
@@ -105,6 +108,7 @@ export function MemoryManager({
       <NewMemoryFlow
         sceneId={draftSceneId}
         captureState={captureState}
+        capturedPanorama={capturedPanorama}
         onCapturePanorama={
           onCapturePanorama
             ? () => onCapturePanorama(draftSceneId)

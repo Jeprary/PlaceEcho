@@ -289,7 +289,11 @@ export function registerContractRoutes(
 
   app.post<{
     Params: { sceneId: string };
-    Body: { media_ids?: string[]; context_text?: string | null };
+    Body: {
+      media_ids?: string[];
+      context_media_ids?: string[];
+      context_text?: string | null;
+    };
   }>(
     "/api/scenes/:sceneId/analyze", async (request, reply) => {
       try {
@@ -297,6 +301,7 @@ export function registerContractRoutes(
           request.params.sceneId,
           request.body?.media_ids,
           request.body?.context_text,
+          request.body?.context_media_ids,
         );
         return scene ? reply.send(scene) : reply.code(404).send({ status: "not_found" });
       } catch (error) {

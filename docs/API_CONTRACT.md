@@ -162,9 +162,13 @@ continues to use the Media route.
 
 ### `POST /api/scenes/:sceneId/analyze` — Implemented for multimodal media
 
-Body: `{ "media_ids": ["media_..."], "context_text": "..." }`. Both fields
-are optional; media defaults to uploaded JPG, PNG, WebP, M4A, WAV, WebM, MP4,
-and MOV assets, excluding INSP captures. `context_text` accepts 1–4000
+Body: `{ "media_ids": ["media_..."], "context_media_ids": ["media_voice"],
+"context_text": "..." }`. All fields are optional; media defaults to uploaded
+JPG, PNG, WebP, M4A, WAV, WebM, MP4, and MOV assets, excluding INSP captures.
+Each `context_media_ids` entry must be a selected audio asset. The model hears
+it as global Scene Context, while the backend guarantees it cannot become an
+individual Memory attachment and persists it as unassigned. `context_text`
+accepts 1–4000
 characters of direct user description and enters the same request as
 Scene-level semantic evidence. It is not presented as a transcript and cannot
 independently authorize a source pixel or final 3D coordinate.
@@ -174,10 +178,13 @@ completed panorama stitch. Uses Bailian (`DASHSCOPE_API_KEY`, optional
 `BAILIAN_HOST`/`BAILIAN_API_HOST`, and `BAILIAN_MODEL` aliases are accepted) to
 produce 1–3 Memory groups and identify source-panorama cues. The default model
 is `qwen3.8-omni-flash`; the OpenAI-compatible request uses `image_url`,
-`input_audio`, and `video_url` content parts, requests text-only output, disables
-reasoning with `reasoning_effort: "none"`, and requests
+`input_audio`, and `video_url` content parts, requests text-only output, uses
+`reasoning_effort: "none"` by default, and requests
 `response_format: { "type": "json_object" }`. A bare workspace host copied from
 the console is normalized to its HTTPS OpenAI-compatible base path.
+Set `DASHSCOPE_REASONING_EFFORT` to a provider-supported value such as `xhigh`
+or `max` for a slower, higher-reasoning comparison without changing the model or
+multimodal request contract.
 Before either multimodal request, large images are decoded with EXIF orientation
 and converted only in memory to bounded JPEG inference copies: the panorama is
 limited to 2048×1024 and ordinary images to a 1280×1280 box. Original stored
@@ -188,7 +195,10 @@ exactly once in a group or `unassigned_media_ids`, and checks source pixels
 against the original panorama dimensions. A one-asset analysis may return one
 Memory. A selected media ID omitted entirely by the provider is deterministically
 appended to `unassigned_media_ids`; unknown IDs and duplicate assignments remain
-invalid. The result may also contain a non-empty `scene_context_text`, which is
+invalid. A missing-cue, malformed, or out-of-bounds optional source grounding is
+discarded as `null` instead of discarding an otherwise valid Memory; the backend
+never clamps or invents a replacement pixel. The result may also contain a
+non-empty `scene_context_text`, which is
 persisted to `scene_context.text`; if the selection contains exactly one audio
 asset, its registered URL is persisted to `scene_context.audio_url`. Unselected
 Scene media remains unassigned. Returns the updated Scene. Analysis replaces the
@@ -347,18 +357,23 @@ Reports `queued`, `running`, `completed`, or `failed`. `GET
 
 ## Native-to-Web Bridge — Implemented acquisition boundary, not an HTTP API
 
-Durable-success message shape:
+Ready message shape:
 
 ```json
 {
   "type": "panorama_ready",
   "scene_id": "scene_001",
-  "url": "...",
+  "url": "placeecho://capture/550E8400-E29B-41D4-A716-446655440000.jpg",
   "width": 8192,
-  "height": 4096
+  "height": 4096,
+  "availability": "device"
 }
 ```
 
-The Web converts this to a `PanoramaAsset` and invokes `importPanorama(asset)`.
-The current X5 shell emits `panorama_staged` after local export because durable
-upload is still pending; staged local file URLs are deliberately not imported.
+`availability` is either `device` for an app-private
+`placeecho://capture/<uuid>.jpg` URL or `durable` for an HTTPS URL returned
+after server synchronization. The Web validates the availability/URL pairing,
+converts the result to a `PanoramaAsset`, and invokes `importPanorama(asset)`.
+Device availability permits the current creation flow to continue but does not
+claim cloud persistence. The legacy `panorama_staged` message remains accepted
+for older shells but is not emitted by the current X5 flow.

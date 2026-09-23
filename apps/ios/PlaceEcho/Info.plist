@@ -3,7 +3,11 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
-	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<string>zh-Hans</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>zh-Hans</string>
+	</array>
 	<key>CFBundleDisplayName</key>
 	<string>PlaceEcho</string>
 	<key>CFBundleExecutable</key>
@@ -28,11 +32,13 @@
 		<true/>
 	</dict>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>PlaceEcho uses Bluetooth to discover and control an Insta360 camera.</string>
+	<string>PlaceEcho 使用蓝牙发现并控制 Insta360 相机。</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>PlaceEcho connects to the local Web development server and an Insta360 camera.</string>
+	<string>PlaceEcho 使用本地网络连接 Insta360 相机并载入本地服务。</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>PlaceEcho 仅在你主动录制回忆语音时使用麦克风。</string>
 	<key>NSMotionUsageDescription</key>
-	<string>PlaceEcho uses device motion so you can look around and move through the spatial world.</string>
+	<string>PlaceEcho 使用设备运动数据，让你在空间场景中转动视角。</string>
 	<key>PlaceEchoWebURL</key>
 	<string>http://127.0.0.1:5173</string>
 	<key>UIApplicationSceneManifest</key>
