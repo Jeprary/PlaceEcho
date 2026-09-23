@@ -47,6 +47,7 @@ import {
 import {
   captureRendererGroundingViews,
   resolveWorldAnchors,
+  sourceGuidedGroundingOrientations,
   type GroundingViewOrientation,
   type ResolveWorldAnchorsResult,
 } from "./groundingPipeline";
@@ -307,7 +308,8 @@ export class SpatialRuntime {
         this.renderer,
         this.scene,
         this.camera,
-        options.orientations,
+        options.orientations ??
+          sourceGuidedGroundingOrientations(this.sourceScene),
       );
       const result = await resolveWorldAnchors({
         sceneId: options.sceneId,

@@ -14,6 +14,7 @@ import {
   captureGroundingViews,
   raycastWorldGrounding,
   resolveWorldAnchors,
+  sourceGuidedGroundingOrientations,
   type GroundingRenderView,
 } from "../../src/world/groundingPipeline.ts";
 
@@ -97,6 +98,58 @@ function groundedScene(viewId: string): Scene {
     unassigned_media_ids: [],
   };
 }
+
+test("source-grounded capture adds direct and mirrored panorama directions", () => {
+  const scene = groundedScene("front_00_test");
+  scene.world.panorama_width = 8600;
+  scene.world.panorama_height = 4300;
+  scene.memories[0]!.anchor.source_grounding = { x: 7900, y: 2000 };
+
+  const orientations = sourceGuidedGroundingOrientations(scene);
+  assert.deepEqual(
+    orientations
+      .slice(0, 4)
+      .map(({ label, yaw_degrees }) => ({ label, yaw_degrees })),
+    [
+      { label: "front", yaw_degrees: 0 },
+      { label: "right", yaw_degrees: -90 },
+      { label: "back", yaw_degrees: 180 },
+      { label: "left", yaw_degrees: 90 },
+    ],
+  );
+  assert.equal(orientations.length, 6);
+  assert.ok(Math.abs(orientations[4]!.yaw_degrees - 150.697674) < 1e-6);
+  assert.ok(Math.abs(orientations[4]!.pitch_degrees - 6.27907) < 1e-6);
+  assert.ok(Math.abs(orientations[5]!.yaw_degrees + 150.697674) < 1e-6);
+});
+
+test(
+  "source-guided capture ignores invalid cues and stays within eight views",
+  () => {
+    const scene = groundedScene("front_00_test");
+    scene.world.panorama_width = 1000;
+    scene.world.panorama_height = 500;
+    scene.memories = Array.from({ length: 12 }, (_, index) => {
+      const memory = structuredClone(scene.memories[0]!);
+      memory.id = `memory_${index}`;
+      memory.anchor.id = `anchor_${index}`;
+      memory.anchor.source_grounding =
+        index === 0 ? { x: -1, y: 10 } : { x: index * 73, y: 200 };
+      return memory;
+    });
+
+    const orientations = sourceGuidedGroundingOrientations(scene);
+    assert.ok(orientations.length <= 8);
+    assert.equal(orientations.some(({ label }) => label === "source_1"), false);
+    assert.deepEqual(orientations, sourceGuidedGroundingOrientations(scene));
+
+    scene.world.panorama_width = null;
+    assert.deepEqual(
+      sourceGuidedGroundingOrientations(scene).map(({ label }) => label),
+      ["front", "right", "back", "left"],
+    );
+  },
+);
 
 test("capture views keep stable IDs and exact camera metadata without mutating the source", async () => {
   const camera = new PerspectiveCamera(75, 1.5, 0.1, 90);

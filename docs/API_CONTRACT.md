@@ -273,7 +273,13 @@ Memory:
 
 This route must not return authoritative 3D position or normal.
 
-The Web capture pipeline retains exact perspective-camera position, quaternion,
+The Web capture pipeline starts with four horizontal cardinal renders and may
+add bounded cue-guided renders derived from validated original-panorama pixels.
+For a single cue it also covers the mirrored yaw because provider world
+reconstruction may use the opposite horizontal handedness. These extra views
+only improve visibility: AI still selects a final-render pixel and never
+converts the original panorama pixel into authoritative 3D geometry. The
+pipeline retains exact perspective-camera position, quaternion,
 vertical FOV, aspect, near, and far for every submitted `view_id`. That metadata
 is deliberately used locally in the same authoring transaction for ray
 reconstruction; v0.1 does not persist it. Grounding is an explicit, once-per-world

@@ -116,6 +116,11 @@ const DEFAULT_VIEW_ORIENTATIONS: readonly GroundingViewOrientation[] = [
   { label: "down", yaw_degrees: 0, pitch_degrees: -60 },
 ];
 
+const HORIZONTAL_VIEW_ORIENTATIONS: readonly GroundingViewOrientation[] =
+  DEFAULT_VIEW_ORIENTATIONS.slice(0, 4);
+const MAX_GROUNDING_VIEWS = 8;
+const DUPLICATE_YAW_THRESHOLD_DEGREES = 12;
+
 const IMAGE_DATA_URL = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
 export const DEFAULT_ANCHOR_SURFACE_OFFSET_METERS = 0.08;
 
@@ -153,6 +158,81 @@ function finiteDirectionTuple3(value: readonly number[]): SceneVector3 {
 
 function rounded(value: number): number {
   return Math.round(value * 1_000_000) / 1_000_000;
+}
+
+function angularDistanceDegrees(left: number, right: number): number {
+  return Math.abs((((left - right + 180) % 360) + 360) % 360 - 180);
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+/**
+ * Build bounded final-world capture directions from the original panorama cue.
+ * The mirrored direction covers provider yaw handedness without asking AI to
+ * infer 3D geometry; AI still chooses only a pixel in an actual final render.
+ */
+export function sourceGuidedGroundingOrientations(
+  scene: PlaceEchoScene,
+): GroundingViewOrientation[] {
+  const orientations = HORIZONTAL_VIEW_ORIENTATIONS.map((item) => ({ ...item }));
+  const width = scene.world.panorama_width;
+  const height = scene.world.panorama_height;
+  if (
+    !Number.isFinite(width) ||
+    !Number.isFinite(height) ||
+    !width ||
+    !height ||
+    width <= 0 ||
+    height <= 0
+  ) {
+    return orientations;
+  }
+
+  const targets = scene.memories
+    .map((memory, index) => {
+      const grounding = memory.anchor.source_grounding;
+      if (
+        !grounding ||
+        !Number.isFinite(grounding.x) ||
+        !Number.isFinite(grounding.y) ||
+        grounding.x < 0 ||
+        grounding.y < 0 ||
+        grounding.x >= width ||
+        grounding.y >= height
+      ) {
+        return null;
+      }
+      return {
+        label: `source_${index + 1}`,
+        yaw_degrees: (grounding.x / width) * 360 - 180,
+        pitch_degrees: clamp(90 - (grounding.y / height) * 180, -75, 75),
+      };
+    })
+    .filter((target): target is GroundingViewOrientation => target !== null);
+
+  const appendIfDistinct = (target: GroundingViewOrientation) => {
+    if (orientations.length >= MAX_GROUNDING_VIEWS) return;
+    const duplicate = orientations.some(
+      (existing) =>
+        angularDistanceDegrees(existing.yaw_degrees, target.yaw_degrees) <
+          DUPLICATE_YAW_THRESHOLD_DEGREES &&
+        Math.abs(existing.pitch_degrees - target.pitch_degrees) <
+          DUPLICATE_YAW_THRESHOLD_DEGREES,
+    );
+    if (!duplicate) orientations.push(target);
+  };
+
+  for (const target of targets) appendIfDistinct(target);
+  if (targets.length === 1) {
+    appendIfDistinct({
+      ...targets[0]!,
+      label: `${targets[0]!.label}_mirrored`,
+      yaw_degrees: -targets[0]!.yaw_degrees,
+    });
+  }
+  return orientations;
 }
 
 function fnv1a(value: string): string {
@@ -201,7 +281,7 @@ export async function captureGroundingViews(
 ): Promise<GroundingRenderView[]> {
   assertCaptureDimensions(options.width, options.height);
   const orientations = options.orientations ?? DEFAULT_VIEW_ORIENTATIONS;
-  if (orientations.length < 1 || orientations.length > 8) {
+  if (orientations.length < 1 || orientations.length > MAX_GROUNDING_VIEWS) {
     throw new Error("Capture 1–8 final-world grounding views.");
   }
 
