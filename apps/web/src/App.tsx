@@ -66,9 +66,13 @@ type CaptureStatus =
 
 export interface AppProps {
   initialScenes?: readonly Scene[];
+  sceneCoverUrls?: Readonly<Record<string, string>>;
 }
 
-export function App({ initialScenes = [demoScene] }: AppProps) {
+export function App({
+  initialScenes = [demoScene],
+  sceneCoverUrls = {},
+}: AppProps) {
   const scenes = initialScenes;
   const [iosCaptureAvailable] = useState(isIOSPanoramaCaptureAvailable);
   const [experience, dispatch] = useReducer(
@@ -202,6 +206,7 @@ export function App({ initialScenes = [demoScene] }: AppProps) {
   return (
     <MemoryManager
       scenes={scenes}
+      sceneCoverUrls={sceneCoverUrls}
       openingMemoryId={openingMemoryId}
       captureState={captureStatus.type}
       onCapturePanorama={iosCaptureAvailable ? capturePanorama : undefined}
@@ -336,9 +341,9 @@ function SpatialWorld({
       >
         <div className="world-loading-indicator">
           <p>
-            {worldProgress.phase === "opening" && "Opening space"}
-            {worldProgress.phase === "decoding" && "Forming space"}
-            {worldProgress.phase === "preparing" && "Preparing first view"}
+            {worldProgress.phase === "opening" && "打开空间"}
+            {worldProgress.phase === "decoding" && "形成空间"}
+            {worldProgress.phase === "preparing" && "准备第一视角"}
           </p>
           <div className="world-loading-track">
             <span style={{ transform: `scaleX(${worldProgress.value})` }} />
@@ -346,10 +351,12 @@ function SpatialWorld({
         </div>
       </div>
 
-      <p className={`proximity proximity--${snapshot.proximity}`}>
-        <span className="proximity__dot" />
-        {snapshot.proximity}
-      </p>
+      {debugOrigin && (
+        <p className={`proximity proximity--${snapshot.proximity}`}>
+          <span className="proximity__dot" />
+          {snapshot.proximity}
+        </p>
+      )}
 
       {debugOrigin && (
         <p className="debug-origin-label">
@@ -370,8 +377,9 @@ function SpatialWorld({
         className="world-entry-return"
         type="button"
         onClick={onReturnToManager}
+        aria-label="返回记忆空间"
       >
-        全部回忆
+        <span aria-hidden="true">←</span> 返回
       </button>
     </main>
   );

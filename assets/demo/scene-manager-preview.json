@@ -1,40 +1,47 @@
-[
+{
+  "manager": {
+    "cover_urls": {
+      "scene_marble_origin": "/local-marble/thumbnail.webp"
+    }
+  },
+  "scenes": [
   {
     "schema_version": "0.1",
-    "scene_id": "scene_manager_window",
-    "status": "processing",
-    "scene_context": { "text": "A fictional window-side room used only for preview content.", "audio_url": null },
+    "scene_id": "scene_demo",
+    "status": "ready",
+    "scene_context": { "text": "A local end-to-end test Scene with real Gaussian, Collider, and concert media assets.", "audio_url": null },
     "world": {
       "panorama_url": "/demo/living-room-360.jpg",
       "panorama_width": 4096,
       "panorama_height": 2048,
-      "splat_url": null,
-      "collider_url": null,
-      "spawn": null
+      "splat_url": "/local-world/world.spz",
+      "collider_url": "/local-world/collider.glb",
+      "spawn": {
+        "position": [-1.12, 1.55, 1.3],
+        "quaternion": [-0.0981450082, -0.1563756777, -0.0156179125, 0.9826852424]
+      }
     },
     "media": [
-      { "id": "media_window_01", "source_name": "window-light-01.jpg", "type": "image", "url": null },
-      { "id": "media_window_02", "source_name": "curtain-wind.mov", "type": "video", "url": null },
-      { "id": "media_window_03", "source_name": "window-light-02.jpg", "type": "image", "url": null },
-      { "id": "media_window_04", "source_name": "rain-on-glass.m4a", "type": "audio", "url": null },
-      { "id": "media_window_05", "source_name": "window-books.jpg", "type": "image", "url": null },
-      { "id": "media_window_06", "source_name": "evening-window.jpg", "type": "image", "url": null },
-      { "id": "media_window_07", "source_name": "friends-by-window.jpg", "type": "image", "url": null }
+      { "id": "media_concert_01", "source_name": "01-arrival.jpg", "type": "image", "url": "/local-memory/01-arrival.jpg" },
+      { "id": "media_concert_02", "source_name": "02-merch.jpg", "type": "image", "url": "/local-memory/02-merch.jpg" },
+      { "id": "media_concert_03", "source_name": "03-stage-purple.jpg", "type": "image", "url": "/local-memory/03-stage-purple.jpg" },
+      { "id": "media_concert_04", "source_name": "04-stage-blue.jpg", "type": "image", "url": "/local-memory/04-stage-blue.jpg" },
+      { "id": "media_concert_05", "source_name": "05-clip.mp4", "type": "video", "url": "/local-memory/05-clip.mp4" }
     ],
     "memories": [
       {
-        "id": "memory_window_wind",
-        "name": "窗边有风的下午",
-        "summary": "散落在几个夏天里的光，最后都停在了这扇窗前。",
-        "media_ids": ["media_window_01", "media_window_02", "media_window_03", "media_window_04", "media_window_05", "media_window_06", "media_window_07"],
-        "reflection": "每次风把帘子吹起来，我都会想起那些没有被特意记住的下午。",
+        "id": "memory_demo_001",
+        "name": "灯光涌来的那一晚",
+        "summary": "从抵达、纪念物到舞台灯光，用真实本地媒体完成整条空间体验。",
+        "media_ids": ["media_concert_01", "media_concert_02", "media_concert_03", "media_concert_04", "media_concert_05"],
+        "reflection": "这是管理页到真实空间、Anchor 与 Reveal 的端到端测试回忆。",
         "anchor": {
-          "id": "anchor_window",
-          "cue": { "label": "白色窗帘" },
-          "source_grounding": { "x": 1360, "y": 650 },
-          "world_grounding": { "view_id": "front_01", "x": 780, "y": 410 },
-          "position": [1.2, 1.5, -2.8],
-          "normal": [0, 0, 1],
+          "id": "anchor_demo_001",
+          "cue": { "label": "memory cue" },
+          "source_grounding": { "x": 1560, "y": 720 },
+          "world_grounding": null,
+          "position": [-0.32, 0.03, -1.15],
+          "normal": [0, 1, 0],
           "hero": { "status": "not_requested", "job_id": null, "asset_url": null }
         }
       }
@@ -43,37 +50,35 @@
   },
   {
     "schema_version": "0.1",
-    "scene_id": "scene_manager_kitchen",
-    "status": "processing",
-    "scene_context": { "text": "A fictional late-night kitchen used only for preview content.", "audio_url": null },
+    "scene_id": "scene_marble_origin",
+    "status": "ready",
+    "scene_context": { "text": "A local test Scene for the separately measured Marble world origin.", "audio_url": null },
     "world": {
-      "panorama_url": "/demo/kitchen-360.jpg",
-      "panorama_width": 4096,
-      "panorama_height": 2048,
-      "splat_url": null,
-      "collider_url": null,
-      "spawn": null
+      "panorama_url": "/local-marble/panorama.png",
+      "panorama_width": 8600,
+      "panorama_height": 4300,
+      "splat_url": "/local-marble/splat-full.spz",
+      "collider_url": "/local-marble/collider.glb",
+      "spawn": {
+        "position": [0, 0, 0],
+        "quaternion": [0.7071067812, 0, 0.7071067812, 0]
+      }
     },
-    "media": [
-      { "id": "media_kitchen_01", "source_name": "late-dinner-01.jpg", "type": "image", "url": null },
-      { "id": "media_kitchen_02", "source_name": "late-dinner-02.jpg", "type": "image", "url": null },
-      { "id": "media_kitchen_03", "source_name": "kitchen-talk.mov", "type": "video", "url": null },
-      { "id": "media_kitchen_04", "source_name": "warm-lamp.jpg", "type": "image", "url": null }
-    ],
+    "media": [],
     "memories": [
       {
-        "id": "memory_kitchen",
-        "name": "深夜厨房",
-        "summary": "一盏灯、一碗面，和朋友们不愿结束的谈话。",
-        "media_ids": ["media_kitchen_01", "media_kitchen_02", "media_kitchen_03", "media_kitchen_04"],
-        "reflection": null,
+        "id": "memory_marble_origin",
+        "name": "新世界原点入口（测试）",
+        "summary": "从 Marble 原点向左进入，使用独立 Collider 射线命中的锚点验证第二个空间。",
+        "media_ids": [],
+        "reflection": "这是本地测试配置，不是 Memory AI 的正式命名结果。",
         "anchor": {
-          "id": "anchor_kitchen",
-          "cue": { "label": "料理台上方的暖灯" },
-          "source_grounding": { "x": 2710, "y": 720 },
+          "id": "anchor_marble_origin",
+          "cue": { "label": "原点左侧墙面" },
+          "source_grounding": { "x": 6450, "y": 2150 },
           "world_grounding": null,
-          "position": null,
-          "normal": null,
+          "position": [-2.6400909424, 0, 0],
+          "normal": [0.8298915964, 0.0072975703, 0.5578769431],
           "hero": { "status": "not_requested", "job_id": null, "asset_url": null }
         }
       }
@@ -121,4 +126,5 @@
     ],
     "unassigned_media_ids": []
   }
-]
+  ]
+}

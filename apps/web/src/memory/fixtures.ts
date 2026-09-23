@@ -13,6 +13,7 @@ export type MemoryItem = {
   summary: string;
   mediaCount: number;
   panoramaName: string;
+  coverUrl: string | null;
   status: "ready" | "processing";
   canEnterSpace: boolean;
   tone: "forest" | "moss" | "gold";
@@ -30,7 +31,10 @@ function hasRuntimeAnchor(memory: Memory) {
   return Boolean(memory.anchor.position);
 }
 
-export function buildMemoryItems(scenes: readonly Scene[]): MemoryItem[] {
+export function buildMemoryItems(
+  scenes: readonly Scene[],
+  sceneCoverUrls: Readonly<Record<string, string>> = {},
+): MemoryItem[] {
   let toneIndex = 0;
   return scenes.flatMap((scene) => {
     const panoramaName =
@@ -47,6 +51,7 @@ export function buildMemoryItems(scenes: readonly Scene[]): MemoryItem[] {
         summary: memory.summary ?? "这段回忆还没有摘要",
         mediaCount: memory.media_ids.length,
         panoramaName,
+        coverUrl: sceneCoverUrls[scene.scene_id] ?? null,
         status: canEnterSpace ? "ready" : "processing",
         canEnterSpace,
         tone,

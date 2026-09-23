@@ -17,6 +17,7 @@ export type MemoryRequestReceipt = {
 
 type MemoryManagerProps = {
   scenes: readonly Scene[];
+  sceneCoverUrls?: Readonly<Record<string, string>>;
   openingMemoryId?: string | null;
   onOpenMemory: (intent: MemoryOpenIntent) => void;
   onBeginCreate: () => Promise<{ sceneId: string }>;
@@ -27,6 +28,7 @@ type MemoryManagerProps = {
 
 export function MemoryManager({
   scenes,
+  sceneCoverUrls = {},
   onOpenMemory,
   openingMemoryId = null,
   onBeginCreate,
@@ -36,7 +38,7 @@ export function MemoryManager({
 }: MemoryManagerProps) {
   const [view, setView] = useState<View>("dashboard");
   const [memories, setMemories] = useState<MemoryItem[]>(() =>
-    buildMemoryItems(scenes),
+    buildMemoryItems(scenes, sceneCoverUrls),
   );
   const [requestError, setRequestError] = useState<string | null>(null);
   const [draftSceneId, setDraftSceneId] = useState<string | null>(null);
@@ -90,6 +92,7 @@ export function MemoryManager({
       panoramaName: request.panoramaName,
       status: "processing",
       canEnterSpace: false,
+      coverUrl: null,
       tone: "moss",
     }, ...current]);
     setDraftSceneId(null);

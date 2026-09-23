@@ -92,7 +92,6 @@ export class SpatialRuntime {
   private readonly onWorldStatus?: (status: WorldLoadStatus) => void;
   private readonly onWorldProgress?: (progress: WorldLoadProgress) => void;
   private readonly reachedPresentationControl: "timed" | "external";
-  private readonly isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
   private readonly colliderOctree = new Octree();
   private readonly cameraCollider = new Sphere(
     new Vector3(),
@@ -122,7 +121,6 @@ export class SpatialRuntime {
   private currentFlightStartedAt = 0;
   private worldReady = false;
   private splatFormationComplete = false;
-  private gyroscopeEnabled = false;
   private disposed = false;
   private lastWorldLoadProgress = 0;
 
@@ -215,9 +213,7 @@ export class SpatialRuntime {
   }
 
   async enableGyroscope(): Promise<boolean> {
-    const enabled = await this.windController.enableGyroscope();
-    this.gyroscopeEnabled = enabled;
-    return enabled;
+    return this.windController.enableGyroscope();
   }
 
   completeReachedPresentation(): void {
@@ -503,7 +499,12 @@ export class SpatialRuntime {
       const validatedSpawn = this.camera.position.clone();
       const correction = this.resolveCameraCollision(validatedSpawn);
       if (correction) {
-        console.warn("PlaceEcho spawn intersected the Collider and was corrected.");
+        console.warn(
+          `PlaceEcho spawn intersected the Collider and was corrected: ${JSON.stringify({
+            configured: this.camera.position.toArray(),
+            corrected: validatedSpawn.toArray(),
+          })}`,
+        );
         this.camera.position.copy(validatedSpawn);
       }
     }
@@ -541,6 +542,7 @@ export class SpatialRuntime {
         // the exact reveal boundary caused a visible hitch on mobile GPUs.
         this.splatRevealProgress = null;
         this.anchorGroup.visible = true;
+        this.startGlideWhenColliderReady();
       }
     }
     this.windController.update(deltaSeconds);
@@ -666,8 +668,7 @@ export class SpatialRuntime {
         !this.worldReady ||
         !this.splatFormationComplete ||
         this.reachedPresentationActive ||
-        this.debugOrigin ||
-        (this.isCoarsePointer && !this.gyroscopeEnabled)
+        this.debugOrigin
       ) {
         return;
       }

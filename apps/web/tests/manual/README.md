@@ -8,9 +8,8 @@ devices before a demo release.
 
 1. Start the API and Web dev servers with the real local world files placed at
    `.local-data/scenes/scene_demo/world/world.spz` and `collider.glb`.
-2. Open `/` for the production fixture and `/scene-manager-preview.html` for the
-   processing-state fixture. Both pages must render the same App/UI; only the
-   injected Scene JSON differs.
+2. Open `/`. The single React entry loads its local manager fixture through the
+   configured data boundary.
 3. Never add the SPZ, Collider, captured panoramas, certificates, SDK binaries,
    or `.local-data` records to Git.
 
@@ -23,9 +22,8 @@ devices before a demo release.
    an `ETag`; a matching repeat request may return `304`.
 4. Confirm that the real Splat and Collider align, the Anchor is visible at the
    configured position, and Collider debug mode does not change the normal path.
-5. Confirm the initial camera is at the configured eye pose `[0, 0, 0]` with
-   identity orientation, remains still after load, and does not begin gliding
-   until the first real pointer/trackpad/device-orientation steering input.
+5. Confirm each Scene starts from its own configured eye pose and begins its
+   automatic glide only after the world formation completes.
 6. With `debugCollider=1`, confirm the camera sphere does not begin inside the
    Collider. Any invalid configured spawn must be corrected before motion.
 
@@ -84,7 +82,7 @@ smoothly and hands control back predictably.
 
 ## Processing and persistence
 
-1. Open `/scene-manager-preview.html`; Memories whose world or Anchor is missing
+1. Open `/`; Memories whose world or Anchor is missing
    must remain visible as “正在处理” and must not be enterable.
 2. Submit a new Memory request while the API is running.
 3. Verify the Web first creates a new draft Scene rather than attaching the new

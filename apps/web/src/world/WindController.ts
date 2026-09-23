@@ -58,6 +58,7 @@ export class WindController {
     proposedPosition: Vector3,
   ) => Vector3 | null;
   private readonly onSteeringInput?: () => void;
+  private readonly baseRoll: number;
   private readonly proposedPosition = new Vector3();
   private readonly probePosition = new Vector3();
   private readonly captureTarget = new Vector3();
@@ -104,6 +105,7 @@ export class WindController {
     this.glideActive = options.startsActive ?? true;
     this.rotation.setFromQuaternion(camera.quaternion, "YXZ");
     this.targetRotation.copy(this.rotation);
+    this.baseRoll = this.rotation.z;
   }
 
   connect(): void {
@@ -216,7 +218,7 @@ export class WindController {
         -GYROSCOPE_MAX_PITCH,
         GYROSCOPE_MAX_PITCH,
       );
-      this.targetRotation.z = 0;
+      this.targetRotation.z = this.baseRoll;
     }
     if (this.captureActive) {
       this.forward.copy(this.captureTarget).sub(this.camera.position);
@@ -225,7 +227,7 @@ export class WindController {
         this.targetRotation.set(
           Math.asin(MathUtils.clamp(this.forward.y, -1, 1)),
           Math.atan2(-this.forward.x, -this.forward.z),
-          0,
+          this.baseRoll,
           "YXZ",
         );
       }

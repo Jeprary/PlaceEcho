@@ -29,6 +29,14 @@ export const demoMediaPresentationOverrides: MediaPresentationOverrides = {
   media_demo_photo_001: { durationMs: 2_200 },
   media_demo_photo_002: { durationMs: 1_800 },
   media_demo_photo_003: { durationMs: 2_400 },
+  media_concert_01: { durationMs: 2_400 },
+  media_concert_02: { durationMs: 2_200 },
+  media_concert_03: { durationMs: 2_800 },
+  media_concert_04: { durationMs: 3_000 },
+  media_concert_05: {
+    poster: "/local-memory/04-stage-blue.jpg",
+    ambientSrc: "/local-memory/05-clip-ambient.mp4",
+  },
 };
 
 const DEFAULT_IMAGE_DURATION_MS = 1_800;

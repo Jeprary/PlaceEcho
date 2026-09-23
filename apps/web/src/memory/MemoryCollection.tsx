@@ -27,7 +27,11 @@ export function MemoryCollection({
             }
           />
           <div className="scene-manager-memory-cover" aria-hidden="true">
-            <div className="scene-manager-panorama-lines"><i /><i /><i /></div>
+            {memory.coverUrl ? (
+              <img src={memory.coverUrl} alt="" decoding="async" />
+            ) : (
+              <div className="scene-manager-panorama-lines"><i /><i /><i /></div>
+            )}
             <span>{memory.panoramaName}</span>
           </div>
           <div className="scene-manager-memory-card-body">
