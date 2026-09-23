@@ -37,7 +37,7 @@ export async function bailianJson(content: unknown[], system: string): Promise<u
       model: process.env.DASHSCOPE_MODEL ?? process.env.BAILIAN_MODEL ?? "qwen3.8-omni-flash",
       messages: [{ role: "system", content: system }, { role: "user", content }],
       modalities: ["text"],
-      reasoning_effort: "none",
+      reasoning_effort: process.env.DASHSCOPE_REASONING_EFFORT ?? "none",
       response_format: { type: "json_object" },
       max_tokens: 16000,
       stream: false,

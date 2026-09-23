@@ -174,15 +174,18 @@ test("Bailian uses official Qwen3.8 Omni multimodal parts and safely parses text
     key: process.env.DASHSCOPE_API_KEY,
     base: process.env.DASHSCOPE_BASE_URL,
     model: process.env.DASHSCOPE_MODEL,
+    reasoningEffort: process.env.DASHSCOPE_REASONING_EFFORT,
     fetch: globalThis.fetch,
   };
   process.env.DASHSCOPE_API_KEY = "test-key";
   process.env.DASHSCOPE_BASE_URL = "https://workspace.cn-beijing.maas.aliyuncs.com/compatible-mode/v1";
   delete process.env.DASHSCOPE_MODEL;
+  process.env.DASHSCOPE_REASONING_EFFORT = "max";
   t.after(() => {
     if (previous.key === undefined) delete process.env.DASHSCOPE_API_KEY; else process.env.DASHSCOPE_API_KEY = previous.key;
     if (previous.base === undefined) delete process.env.DASHSCOPE_BASE_URL; else process.env.DASHSCOPE_BASE_URL = previous.base;
     if (previous.model === undefined) delete process.env.DASHSCOPE_MODEL; else process.env.DASHSCOPE_MODEL = previous.model;
+    if (previous.reasoningEffort === undefined) delete process.env.DASHSCOPE_REASONING_EFFORT; else process.env.DASHSCOPE_REASONING_EFFORT = previous.reasoningEffort;
     globalThis.fetch = previous.fetch;
   });
 
@@ -217,7 +220,7 @@ test("Bailian uses official Qwen3.8 Omni multimodal parts and safely parses text
   });
   assert.equal(result.scene_context_text, "A room.");
   assert.equal(requestBody?.model, "qwen3.8-omni-flash");
-  assert.equal(requestBody?.reasoning_effort, "none");
+  assert.equal(requestBody?.reasoning_effort, "max");
   assert.deepEqual(requestBody?.response_format, { type: "json_object" });
   const messages = requestBody?.messages as Array<{ content: Array<Record<string, unknown>> }>;
   const content = messages[1]!.content;

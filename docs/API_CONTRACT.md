@@ -178,10 +178,13 @@ completed panorama stitch. Uses Bailian (`DASHSCOPE_API_KEY`, optional
 `BAILIAN_HOST`/`BAILIAN_API_HOST`, and `BAILIAN_MODEL` aliases are accepted) to
 produce 1–3 Memory groups and identify source-panorama cues. The default model
 is `qwen3.8-omni-flash`; the OpenAI-compatible request uses `image_url`,
-`input_audio`, and `video_url` content parts, requests text-only output, disables
-reasoning with `reasoning_effort: "none"`, and requests
+`input_audio`, and `video_url` content parts, requests text-only output, uses
+`reasoning_effort: "none"` by default, and requests
 `response_format: { "type": "json_object" }`. A bare workspace host copied from
 the console is normalized to its HTTPS OpenAI-compatible base path.
+Set `DASHSCOPE_REASONING_EFFORT` to a provider-supported value such as `xhigh`
+or `max` for a slower, higher-reasoning comparison without changing the model or
+multimodal request contract.
 Before either multimodal request, large images are decoded with EXIF orientation
 and converted only in memory to bounded JPEG inference copies: the panorama is
 limited to 2048×1024 and ordinary images to a 1280×1280 box. Original stored
