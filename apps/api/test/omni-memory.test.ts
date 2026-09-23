@@ -145,6 +145,7 @@ test("analysis accepts mixed media, excludes INSP, and supports single-image or 
     url: `/api/scenes/${sceneId}/analyze`,
     payload: {
       media_ids: ["media_image", "media_audio"],
+      context_media_ids: ["media_audio"],
       context_text: "Coverage recovery",
     },
   });

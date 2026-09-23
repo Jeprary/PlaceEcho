@@ -9,6 +9,7 @@ export interface AnalysisInput {
   panorama: Uint8Array;
   media: { asset: MediaAsset; bytes: Uint8Array }[];
   memoryIds: string[];
+  contextMediaIds?: string[];
 }
 export interface AnalysisGroup {
   id: string;
@@ -39,6 +40,7 @@ export class MemoryAnalysisService {
     sceneId: string,
     mediaIds?: string[],
     contextText?: string | null,
+    contextMediaIds: string[] = [],
   ): Promise<Scene | null> {
     const scene = await this.scenes.get(sceneId);
     if (!scene) return null;
@@ -50,6 +52,15 @@ export class MemoryAnalysisService {
     const assets = selected.map((id) => scene.media.find((item) => item.id === id));
     if (assets.some((asset) => !asset || !isAnalyzableMedia(asset))) {
       throw new Error("All selected media must be supported uploaded image, audio, or video assets in this Scene.");
+    }
+    if (
+      new Set(contextMediaIds).size !== contextMediaIds.length ||
+      contextMediaIds.some((mediaId) => {
+        const index = selected.indexOf(mediaId);
+        return index < 0 || assets[index]?.type !== "audio";
+      })
+    ) {
+      throw new Error("Context media IDs must be distinct selected audio assets.");
     }
     const panoramaJobId = scene.world.panorama_url?.match(/^\/api\/jobs\/(job_[a-zA-Z0-9_-]+)\/output$/)?.[1];
     const panorama = panoramaJobId ? await this.panoramaJobs.getOutput(panoramaJobId) : null;
@@ -71,12 +82,13 @@ export class MemoryAnalysisService {
             text: normalizedContextText,
           },
         };
-    const result = completeMissingCoverage(await this.analyzer.analyze({
+    const result = completeMissingCoverage(forceContextMediaUnassigned(await this.analyzer.analyze({
       scene: analysisScene,
       panorama,
       media: material,
       memoryIds,
-    }), selected);
+      contextMediaIds,
+    }), contextMediaIds), selected);
     validateAnalysis(result, selected, memoryIds, scene.world.panorama_width, scene.world.panorama_height);
     const memories: Memory[] = result.memories.map((group) => ({
       id: group.id,
@@ -108,6 +120,34 @@ export class MemoryAnalysisService {
       sceneContextAudioUrl ?? undefined,
     );
   }
+}
+
+function forceContextMediaUnassigned(
+  result: AnalysisResult,
+  contextMediaIds: string[],
+): AnalysisResult {
+  if (
+    contextMediaIds.length === 0 ||
+    !result ||
+    !Array.isArray(result.memories) ||
+    !Array.isArray(result.unassigned_media_ids)
+  ) {
+    return result;
+  }
+  const contextIds = new Set(contextMediaIds);
+  const memories = result.memories
+    .map((memory) => ({
+      ...memory,
+      media_ids: Array.isArray(memory.media_ids)
+        ? memory.media_ids.filter((mediaId) => !contextIds.has(mediaId))
+        : memory.media_ids,
+    }))
+    .filter((memory) => !Array.isArray(memory.media_ids) || memory.media_ids.length > 0);
+  const unassigned = [...result.unassigned_media_ids];
+  for (const mediaId of contextMediaIds) {
+    if (!unassigned.includes(mediaId)) unassigned.push(mediaId);
+  }
+  return { ...result, memories, unassigned_media_ids: unassigned };
 }
 
 function completeMissingCoverage(

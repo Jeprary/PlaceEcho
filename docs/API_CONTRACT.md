@@ -162,9 +162,13 @@ continues to use the Media route.
 
 ### `POST /api/scenes/:sceneId/analyze` — Implemented for multimodal media
 
-Body: `{ "media_ids": ["media_..."], "context_text": "..." }`. Both fields
-are optional; media defaults to uploaded JPG, PNG, WebP, M4A, WAV, WebM, MP4,
-and MOV assets, excluding INSP captures. `context_text` accepts 1–4000
+Body: `{ "media_ids": ["media_..."], "context_media_ids": ["media_voice"],
+"context_text": "..." }`. All fields are optional; media defaults to uploaded
+JPG, PNG, WebP, M4A, WAV, WebM, MP4, and MOV assets, excluding INSP captures.
+Each `context_media_ids` entry must be a selected audio asset. The model hears
+it as global Scene Context, while the backend guarantees it cannot become an
+individual Memory attachment and persists it as unassigned. `context_text`
+accepts 1–4000
 characters of direct user description and enters the same request as
 Scene-level semantic evidence. It is not presented as a transcript and cannot
 independently authorize a source pixel or final 3D coordinate.

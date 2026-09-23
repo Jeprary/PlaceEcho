@@ -191,7 +191,10 @@ Audio and direct user text are global semantic evidence: they may disambiguate
 which visible panorama cue corresponds to a Memory and help produce the Scene
 Context summary. They cannot independently authorize a pixel or 3D location;
 `source_grounding` still requires visible evidence in the original panorama,
-and final position still requires Web Collider raycast.
+and final position still requires Web Collider raycast. The Web marks its live
+recording with `context_media_ids`; the provider receives the audio, while the
+backend guarantees that ID remains Scene Context rather than an individual
+Memory attachment. Separately uploaded audio remains eligible Memory media.
 
 The authoritative Memory title first exists when this analysis succeeds. Before
 then, `memory-requests/` records are only processing receipts and must use a

@@ -125,6 +125,7 @@ test("memory submission imports a 2:1 panorama, uploads every medium, and runs a
     });
     assert.deepEqual(JSON.parse(String(calls[8]?.init.body)), {
       media_ids: ["media_1", "media_2", "media_3", "media_4", "media_5"],
+      context_media_ids: ["media_5"],
       context_text: "午后的风吹过窗边。",
     });
 

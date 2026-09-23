@@ -93,6 +93,7 @@ export async function submitNewMemoryRequest(
   }
 
   const uploadedMediaIds: string[] = [];
+  const contextMediaIds: string[] = [];
   let uploadIndex = 0;
   for (const item of request.media) {
     if (!item.file) continue;
@@ -112,9 +113,15 @@ export async function submitNewMemoryRequest(
       `voice-recording-${uploadIndex}.${recordingExtension(request.voiceRecording.type)}`,
       { type: request.voiceRecording.type || "audio/webm" },
     );
-    uploadedMediaIds.push(
-      await uploadFile(request.sceneId, voiceFile, "memory", uploadIndex, fetchImpl),
+    const voiceMediaId = await uploadFile(
+      request.sceneId,
+      voiceFile,
+      "memory",
+      uploadIndex,
+      fetchImpl,
     );
+    uploadedMediaIds.push(voiceMediaId);
+    contextMediaIds.push(voiceMediaId);
   }
 
   const contextText = request.contextText?.trim() || null;
@@ -154,6 +161,7 @@ export async function submitNewMemoryRequest(
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           media_ids: uploadedMediaIds,
+          context_media_ids: contextMediaIds,
           context_text: contextText,
         }),
       },
