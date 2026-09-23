@@ -23,6 +23,22 @@ export interface PanoramaCleaner {
 
 export class PanoramaCleanerUnavailableError extends Error {}
 
+function cleanerEnvironment(): NodeJS.ProcessEnv {
+  const environment = { ...process.env };
+  environment.DASHSCOPE_API_KEY ??= environment.BAILIAN_API_KEY;
+  const configuredHost =
+    environment.DASHSCOPE_BASE_URL ??
+    environment.BAILIAN_API_HOST ??
+    environment.BAILIAN_HOST;
+  if (configuredHost) {
+    environment.DASHSCOPE_BASE_URL =
+      /^[a-z][a-z0-9+.-]*:\/\//i.test(configuredHost)
+        ? configuredHost
+        : `https://${configuredHost}`;
+  }
+  return environment;
+}
+
 /**
  * Runs the tracked Python cleaner as a bounded child process. The Python
  * dependencies and model credentials stay outside the Node API process.
@@ -36,9 +52,10 @@ export class CommandPanoramaCleaner implements PanoramaCleaner {
   ) {}
 
   isConfigured(): boolean {
+    const environment = cleanerEnvironment();
     return Boolean(
-      process.env.DASHSCOPE_API_KEY &&
-        process.env.DASHSCOPE_BASE_URL &&
+      environment.DASHSCOPE_API_KEY &&
+        environment.DASHSCOPE_BASE_URL &&
         this.configPath,
     );
   }
@@ -46,7 +63,7 @@ export class CommandPanoramaCleaner implements PanoramaCleaner {
   async clean(request: PanoramaCleanerRequest): Promise<PanoramaCleanerResult> {
     if (!this.isConfigured()) {
       throw new PanoramaCleanerUnavailableError(
-        "Panorama cleaning requires DASHSCOPE_API_KEY, DASHSCOPE_BASE_URL, and PANORAMA_CLEANER_CONFIG.",
+        "Panorama cleaning requires Bailian API key/host settings and PANORAMA_CLEANER_CONFIG.",
       );
     }
 
@@ -82,7 +99,7 @@ export class CommandPanoramaCleaner implements PanoramaCleaner {
           ],
           {
             cwd: path.resolve(this.toolDirectory),
-            env: process.env,
+            env: cleanerEnvironment(),
             timeout: 15 * 60 * 1_000,
             maxBuffer: 4 * 1024 * 1024,
           },

@@ -2,11 +2,30 @@ import type { AnalysisInput, AnalysisResult, MemoryAnalyzer } from "./service.js
 
 export class BailianUnavailableError extends Error {}
 
+export function bailianCompatibleBaseUrl(
+  environment: NodeJS.ProcessEnv = process.env,
+): string {
+  const configured =
+    environment.DASHSCOPE_BASE_URL ??
+    environment.BAILIAN_HOST ??
+    environment.BAILIAN_API_HOST ??
+    "https://dashscope.aliyuncs.com/compatible-mode/v1";
+  const url = new URL(
+    /^[a-z][a-z0-9+.-]*:\/\//i.test(configured)
+      ? configured
+      : `https://${configured}`,
+  );
+  if (url.pathname === "/" && url.hostname.endsWith(".maas.aliyuncs.com")) {
+    url.pathname = "/compatible-mode/v1";
+  }
+  return url.toString().replace(/\/$/, "");
+}
+
 export async function bailianJson(content: unknown[], system: string): Promise<unknown> {
   const key = process.env.DASHSCOPE_API_KEY ?? process.env.BAILIAN_API_KEY;
-  const base = process.env.DASHSCOPE_BASE_URL ?? process.env.BAILIAN_HOST ?? "https://dashscope.aliyuncs.com/compatible-mode/v1";
+  const base = bailianCompatibleBaseUrl();
   if (!key) throw new BailianUnavailableError("DASHSCOPE_API_KEY is not configured.");
-  const url = new URL(base.replace(/\/$/, "") + "/chat/completions");
+  const url = new URL(base + "/chat/completions");
   if (url.protocol !== "https:" || !url.hostname.endsWith(".aliyuncs.com")) {
     throw new BailianUnavailableError("DASHSCOPE_BASE_URL must be an Alibaba Cloud HTTPS endpoint.");
   }

@@ -72,8 +72,9 @@ stitch result. Body:
 ```
 
 The mask is limited to 10 MB. The API invokes the tracked Qwen panorama cleaner
-as a bounded Python subprocess; it requires `DASHSCOPE_API_KEY`,
-`DASHSCOPE_BASE_URL`, `PANORAMA_CLEANER_CONFIG`, and optionally
+as a bounded Python subprocess; it accepts `DASHSCOPE_API_KEY`/
+`DASHSCOPE_BASE_URL` or the legacy `BAILIAN_API_KEY`/`BAILIAN_API_HOST` pair,
+requires `PANORAMA_CLEANER_CONFIG`, and optionally
 `PANORAMA_CLEANER_PYTHON`/`PANORAMA_CLEANER_TOOL_DIR`. Missing configuration
 returns `503` and never affects normal stitching. The cleaned output and its
 validation metadata can be inspected before activation. A charged model call is
@@ -136,7 +137,7 @@ continues to use the Media route.
 
 ### `POST /api/scenes/:sceneId/analyze` — Implemented for uploaded images
 
-Body: `{ "media_ids": ["media_..."] }` (optional; defaults to uploaded JPG, PNG, and WebP media, excluding INSP captures). Requires 2–12 distinct uploaded image assets and a completed panorama stitch. Uses Bailian (`DASHSCOPE_API_KEY`, optional `DASHSCOPE_BASE_URL` and `DASHSCOPE_MODEL`; legacy `BAILIAN_API_KEY`, `BAILIAN_HOST`, and `BAILIAN_MODEL` aliases are accepted) to group images and identify source-panorama cues. The backend supplies Memory IDs, validates that every selected media ID appears exactly once in a group or `unassigned_media_ids`, and checks source pixels against the original panorama dimensions. Unselected Scene media remains unassigned. Returns the updated Scene. Analysis replaces the previous Memory groups; clients should only rerun it when that loss is intended. The current API media upload supports images only. Missing provider configuration returns 503; invalid input or model output returns 400.
+Body: `{ "media_ids": ["media_..."] }` (optional; defaults to uploaded JPG, PNG, and WebP media, excluding INSP captures). Requires 2–12 distinct uploaded image assets and a completed panorama stitch. Uses Bailian (`DASHSCOPE_API_KEY`, optional `DASHSCOPE_BASE_URL` and `DASHSCOPE_MODEL`; legacy `BAILIAN_API_KEY`, `BAILIAN_HOST`/`BAILIAN_API_HOST`, and `BAILIAN_MODEL` aliases are accepted) to group images and identify source-panorama cues. A bare workspace host copied from the console is normalized to its HTTPS OpenAI-compatible base path. The backend supplies Memory IDs, validates that every selected media ID appears exactly once in a group or `unassigned_media_ids`, and checks source pixels against the original panorama dimensions. Unselected Scene media remains unassigned. Returns the updated Scene. Analysis replaces the previous Memory groups; clients should only rerun it when that loss is intended. The current API media upload supports images only. Missing provider configuration returns 503; invalid input or model output returns 400.
 
 ## Final World Grounding
 
