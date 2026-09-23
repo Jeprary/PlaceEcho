@@ -69,16 +69,16 @@
       {
         "id": "memory_marble_origin",
         "name": "新世界原点入口（测试）",
-        "summary": "从 Marble 原点向左进入，使用独立 Collider 射线命中的锚点验证第二个空间。",
+        "summary": "从 Marble 原点向床面进入，使用独立 Collider 射线命中的锚点验证第二个空间。",
         "media_ids": [],
         "reflection": "这是本地测试配置，不是 Memory AI 的正式命名结果。",
         "anchor": {
           "id": "anchor_marble_origin",
-          "cue": { "label": "原点左侧墙面" },
-          "source_grounding": { "x": 6450, "y": 2150 },
+          "cue": { "label": "床面中央" },
+          "source_grounding": { "x": 3460, "y": 3000 },
           "world_grounding": null,
-          "position": [-2.6400909424, 0, 0],
-          "normal": [0.8298915964, 0.0072975703, 0.5578769431],
+          "position": [-2.006887302, 0.9030992859, 0],
+          "normal": [0.1431431029, -0.9861203941, 0.0841226507],
           "hero": { "status": "not_requested", "job_id": null, "asset_url": null }
         }
       }

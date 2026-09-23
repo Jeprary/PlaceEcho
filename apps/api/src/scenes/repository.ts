@@ -12,6 +12,15 @@ export class SceneRepository {
       this.sceneKey(scene.scene_id),
       encoder.encode(`${JSON.stringify(scene, null, 2)}\n`),
     );
+    const index = await this.readIndex();
+    if (!index.includes(scene.scene_id)) {
+      index.push(scene.scene_id);
+      index.sort();
+      await this.storage.put(
+        "scenes/index.json",
+        encoder.encode(`${JSON.stringify({ scene_ids: index }, null, 2)}\n`),
+      );
+    }
   }
 
   async get(sceneId: string): Promise<Scene | null> {
@@ -26,6 +35,25 @@ export class SceneRepository {
     }
 
     return scene;
+  }
+
+  async list(): Promise<Scene[]> {
+    const ids = await this.readIndex();
+    const scenes = await Promise.all(ids.map((sceneId) => this.get(sceneId)));
+    return scenes.filter((scene): scene is Scene => scene !== null);
+  }
+
+  private async readIndex(): Promise<string[]> {
+    const data = await this.storage.get("scenes/index.json");
+    if (data === null) return [];
+    const parsed = JSON.parse(decoder.decode(data)) as { scene_ids?: unknown };
+    if (!Array.isArray(parsed.scene_ids)) {
+      throw new Error("Stored Scene index is invalid.");
+    }
+    return parsed.scene_ids.filter(
+      (value): value is string =>
+        typeof value === "string" && /^scene_[a-zA-Z0-9_-]+$/.test(value),
+    );
   }
 
   private sceneKey(sceneId: string): string {

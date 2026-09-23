@@ -22,3 +22,21 @@ export function selectRuntimeMemory(
   }
   return memory;
 }
+
+export function selectLocalizationMemory(
+  scene: Scene,
+  targetMemoryId?: string,
+): Memory {
+  const memory = targetMemoryId
+    ? scene.memories.find((candidate) => candidate.id === targetMemoryId)
+    : scene.memories.find((candidate) => !candidate.anchor.position) ??
+      scene.memories[0];
+  if (!memory) {
+    throw new Error(
+      targetMemoryId
+        ? `Scene ${scene.scene_id} does not contain Memory ${targetMemoryId}.`
+        : `Scene ${scene.scene_id} does not contain a Memory to localize.`,
+    );
+  }
+  return memory;
+}

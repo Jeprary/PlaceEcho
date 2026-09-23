@@ -36,7 +36,25 @@ import {
   WindController,
   type WindOrientationSource,
 } from "./WindController";
-import { selectRuntimeMemory } from "./runtimeTarget";
+import {
+  getAnchorVolumeDistance,
+  resolveAnchorAxis,
+  setAnchorCapturePosition,
+} from "./anchorGeometry";
+import {
+  captureRendererGroundingViews,
+  resolveWorldAnchors,
+  type GroundingViewOrientation,
+  type ResolveWorldAnchorsResult,
+} from "./groundingPipeline";
+import {
+  GroundingPreparationGate,
+  type SpatialRuntimeMode,
+} from "./localizationGrounding";
+import {
+  selectLocalizationMemory,
+  selectRuntimeMemory,
+} from "./runtimeTarget";
 import { getWorldSpawnTransform } from "./worldSpawn";
 
 export type WorldLoadStatus = "loading" | "ready" | "fallback";
@@ -63,6 +81,7 @@ export interface SpatialRuntimeSnapshot {
 
 export interface SpatialRuntimeOptions {
   scene: PlaceEchoScene;
+  mode?: SpatialRuntimeMode;
   onSnapshot?: (snapshot: SpatialRuntimeSnapshot) => void;
   onWorldStatus?: (status: WorldLoadStatus) => void;
   onWorldProgress?: (progress: WorldLoadProgress) => void;
@@ -71,6 +90,16 @@ export interface SpatialRuntimeOptions {
   reachedPresentationControl?: "timed" | "external";
   targetMemoryId?: string;
 }
+
+export interface PrepareGroundingOptions {
+  sceneId: string;
+  apiBaseUrl?: string;
+  fetchImplementation?: typeof fetch;
+  orientations?: readonly GroundingViewOrientation[];
+  placementOffsetMeters?: number;
+}
+
+type WorldReadiness = "ready" | "fallback" | "disposed";
 
 export class SpatialRuntime {
   private readonly scene = new Scene();
@@ -81,17 +110,23 @@ export class SpatialRuntime {
   private readonly windController: WindController;
   private readonly resizeObserver: ResizeObserver;
   private readonly anchorPosition = new Vector3();
+  private readonly anchorAxis = new Vector3(0, 1, 0);
   private readonly anchorFocusPosition = new Vector3();
   private readonly anchorCapturePosition = new Vector3();
-  private readonly anchorGroup: Group;
-  private readonly anchorPlume: Mesh;
+  private readonly anchorGroup: Group | null;
+  private readonly anchorPlume: Mesh | null;
   private readonly memory: Memory;
   private readonly sourceScene: PlaceEchoScene;
+  private readonly mode: SpatialRuntimeMode;
   private readonly thresholds: ProximityThresholds;
   private readonly onSnapshot?: (snapshot: SpatialRuntimeSnapshot) => void;
   private readonly onWorldStatus?: (status: WorldLoadStatus) => void;
   private readonly onWorldProgress?: (progress: WorldLoadProgress) => void;
   private readonly reachedPresentationControl: "timed" | "external";
+  private readonly groundingPreparation = new GroundingPreparationGate();
+  private readonly worldReadiness: Promise<WorldReadiness>;
+  private resolveWorldReadiness!: (readiness: WorldReadiness) => void;
+  private worldReadinessSettled = false;
   private readonly colliderOctree = new Octree();
   private readonly cameraCollider = new Sphere(
     new Vector3(),
@@ -129,7 +164,14 @@ export class SpatialRuntime {
     options: SpatialRuntimeOptions,
   ) {
     this.sourceScene = options.scene;
-    this.memory = selectRuntimeMemory(options.scene, options.targetMemoryId);
+    this.mode = options.mode ?? "experience";
+    this.memory =
+      this.mode === "localization"
+        ? selectLocalizationMemory(options.scene, options.targetMemoryId)
+        : selectRuntimeMemory(options.scene, options.targetMemoryId);
+    this.worldReadiness = new Promise((resolve) => {
+      this.resolveWorldReadiness = resolve;
+    });
     this.thresholds = options.thresholds ?? DEFAULT_PROXIMITY_THRESHOLDS;
     this.onSnapshot = options.onSnapshot;
     this.onWorldStatus = options.onWorldStatus;
@@ -138,17 +180,15 @@ export class SpatialRuntime {
       options.reachedPresentationControl ?? "timed";
 
     const anchorPosition = this.memory.anchor.position;
-    if (!anchorPosition) {
+    if (!anchorPosition && this.mode === "experience") {
       throw new Error("The demo Memory Anchor needs a Web Geometry position.");
     }
-    this.anchorPosition.fromArray(anchorPosition);
-    this.anchorFocusPosition.copy(this.anchorPosition);
-    const anchorNormal = this.memory.anchor.normal;
-    if (anchorNormal) {
-      this.anchorFocusPosition.addScaledVector(
-        new Vector3().fromArray(anchorNormal).normalize(),
-        1,
-      );
+    if (anchorPosition) {
+      this.anchorPosition.fromArray(anchorPosition);
+      this.anchorFocusPosition.copy(this.anchorPosition);
+      const anchorNormal = this.memory.anchor.normal;
+      this.anchorAxis.copy(resolveAnchorAxis(anchorNormal));
+      this.anchorFocusPosition.addScaledVector(this.anchorAxis, 1);
     }
 
     this.scene.background = new Color(0x07100e);
@@ -183,11 +223,16 @@ export class SpatialRuntime {
       maxPixelRadius: 256,
     });
     this.scene.add(this.sparkRenderer);
-    const anchorVisual = this.createMemoryAnchor();
-    this.anchorGroup = anchorVisual.group;
-    this.anchorPlume = anchorVisual.plume;
-    this.anchorGroup.visible = false;
-    this.scene.add(this.anchorGroup);
+    if (this.mode === "experience") {
+      const anchorVisual = this.createMemoryAnchor();
+      this.anchorGroup = anchorVisual.group;
+      this.anchorPlume = anchorVisual.plume;
+      this.anchorGroup.visible = false;
+      this.scene.add(this.anchorGroup);
+    } else {
+      this.anchorGroup = null;
+      this.anchorPlume = null;
+    }
     if (this.debugOrigin) this.scene.add(this.createOriginMarker());
 
     this.windController = new WindController(this.camera, this.renderer.domElement, {
@@ -203,7 +248,7 @@ export class SpatialRuntime {
     if (this.animationFrame !== null) return;
     this.resizeObserver.observe(this.container);
     this.resize();
-    this.windController.connect();
+    if (this.mode === "experience") this.windController.connect();
     this.clock.start();
     this.animationFrame = requestAnimationFrame(this.renderFrame);
     this.worldLoadTimer = window.setTimeout(() => {
@@ -213,7 +258,58 @@ export class SpatialRuntime {
   }
 
   async enableGyroscope(): Promise<boolean> {
+    if (this.mode !== "experience") {
+      throw new Error("Gyroscope movement is disabled in localization mode.");
+    }
     return this.windController.enableGyroscope();
+  }
+
+  async prepareGrounding(
+    options: PrepareGroundingOptions,
+  ): Promise<ResolveWorldAnchorsResult> {
+    if (options.sceneId !== this.sourceScene.scene_id) {
+      throw new Error("Grounding sceneId must match the Spatial Runtime Scene.");
+    }
+    this.groundingPreparation.begin({
+      mode: this.mode,
+      started: this.animationFrame !== null,
+      disposed: this.disposed,
+    });
+    try {
+      const readiness = await this.worldReadiness;
+      if (readiness !== "ready") {
+        throw new Error(`Final world is unavailable for grounding (${readiness}).`);
+      }
+      await this.colliderLoadPromise;
+      if (
+        this.disposed ||
+        !this.worldReady ||
+        !this.splatFormationComplete ||
+        !this.splatMesh ||
+        !this.collider
+      ) {
+        throw new Error("Final Gaussian world and Collider are not ready for grounding.");
+      }
+      const views = await captureRendererGroundingViews(
+        this.renderer,
+        this.scene,
+        this.camera,
+        options.orientations,
+      );
+      const result = await resolveWorldAnchors({
+        sceneId: options.sceneId,
+        views,
+        collider: this.collider,
+        apiBaseUrl: options.apiBaseUrl,
+        fetchImplementation: options.fetchImplementation,
+        placementOffsetMeters: options.placementOffsetMeters,
+      });
+      this.groundingPreparation.complete();
+      return result;
+    } catch (error) {
+      this.groundingPreparation.fail();
+      throw error;
+    }
   }
 
   completeReachedPresentation(): void {
@@ -239,6 +335,7 @@ export class SpatialRuntime {
 
   dispose(): void {
     this.disposed = true;
+    this.settleWorldReadiness("disposed");
     if (this.animationFrame !== null) {
       cancelAnimationFrame(this.animationFrame);
       this.animationFrame = null;
@@ -275,6 +372,7 @@ export class SpatialRuntime {
     const { splat_url: splatUrl, collider_url: colliderUrl } = this.sourceScene.world;
     if (!splatUrl) {
       this.onWorldStatus?.("fallback");
+      this.settleWorldReadiness("fallback");
       return;
     }
 
@@ -336,7 +434,14 @@ export class SpatialRuntime {
       splat.dispose();
       this.splatMesh = null;
       this.onWorldStatus?.("fallback");
+      this.settleWorldReadiness("fallback");
     }
+  }
+
+  private settleWorldReadiness(readiness: WorldReadiness): void {
+    if (this.worldReadinessSettled) return;
+    this.worldReadinessSettled = true;
+    this.resolveWorldReadiness(readiness);
   }
 
   private beginWorldPresentation(): void {
@@ -541,12 +646,15 @@ export class SpatialRuntime {
         // Keep the completed modifier in place. Rebuilding the generator at
         // the exact reveal boundary caused a visible hitch on mobile GPUs.
         this.splatRevealProgress = null;
-        this.anchorGroup.visible = true;
-        this.startGlideWhenColliderReady();
+        this.settleWorldReadiness("ready");
+        if (this.mode === "experience") {
+          if (this.anchorGroup) this.anchorGroup.visible = true;
+          this.startGlideWhenColliderReady();
+        }
       }
     }
-    this.windController.update(deltaSeconds);
-    if (this.splatFormationComplete) {
+    if (this.mode === "experience") this.windController.update(deltaSeconds);
+    if (this.mode === "experience" && this.splatFormationComplete) {
       this.updateAnchor(this.clock.elapsedTime);
     }
     // The memory overlay needs the GPU for image/video compositing. The world
@@ -559,6 +667,7 @@ export class SpatialRuntime {
   };
 
   private updateAnchor(elapsedSeconds: number): void {
+    if (!this.anchorGroup || !this.anchorPlume) return;
     const distance = this.distanceToAnchorVolume();
     let proximity = getAnchorProximity(distance, this.thresholds);
     if (
@@ -602,14 +711,11 @@ export class SpatialRuntime {
     } else if (proximity === "approaching") {
       if (this.anchorEncounterArmed && !this.anchorCaptureActive) {
         this.anchorCaptureActive = true;
-        this.anchorCapturePosition.set(
-          this.anchorPosition.x,
-          MathUtils.clamp(
-            this.camera.position.y,
-            this.anchorPosition.y + 0.2,
-            this.anchorPosition.y + 1.8,
-          ),
-          this.anchorPosition.z,
+        setAnchorCapturePosition(
+          this.anchorCapturePosition,
+          this.camera.position,
+          this.anchorPosition,
+          this.anchorAxis,
         );
         this.windController.setInputLocked(true);
         this.windController.captureTo(this.anchorCapturePosition);
@@ -657,11 +763,16 @@ export class SpatialRuntime {
   }
 
   private readonly requestInitialGlide = (): void => {
-    if (this.debugOrigin || this.reachedPresentationActive) return;
+    if (
+      this.mode !== "experience" ||
+      this.debugOrigin ||
+      this.reachedPresentationActive
+    ) return;
     this.startGlideWhenColliderReady();
   };
 
   private startGlideWhenColliderReady(): void {
+    if (this.mode !== "experience") return;
     void this.colliderLoadPromise.then(() => {
       if (
         this.disposed ||
@@ -677,18 +788,11 @@ export class SpatialRuntime {
   }
 
   private distanceToAnchorVolume(): number {
-    const horizontalDistance = Math.hypot(
-      this.camera.position.x - this.anchorPosition.x,
-      this.camera.position.z - this.anchorPosition.z,
+    return getAnchorVolumeDistance(
+      this.camera.position,
+      this.anchorPosition,
+      this.anchorAxis,
     );
-    const volumeBottom = this.anchorPosition.y;
-    const volumeTop = volumeBottom + 2;
-    const verticalDistance = Math.max(
-      volumeBottom - this.camera.position.y,
-      this.camera.position.y - volumeTop,
-      0,
-    );
-    return Math.hypot(horizontalDistance, verticalDistance);
   }
 
   private readonly resolveCameraCollision = (
@@ -746,6 +850,10 @@ export class SpatialRuntime {
   private createMemoryAnchor(): { group: Group; plume: Mesh } {
     const group = new Group();
     group.position.copy(this.anchorPosition);
+    group.quaternion.setFromUnitVectors(
+      new Vector3(0, 1, 0),
+      this.anchorAxis,
+    );
 
     const halo = new Mesh(
       new TorusGeometry(0.095, 0.0045, 10, 64),

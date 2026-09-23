@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { WorldSpawn } from "@placeecho/shared";
 import type { SceneService } from "../scenes/service.js";
 import type { MarbleClient, MarbleWorld } from "../services/marble/client.js";
 import type { StorageProvider } from "../storage/provider.js";
@@ -14,6 +15,9 @@ export interface WorldJob {
   world_id: string | null;
   world_marble_url: string | null;
   assets: Record<string, unknown> | null;
+  splat_url: string | null;
+  collider_url: string | null;
+  spawn: WorldSpawn | null;
   error: string | null;
 }
 
@@ -29,6 +33,7 @@ export class WorldJobService {
     private readonly panoramaJobs: PanoramaJobService,
     private readonly marble: MarbleClient,
     private readonly pollIntervalMs = 5_000,
+    private readonly splatVariant = process.env.MARBLE_SPZ_VARIANT ?? "500k",
   ) {}
 
   async create(
@@ -61,6 +66,9 @@ export class WorldJobService {
       world_id: null,
       world_marble_url: null,
       assets: null,
+      splat_url: null,
+      collider_url: null,
+      spawn: null,
       error: null,
     };
     await this.save(job);
@@ -106,6 +114,17 @@ export class WorldJobService {
       job.world_id = world.world_id;
       job.world_marble_url = world.world_marble_url ?? null;
       job.assets = world.assets ?? null;
+      const registered = worldAssets(world, this.splatVariant);
+      job.splat_url = registered.splatUrl;
+      job.collider_url = registered.colliderUrl;
+      job.spawn = registered.spawn;
+      const scene = await this.scenes.setWorldAssets(
+        job.scene_id,
+        registered.splatUrl,
+        registered.colliderUrl,
+        registered.spawn,
+      );
+      if (scene === null) throw new Error("Scene disappeared before Marble world registration.");
     } catch (error) {
       job.status = "failed";
       job.error = error instanceof Error ? error.message : String(error);
@@ -118,5 +137,35 @@ export class WorldJobService {
       `jobs/${job.job_id}.json`,
       encoder.encode(`${JSON.stringify(job, null, 2)}\n`),
     );
+  }
+}
+
+function worldAssets(
+  world: MarbleWorld,
+  preferredVariant: string,
+): { splatUrl: string; colliderUrl: string; spawn: WorldSpawn } {
+  const urls = world.assets?.splats?.spz_urls;
+  const splatUrl = urls?.[preferredVariant] ?? urls?.["500k"] ?? urls?.full_res ?? urls?.["100k"];
+  const colliderUrl = world.assets?.mesh?.collider_mesh_url ?? undefined;
+  if (!safeHttpsAsset(splatUrl) || !safeHttpsAsset(colliderUrl)) {
+    throw new Error("Marble world is missing a safe SPZ or Collider asset URL.");
+  }
+  return {
+    splatUrl,
+    colliderUrl,
+    // Marble's official Spark viewer starts each generated world at the input
+    // camera centre. This remains a candidate pose until Web Geometry validates
+    // the eye sphere against the downloaded Collider.
+    spawn: { position: [0, 0, 0], quaternion: [0, 0, 0, 1] },
+  };
+}
+
+function safeHttpsAsset(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && !url.username && !url.password;
+  } catch {
+    return false;
   }
 }

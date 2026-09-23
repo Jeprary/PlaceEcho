@@ -35,6 +35,15 @@ test("the single manager fixture exposes two independent ready spaces", async ()
   assert.equal(marble.status, "ready");
   if (marble.status === "ready") {
     assert.deepEqual(marble.scene.world.spawn?.position, [0, 0, 0]);
-    assert.deepEqual(marble.memory.anchor.position, [-2.6400909424, 0, 0]);
+    assert.deepEqual(marble.memory.anchor.position, [
+      -2.006887302,
+      0.9030992859,
+      0,
+    ]);
+    assert.deepEqual(marble.memory.anchor.normal, [
+      0.1431431029,
+      -0.9861203941,
+      0.0841226507,
+    ]);
   }
 });
