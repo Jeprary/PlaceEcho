@@ -13,6 +13,7 @@ export type MemoryItem = {
   summary: string;
   mediaCount: number;
   coverUrl: string | null;
+  fallbackCoverUrl: string | null;
   status: "ready" | "processing";
   canEnterSpace: boolean;
   tone: "forest" | "moss" | "gold";
@@ -46,7 +47,8 @@ export function buildMemoryItems(
         title: memory.name,
         summary: memory.summary ?? "这段回忆还没有摘要",
         mediaCount: memory.media_ids.length,
-        coverUrl: scene.world.thumbnail_url ?? scene.world.panorama_url,
+        coverUrl: scene.world.thumbnail_url,
+        fallbackCoverUrl: scene.world.panorama_url,
         status: canEnterSpace ? "ready" : "processing",
         canEnterSpace,
         tone,

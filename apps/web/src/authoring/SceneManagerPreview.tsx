@@ -92,6 +92,7 @@ export function MemoryManager({
       status: "processing",
       canEnterSpace: false,
       coverUrl: null,
+      fallbackCoverUrl: null,
       tone: "moss",
     }, ...current]);
     setDraftSceneId(null);

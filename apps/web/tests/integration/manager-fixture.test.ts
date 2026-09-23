@@ -30,6 +30,11 @@ test("the single manager fixture exposes two independent ready spaces", async ()
     items.find((item) => item.sceneId === "scene_marble_origin")?.coverUrl,
     "/local-marble/thumbnail.webp",
   );
+  assert.equal(
+    items.find((item) => item.sceneId === "scene_marble_origin")
+      ?.fallbackCoverUrl,
+    "/local-marble/panorama.png",
+  );
 
   const marble = resolveMemoryEntry(fixture.scenes, {
     sceneId: "scene_marble_origin",

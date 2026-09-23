@@ -22,10 +22,12 @@ html { min-width: 320px; background: var(--bg); }
 body { margin: 0; min-width: 320px; min-height: 100vh; min-height: 100dvh; background: radial-gradient(circle at 85% 0%, rgba(62, 96, 79, .22), transparent 32rem), var(--bg); }
 button, input, textarea, select { font: inherit; }
 button { color: inherit; }
+button, [role="button"] { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+button:not(:disabled):active { opacity: .76; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
 svg { width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
 
-.project-app, .create-app { min-height: 100vh; display: flex; flex-direction: column; }
+.project-app, .create-app { min-height: 100vh; display: flex; flex-direction: column; animation: scene-manager-page-enter .42s cubic-bezier(.22,.8,.24,1) both; }
 .topbar, .create-topbar {
   width: min(100% - 48px, 1240px);
   min-height: 82px;
@@ -57,11 +59,14 @@ svg { width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-li
 
 .scene-manager-memory-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
 .scene-manager-memory-card { min-height: 350px; border: 1px solid var(--line); border-radius: 14px; background: rgba(13,27,22,.82); box-shadow: 0 1px 0 rgba(255,255,255,.025) inset; }
-.scene-manager-memory-card { position: relative; overflow: hidden; transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease; }
-.scene-manager-memory-card.is-ready:hover { transform: translateY(-4px); border-color: rgba(156,203,173,.34); box-shadow: var(--shadow); }
+.scene-manager-memory-card { position: relative; overflow: hidden; animation: scene-manager-card-enter .46s cubic-bezier(.22,.8,.24,1) both; transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease; }
+.scene-manager-memory-card:nth-child(2) { animation-delay: 55ms; }
+.scene-manager-memory-card:nth-child(3) { animation-delay: 110ms; }
+.scene-manager-memory-card:nth-child(n+4) { animation-delay: 150ms; }
 .scene-manager-memory-card-hit { position: absolute; inset: 0; z-index: 3; width: 100%; border: 0; background: transparent; cursor: pointer; }
 .scene-manager-memory-card-hit:disabled { cursor: not-allowed; }
-.scene-manager-memory-cover { position: relative; height: 170px; overflow: hidden; background: linear-gradient(145deg, #20382d, #0c1712); border-bottom: 1px solid var(--line); }
+.scene-manager-memory-cover { position: relative; height: 170px; overflow: hidden; background: linear-gradient(145deg, #20382d, #0c1712); border-bottom: 1px solid var(--line); transition: filter .12s ease; }
+.scene-manager-memory-cover > img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center; }
 .scene-manager-memory-cover > img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center; }
 .tone-moss .scene-manager-memory-cover { background: linear-gradient(145deg, #2d4939, #101e17); }
 .tone-gold .scene-manager-memory-cover { background: linear-gradient(145deg, #5a4e35, #19180f); }
@@ -73,7 +78,9 @@ svg { width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-li
 .scene-manager-panorama-lines i:nth-child(2) { transform: rotate(13deg); }
 .scene-manager-panorama-lines i:nth-child(3) { transform: rotate(-13deg); }
 .scene-manager-memory-card-hit:focus-visible { outline: 2px solid var(--gold); outline-offset: -3px; }
-.scene-manager-memory-card-body { padding: 21px 22px 20px; }
+.scene-manager-memory-card-body { padding: 21px 22px 20px; transition: filter .12s ease; }
+.scene-manager-memory-card-hit:not(:disabled):active ~ .scene-manager-memory-cover,
+.scene-manager-memory-card-hit:not(:disabled):active ~ .scene-manager-memory-card-body { filter: brightness(.86); }
 .scene-manager-status-pill { display: inline-flex; align-items: center; gap: 5px; width: fit-content; padding: 5px 8px; border-radius: 999px; color: var(--gold); background: rgba(172,128,60,.18); font-size: 9px; font-weight: 650; white-space: nowrap; }
 .scene-manager-status-pill svg { width: 11px; height: 11px; }
 .scene-manager-memory-card-body h3 { margin: 15px 0 7px; font-family: Georgia, "Songti SC", serif; font-size: 24px; font-weight: 400; }
@@ -100,7 +107,7 @@ svg { width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-li
 .stepper li.active span { border-color: var(--green); background: var(--green); color: #0c1712; }
 .stepper li.complete::before, .stepper li.active::before { border-color: var(--green-deep); }
 .create-panel { max-width: 860px; margin: 0 auto; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: rgba(13,27,22,.92); box-shadow: var(--shadow); }
-.panel-content { min-height: 480px; padding: 42px 46px 35px; }
+.panel-content { min-height: 480px; padding: 42px 46px 35px; animation: scene-manager-step-enter .34s cubic-bezier(.22,.8,.24,1) both; }
 .panel-title h2 { margin: 0 0 8px; font-family: Georgia, "Songti SC", serif; font-size: 29px; font-weight: 400; }
 .panel-title p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.7; }
 .panorama-picker { width: 100%; min-height: 190px; margin-top: 28px; padding: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; border: 1px dashed rgba(156,203,173,.35); border-radius: 10px; background: radial-gradient(circle at center, rgba(78,118,94,.2), transparent 65%), #0a1611; cursor: pointer; }
@@ -111,7 +118,7 @@ svg { width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-li
 .panorama-picker.has-file { border-style: solid; background: rgba(48,79,61,.24); }
 .acquisition-options { margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .acquisition-options > button { position: relative; min-height: 175px; padding: 22px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; border: 1px solid var(--line); border-radius: 10px; background: #0a1611; cursor: pointer; text-align: left; transition: border-color .2s ease, background .2s ease; }
-.acquisition-options > button:hover { border-color: rgba(156,203,173,.52); background: var(--surface-raised); }
+.acquisition-options > button:active { transform: scale(.985); }
 .acquisition-options > .camera-capture-option { border-color: rgba(156,203,173,.38); background: linear-gradient(145deg, rgba(57,94,71,.28), #0a1611); }
 .acquisition-options > button > svg { position: absolute; right: 18px; bottom: 18px; width: 16px; color: var(--green); }
 .acquisition-icon { display: grid; place-items: center; width: 46px; height: 46px; margin-bottom: 18px; border-radius: 50%; background: rgba(156,203,173,.1); color: var(--green); }
@@ -206,6 +213,26 @@ svg { width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-li
 .primary-button { min-width: 155px; padding: 12px 17px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--gold); border-radius: 999px; background: var(--gold); color: #18201c; cursor: pointer; font-size: 10px; font-weight: 750; }
 .primary-button:disabled { border-color: #33443b; background: #33443b; color: #718078; cursor: not-allowed; }
 .primary-button svg { width: 14px; }
+
+@keyframes scene-manager-page-enter {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scene-manager-card-enter {
+  from { opacity: 0; transform: translateY(12px) scale(.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes scene-manager-step-enter {
+  from { opacity: 0; transform: translateX(10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .scene-manager-memory-card.is-ready:hover { transform: translateY(-4px); border-color: rgba(156,203,173,.34); box-shadow: var(--shadow); }
+  .acquisition-options > button:hover { border-color: rgba(156,203,173,.52); background: var(--surface-raised); }
+}
 
 @media (max-width: 900px) {
   .scene-manager-memory-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -347,5 +374,6 @@ svg { width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-li
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+  html { scroll-behavior: auto !important; }
+  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; animation-delay: 0ms !important; }
 }
