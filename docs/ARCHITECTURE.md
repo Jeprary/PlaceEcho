@@ -89,6 +89,8 @@ Current responsibilities include the shared Memory manager/creation UI, panorama
 
 The Web must not care how a panorama was acquired. Both Web upload and a future native bridge produce a `PanoramaAsset` and call `importPanorama()`. Everything after that boundary is acquisition-independent.
 
+`tools/qwen-panorama-cleaner/` is an optional standalone preprocessing CLI for a full 2:1 panorama before that import boundary. It projects a nadir crop, requests a Qwen image edit, applies a user-supplied local mask, and inverse-maps the repair into the original panorama. It does not run in the Web or API process, change the Scene contract, or provide final-world geometry. Its source package is tracked without user media or generated outputs.
+
 ### API
 
 Current responsibilities include Scene lifecycle, authoritative system-ID generation, persistence, local/mounted/OSS storage, panorama jobs, Marble world jobs, and Hero provider jobs. Memory analysis, final-world grounding, world registration, and Anchor persistence remain explicit extension boundaries. Development runs locally on macOS; a later CPU deployment must not change Web contracts.

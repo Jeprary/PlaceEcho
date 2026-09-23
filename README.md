@@ -16,6 +16,7 @@ packages/
   shared/       shared Scene types and JSON Schema
 docs/           product, architecture, API, and Scene contracts
 assets/demo/    fake, non-private development fixture
+tools/qwen-panorama-cleaner/  optional offline panorama cleanup CLI
 .local-data/    ignored local development state
 ```
 
@@ -49,6 +50,8 @@ python3 -m venv .venv
 .venv/bin/pip install -e .
 .venv/bin/uvicorn placeecho_gpu_worker.main:app --reload
 ```
+
+Optional panorama cleanup: see [the standalone CLI](tools/qwen-panorama-cleaner/README.md).
 
 ## Source-of-truth documents
 
