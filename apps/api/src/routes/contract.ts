@@ -406,6 +406,24 @@ export function registerContractRoutes(
     },
   );
 
+  app.post<{ Params: { jobId: string } }>(
+    "/api/jobs/:jobId/resume-clean",
+    async (request, reply) => {
+      try {
+        const job = await dependencies.panoramaJobs.resumeClean(
+          request.params.jobId,
+        );
+        if (job === null) return reply.code(404).send({ status: "not_found" });
+        return reply.send(job);
+      } catch (error) {
+        return reply.code(400).send({
+          status: "invalid_request",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+  );
+
   app.get<{ Params: { jobId: string } }>(
     "/api/jobs/:jobId/output",
     async (request, reply) => {

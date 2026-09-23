@@ -83,7 +83,18 @@ requires `PANORAMA_CLEANER_CONFIG`, and optionally
 `PANORAMA_CLEANER_PYTHON`/`PANORAMA_CLEANER_TOOL_DIR`. Missing configuration
 returns `503` and never affects normal stitching. The cleaned output and its
 validation metadata can be inspected before activation. A charged model call is
-never retried automatically.
+never retried automatically. Before writing the Scene output path, the API
+durably stages the paid model result under its writable job storage. If the
+final storage write or optional activation fails, the job reports
+`recovery_available: true` and retains the staged bytes.
+
+### `POST /api/jobs/:jobId/resume-clean` — Implemented
+
+Resumes only a failed `panorama_clean` job whose paid result was staged. It
+copies the existing bytes to the final output and performs the originally
+requested activation without invoking the image model again. It rejects clean
+jobs without a recovery artifact and never turns an ordinary failed provider
+call into a second charged request.
 
 ### `POST /api/scenes/:sceneId/panorama/activate-clean` — Implemented
 

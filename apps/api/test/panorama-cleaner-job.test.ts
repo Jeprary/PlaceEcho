@@ -29,6 +29,22 @@ class InMemoryStorage implements StorageProvider {
   }
 }
 
+class FailOnceCleanOutputStorage extends InMemoryStorage {
+  failedFinalWrite = false;
+
+  override async put(key: string, data: Uint8Array): Promise<void> {
+    if (
+      !this.failedFinalWrite &&
+      key.endsWith("-clean.jpg") &&
+      key.includes("/panorama/")
+    ) {
+      this.failedFinalWrite = true;
+      throw new Error("simulated final panorama permission failure");
+    }
+    await super.put(key, data);
+  }
+}
+
 class FakeCleaner implements PanoramaCleaner {
   readonly requests: PanoramaCleanerRequest[] = [];
 
@@ -87,6 +103,22 @@ async function waitForCompletedJob(
     response = await app.inject({ method: "GET", url: `/api/jobs/${jobId}` });
   }
   assert.equal(response.json().status, "completed", response.body);
+  return response;
+}
+
+async function waitForTerminalJob(
+  app: ReturnType<typeof buildApp>,
+  jobId: string,
+) {
+  let response = await app.inject({ method: "GET", url: `/api/jobs/${jobId}` });
+  for (
+    let attempt = 0;
+    attempt < 30 && ["queued", "running"].includes(response.json().status);
+    attempt += 1
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    response = await app.inject({ method: "GET", url: `/api/jobs/${jobId}` });
+  }
   return response;
 }
 
@@ -235,3 +267,48 @@ test("cleaning preserves the source and only changes the Scene after explicit ac
     Buffer.from("original-panorama"),
   );
 });
+
+test(
+  "a failed final write resumes from staged paid output without another model call",
+  async (t) => {
+    const storage = new FailOnceCleanOutputStorage();
+    const cleaner = new FakeCleaner();
+    const app = buildApp({
+      logger: false,
+      storageProvider: storage,
+      gpuWorkerClient: createWorker(storage),
+      panoramaCleaner: cleaner,
+    });
+    t.after(async () => app.close());
+    const { sceneId, jobId: sourceJobId } = await createCompletedStitch(app);
+
+    const clean = await app.inject({
+      method: "POST",
+      url: `/api/scenes/${sceneId}/panorama/clean`,
+      payload: {
+        source_job_id: sourceJobId,
+        mask_data_url: pngDataUrl,
+      },
+    });
+    assert.equal(clean.statusCode, 202);
+    const cleanJobId = clean.json<{ job_id: string }>().job_id;
+    const failed = await waitForTerminalJob(app, cleanJobId);
+    assert.equal(failed.json().status, "failed", failed.body);
+    assert.equal(failed.json().recovery_available, true);
+    assert.equal(cleaner.requests.length, 1);
+
+    const resumed = await app.inject({
+      method: "POST",
+      url: `/api/jobs/${cleanJobId}/resume-clean`,
+    });
+    assert.equal(resumed.statusCode, 200, resumed.body);
+    assert.equal(resumed.json().status, "completed");
+    assert.equal(resumed.json().recovery_available, false);
+    assert.equal(cleaner.requests.length, 1);
+    const output = await app.inject({
+      method: "GET",
+      url: `/api/jobs/${cleanJobId}/output`,
+    });
+    assert.equal(output.body, "cleaned-panorama");
+  },
+);
