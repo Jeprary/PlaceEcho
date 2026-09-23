@@ -2,6 +2,7 @@ import type { MediaAsset, Scene, WorldGrounding } from "@placeecho/shared";
 import type { MediaService } from "../../media/service.js";
 import type { SceneService } from "../../scenes/service.js";
 import { bailianJson } from "../memory/bailian.js";
+import { prepareImageForModel } from "../image-preprocess.js";
 
 export interface RenderView {
   view_id: string;
@@ -55,17 +56,15 @@ export interface WorldGrounder {
   ): Promise<GroundingAnalysis>;
 }
 
-function imagePart(bytes: Uint8Array, sourceName: string): unknown {
-  const lower = sourceName.toLowerCase();
-  const mime = lower.endsWith(".png")
-    ? "image/png"
-    : lower.endsWith(".webp")
-      ? "image/webp"
-      : "image/jpeg";
+async function imagePart(bytes: Uint8Array, sourceName: string): Promise<unknown> {
+  const prepared = await prepareImageForModel(bytes, sourceName, {
+    width: 1_280,
+    height: 1_280,
+  });
   return {
     type: "image_url",
     image_url: {
-      url: `data:${mime};base64,${Buffer.from(bytes).toString("base64")}`,
+      url: `data:${prepared.mime};base64,${Buffer.from(prepared.bytes).toString("base64")}`,
     },
   };
 }
@@ -111,7 +110,7 @@ export class BailianWorldGrounder implements WorldGrounder {
           type: "text",
           text: `Original user media ${item.asset.id}; source name ${item.asset.source_name}.`,
         },
-        imagePart(item.bytes, item.asset.source_name),
+        await imagePart(item.bytes, item.asset.source_name),
       );
     }
     return (await bailianJson(

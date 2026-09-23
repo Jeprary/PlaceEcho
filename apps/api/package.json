@@ -15,7 +15,8 @@
     "@manycore/aholo-sdk-asset": "^1.2.0",
     "@placeecho/shared": "workspace:*",
     "ali-oss": "^6.23.0",
-    "fastify": "^5.6.0"
+    "fastify": "^5.6.0",
+    "sharp": "^0.34.4"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

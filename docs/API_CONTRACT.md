@@ -178,6 +178,10 @@ is `qwen3.8-omni-flash`; the OpenAI-compatible request uses `image_url`,
 reasoning with `reasoning_effort: "none"`, and requests
 `response_format: { "type": "json_object" }`. A bare workspace host copied from
 the console is normalized to its HTTPS OpenAI-compatible base path.
+Before either multimodal request, large images are decoded with EXIF orientation
+and converted only in memory to bounded JPEG inference copies: the panorama is
+limited to 2048×1024 and ordinary images to a 1280×1280 box. Original stored
+media is not replaced, recompressed, brightness-normalized, or written back.
 
 The backend supplies Memory IDs, validates that every selected media ID appears
 exactly once in a group or `unassigned_media_ids`, and checks source pixels

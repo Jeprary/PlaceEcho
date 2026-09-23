@@ -1,4 +1,5 @@
 import type { AnalysisInput, AnalysisResult, MemoryAnalyzer } from "./service.js";
+import { prepareImageForModel } from "../image-preprocess.js";
 
 export class BailianUnavailableError extends Error {}
 
@@ -59,15 +60,22 @@ function imagePart(data: Uint8Array, mime = "image/jpeg") {
   return { type: "image_url", image_url: { url: `data:${mime};base64,${Buffer.from(data).toString("base64")}` } };
 }
 
-function mediaPart(sourceName: string, type: "image" | "audio" | "video", data: Uint8Array): unknown {
+async function mediaPart(
+  sourceName: string,
+  type: "image" | "audio" | "video",
+  data: Uint8Array,
+): Promise<unknown> {
   const extension = sourceName.toLowerCase().split(".").pop() ?? "";
   const encoded = Buffer.from(data).toString("base64");
   if ((type === "audio" || type === "video") && encoded.length >= 10 * 1024 * 1024) {
     throw new Error("Base64 audio and video inputs must remain below the provider's 10 MB limit.");
   }
   if (type === "image") {
-    const mime = extension === "png" ? "image/png" : extension === "webp" ? "image/webp" : "image/jpeg";
-    return imagePart(data, mime);
+    const prepared = await prepareImageForModel(data, sourceName, {
+      width: 1_280,
+      height: 1_280,
+    });
+    return imagePart(prepared.bytes, prepared.mime);
   }
   if (type === "audio") {
     return { type: "input_audio", input_audio: { data: `data:;base64,${encoded}`, format: extension } };
@@ -95,6 +103,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export class BailianMemoryAnalyzer implements MemoryAnalyzer {
   async analyze(input: AnalysisInput): Promise<AnalysisResult> {
+    const panorama = await prepareImageForModel(
+      input.panorama,
+      "scene-panorama.jpg",
+      { width: 2_048, height: 1_024 },
+    );
     const content: unknown[] = [
       { type: "text", text: JSON.stringify({
         scene_context: input.scene.scene_context.text,
@@ -103,7 +116,7 @@ export class BailianMemoryAnalyzer implements MemoryAnalyzer {
         media_ids: input.media.map(({ asset }) => asset.id),
       }) },
       { type: "text", text: "Panorama reference; do not include it in media groups." },
-      imagePart(input.panorama),
+      imagePart(panorama.bytes, panorama.mime),
     ];
     for (const { asset, bytes } of input.media) {
       if (asset.type !== "image" && asset.type !== "audio" && asset.type !== "video") {
@@ -111,7 +124,7 @@ export class BailianMemoryAnalyzer implements MemoryAnalyzer {
       }
       content.push(
         { type: "text", text: `Media ID ${asset.id}; source name ${asset.source_name}; media type ${asset.type}.` },
-        mediaPart(asset.source_name, asset.type, bytes),
+        await mediaPart(asset.source_name, asset.type, bytes),
       );
     }
     return await bailianJson(content,

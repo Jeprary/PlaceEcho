@@ -152,7 +152,10 @@ persists Memory groups. The default analyzer calls Bailian
 `qwen3.8-omni-flash` through the OpenAI-compatible Chat Completions API using
 the provider's native image, audio, and video content parts. INSP remains an
 image-compatible panorama capture upload but is excluded from automatic Memory
-analysis selection. A completed stitched panorama remains a prerequisite; the
+analysis selection. Large visual inputs are decoded with EXIF orientation and
+converted in memory to bounded JPEG inference copies (2048×1024 panorama;
+1280×1280 media box); authoritative stored originals are never overwritten or
+brightness-normalized. A completed stitched panorama remains a prerequisite; the
 standalone Python multimedia prototype is not the API runtime. Reanalysis
 replaces prior Memory groups. A validated `scene_context_text` from that same
 analysis may update `scene_context.text`; when the selection contains exactly
