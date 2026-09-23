@@ -117,25 +117,53 @@ final class Insta360PanoramaCaptureProvider: PanoramaCaptureProviding {
         sceneID: String,
         completion: @escaping (Result<CapturedPanorama, Error>) -> Void
     ) {
-        INSCameraManager.shared().commandManager.takePicture(with: nil) { [weak self] error, photoInfo in
+        let commandManager = INSCameraManager.shared().commandManager
+        // X5 firmware expects the SDK app identity before accepting photography
+        // commands. The vendor's X5 sample performs this handshake immediately
+        // before configuring or taking a picture.
+        commandManager.setAppidCompletion { [weak self] appIDError in
             guard let self else { return }
-            if let error {
-                self.finish(.failure(error), completion: completion)
+            if let appIDError {
+                self.finish(.failure(appIDError), completion: completion)
                 return
             }
-            guard let uri = photoInfo?.uri, !uri.isEmpty else {
-                self.finish(
-                    .failure(Insta360CaptureError.captureReturnedNoFile),
+
+            commandManager.takePicture(with: nil) { [weak self] error, photoInfo in
+                guard let self else { return }
+                if let error {
+                    self.finish(.failure(error), completion: completion)
+                    return
+                }
+
+                var candidateURIs: [String] = []
+                if let uri = photoInfo?.uri, !uri.isEmpty {
+                    candidateURIs.append(uri)
+                }
+                if let hdrURIs = photoInfo?.hdrUris {
+                    candidateURIs.append(contentsOf: hdrURIs.filter { !$0.isEmpty })
+                }
+                if let burstURIs = photoInfo?.burstUris {
+                    candidateURIs.append(contentsOf: burstURIs.filter { !$0.isEmpty })
+                }
+
+                guard let uri = candidateURIs.first else {
+                    self.finish(
+                        .failure(Insta360CaptureError.captureReturnedNoFile),
+                        completion: completion
+                    )
+                    return
+                }
+                print(
+                    "PlaceEcho X5 capture: received \(candidateURIs.count) file URI(s), "
+                        + "using \(uri)"
+                )
+                let remoteURL = INSHTTPURLForResourceURI(uri)
+                self.downloadAndExport(
+                    remoteURL: remoteURL,
+                    sceneID: sceneID,
                     completion: completion
                 )
-                return
             }
-            let remoteURL = INSHTTPURLForResourceURI(uri)
-            self.downloadAndExport(
-                remoteURL: remoteURL,
-                sceneID: sceneID,
-                completion: completion
-            )
         }
     }
 
