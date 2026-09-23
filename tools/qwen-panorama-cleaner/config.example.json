@@ -1,0 +1,23 @@
+{
+  "model": "qwen-image-3.0-pro",
+  "projection": {
+    "width": 1536,
+    "height": 1024,
+    "yaw": 0.0,
+    "pitch": -90.0,
+    "hfov": 105.0,
+    "crop": [512, 256, 512, 512]
+  },
+  "api": {
+    "size": "1024*1024",
+    "n": 1,
+    "prompt_extend": false,
+    "watermark": false,
+    "negative_prompt": "camera, tripod, camera shadow, new objects, blur, text, watermark"
+  },
+  "blend": {
+    "harmonic_colour_match": true,
+    "feather_pixels": 4.0
+  },
+  "prompt_file": "prompts/remove_rig_generic.txt"
+}

@@ -2,7 +2,10 @@
 
 PlaceEcho is an AI-driven personal spatial-memory experience. It reconnects user-selected personal media to meaningful cues in a lived-in space.
 
-This repository is the v0.1 monorepo foundation only. Product features are intentionally not implemented yet.
+This repository contains the integrated v0.1 prototype: Web authoring/runtime,
+Scene and media persistence, X5 panorama jobs, optional panorama cleanup,
+Memory/grounding AI boundaries, Marble world generation, Collider Anchors, and
+optional Hero providers.
 
 ## Repository
 
@@ -16,6 +19,7 @@ packages/
   shared/       shared Scene types and JSON Schema
 docs/           product, architecture, API, and Scene contracts
 assets/demo/    fake, non-private development fixture
+tools/qwen-panorama-cleaner/  optional offline panorama cleanup CLI
 .local-data/    ignored local development state
 ```
 
@@ -49,6 +53,12 @@ python3 -m venv .venv
 .venv/bin/pip install -e .
 .venv/bin/uvicorn placeecho_gpu_worker.main:app --reload
 ```
+
+Optional panorama cleanup: see the
+[CLI and API worker implementation](tools/qwen-panorama-cleaner/README.md). The
+API only enables this stage when its Qwen credentials, Python environment, and a
+deployment-specific cleaner config are present; normal stitching remains usable
+without them.
 
 ## Source-of-truth documents
 

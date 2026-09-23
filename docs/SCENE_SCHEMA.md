@@ -13,12 +13,42 @@ The Schema allows incomplete asynchronous states through nullable URLs, dimensio
 | Owner | Fields |
 | --- | --- |
 | Backend/application | `scene_id`, media IDs, Memory IDs, Anchor IDs, job IDs |
+| World pipeline | `world.thumbnail_url`, `world.asset_transform`, and `world.spawn` |
 | Memory AI | media grouping, Memory name, summary, cue |
 | Spatial AI | `source_grounding`, `world_grounding` |
 | Web Geometry | `anchor.position`, `anchor.normal` |
 | GPU worker | Hero processing result and asset |
 
 AI models do not create authoritative system IDs and do not generate final 3D coordinates.
+
+## World Spawn
+
+`world.thumbnail_url` is the management-card image selected by the world
+pipeline and persisted by the backend in the same Scene manifest. Marble uses
+its provider thumbnail when available. Web must not maintain a separate Scene
+cover registry or expose storage filenames in the card UI; it may fall back to
+`panorama_url` only while a dedicated thumbnail is unavailable.
+
+`world.asset_transform` is nullable identity or a normalized quaternion that
+rotates the provider's raw SPZ and Collider coordinates into PlaceEcho's
+canonical right-handed, Y-up runtime frame. Web applies the exact same transform
+to both assets before collision, rendering, grounding, or navigation. Spawn,
+Anchor position, and Anchor normal are persisted in the canonical frame.
+
+`world.spawn` is nullable until a generated world has a verified entry pose. It
+contains a canonical runtime `position` and normalized quaternion for the
+camera eye, not avatar feet. A Scene is not enterable until its splat, Collider,
+and spawn are all present.
+
+The world pipeline may provide the candidate pose, but Web Geometry must validate
+it against the final Collider before motion begins and correct an intersection if
+necessary. For the separately measured Marble world
+`4907920b-f2b4-4362-a3ed-8e628869fd2c`, the generated panorama eye is
+`position: [0, 0, 0]`. Its raw assets use an inverted vertical frame, so the
+fixture applies asset transform `[1, 0, 0, 0]` before storing an upright product
+spawn and Anchor in canonical Y-up coordinates. That origin or transform must
+not be copied onto a different SPZ/Collider pair such as the older
+`scene_demo/world` fixture.
 
 ## Scene Context
 

@@ -1,0 +1,88 @@
+{
+  "scenes": [
+  {
+    "schema_version": "0.1",
+    "scene_id": "scene_demo",
+    "status": "ready",
+    "scene_context": { "text": "A local end-to-end test Scene with real Gaussian, Collider, and concert media assets.", "audio_url": null },
+    "world": {
+      "panorama_url": "/demo/living-room-360.jpg",
+      "panorama_width": 4096,
+      "panorama_height": 2048,
+      "splat_url": "/local-world/world.spz",
+      "collider_url": "/local-world/collider.glb",
+      "thumbnail_url": "/local-memory/04-stage-blue.jpg",
+      "asset_transform": null,
+      "spawn": {
+        "position": [-1.12, 1.55, 1.3],
+        "quaternion": [-0.0981450082, -0.1563756777, -0.0156179125, 0.9826852424]
+      }
+    },
+    "media": [
+      { "id": "media_concert_01", "source_name": "01-arrival.jpg", "type": "image", "url": "/local-memory/01-arrival.jpg" },
+      { "id": "media_concert_02", "source_name": "02-merch.jpg", "type": "image", "url": "/local-memory/02-merch.jpg" },
+      { "id": "media_concert_03", "source_name": "03-stage-purple.jpg", "type": "image", "url": "/local-memory/03-stage-purple.jpg" },
+      { "id": "media_concert_04", "source_name": "04-stage-blue.jpg", "type": "image", "url": "/local-memory/04-stage-blue.jpg" },
+      { "id": "media_concert_05", "source_name": "05-clip.mp4", "type": "video", "url": "/local-memory/05-clip.mp4" }
+    ],
+    "memories": [
+      {
+        "id": "memory_demo_001",
+        "name": "灯光涌来的那一晚",
+        "summary": "从抵达、纪念物到舞台灯光，用真实本地媒体完成整条空间体验。",
+        "media_ids": ["media_concert_01", "media_concert_02", "media_concert_03", "media_concert_04", "media_concert_05"],
+        "reflection": "这是管理页到真实空间、Anchor 与 Reveal 的端到端测试回忆。",
+        "anchor": {
+          "id": "anchor_demo_001",
+          "cue": { "label": "memory cue" },
+          "source_grounding": { "x": 1560, "y": 720 },
+          "world_grounding": null,
+          "position": [-0.32, 0.03, -1.15],
+          "normal": [0, 1, 0],
+          "hero": { "status": "not_requested", "job_id": null, "asset_url": null }
+        }
+      }
+    ],
+    "unassigned_media_ids": []
+  },
+  {
+    "schema_version": "0.1",
+    "scene_id": "scene_marble_origin",
+    "status": "ready",
+    "scene_context": { "text": "A local test Scene for the separately measured Marble world origin.", "audio_url": null },
+    "world": {
+      "panorama_url": "/local-marble/panorama.png",
+      "panorama_width": 8600,
+      "panorama_height": 4300,
+      "splat_url": "/local-marble/splat-full.spz",
+      "collider_url": "/local-marble/collider.glb",
+      "thumbnail_url": "/local-marble/thumbnail.webp",
+      "asset_transform": [1, 0, 0, 0],
+      "spawn": {
+        "position": [0, 0, 0],
+        "quaternion": [0, 0.7071067812, 0, 0.7071067812]
+      }
+    },
+    "media": [],
+    "memories": [
+      {
+        "id": "memory_marble_origin",
+        "name": "窗边那束光",
+        "summary": "从窗边照进来的光，落在熟悉的房间里。",
+        "media_ids": [],
+        "reflection": "窗边、房间和光线来自测试场景的可见内容；这个名称是演示配置，不是一次真实模型调用的结果。",
+        "anchor": {
+          "id": "anchor_marble_origin",
+          "cue": { "label": "床面中央" },
+          "source_grounding": { "x": 3460, "y": 3000 },
+          "world_grounding": null,
+          "position": [-2.006887302, -0.9030992859, 0],
+          "normal": [0.1431431029, 0.9861203941, -0.0841226507],
+          "hero": { "status": "not_requested", "job_id": null, "asset_url": null }
+        }
+      }
+    ],
+    "unassigned_media_ids": []
+  }
+  ]
+}

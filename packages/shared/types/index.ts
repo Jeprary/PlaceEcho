@@ -11,12 +11,24 @@ export interface SceneContext {
   audio_url: string | null;
 }
 
+export type Vector3 = [number, number, number];
+export type Quaternion = [number, number, number, number];
+
+export interface WorldSpawn {
+  position: Vector3;
+  quaternion: Quaternion;
+}
+
 export interface WorldAssets {
   panorama_url: string | null;
   panorama_width: number | null;
   panorama_height: number | null;
   splat_url: string | null;
   collider_url: string | null;
+  thumbnail_url: string | null;
+  /** Rotates provider asset coordinates into PlaceEcho's canonical Y-up frame. */
+  asset_transform: Quaternion | null;
+  spawn: WorldSpawn | null;
 }
 
 export interface MediaAsset {
@@ -38,8 +50,6 @@ export interface SourceGrounding {
 export interface WorldGrounding extends SourceGrounding {
   view_id: string;
 }
-
-export type Vector3 = [number, number, number];
 
 export interface HeroState {
   status: HeroStatus;

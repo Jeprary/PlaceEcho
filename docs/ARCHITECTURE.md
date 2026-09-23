@@ -9,7 +9,7 @@ placeecho/
 ├── apps/
 │   ├── web/          # browser authoring and spatial runtime
 │   ├── api/          # scene, storage, AI, and job boundaries
-│   ├── gpu-worker/   # future CUDA/SAM 3D Objects worker
+│   ├── gpu-worker/   # CUDA/MediaSDK and optional segmentation worker boundary
 │   └── ios/          # reserved thin native capture shell
 ├── packages/
 │   └── shared/
@@ -27,16 +27,16 @@ The JavaScript/TypeScript projects use a pnpm workspace without Turborepo. The P
 ```text
 Web authoring/runtime
   <-> API
-       ├── StorageProvider -> LocalStorageProvider
+       ├── StorageProvider -> Local / mounted volume / Alibaba OSS
        ├── Memory AI boundary
        ├── Spatial AI grounding boundary
-       ├── future world-generation boundary
+       ├── panorama, Marble world, and Hero job boundaries
        └── GPU job boundary -> FastAPI GPU Worker
 ```
 
 The Web runtime owns the final Collider, camera poses, Three.js coordinates, Gaussian-world coordinates, viewing-ray construction, and Collider intersection. It therefore owns authoritative `anchor.position` and optional `anchor.normal`.
 
-The world boundary supports both pre-generated world assets and later asynchronous generation. The main demo must operate from pre-generated Gaussian + Collider assets.
+The world boundary supports both pre-generated world assets and asynchronous Marble generation. The main demo operates from pre-generated Gaussian + Collider assets. Each enterable world also carries an explicit camera-eye spawn pose. Web Geometry validates that pose against the Collider before movement; it does not infer avatar feet or add an eye-height offset.
 
 ## Local-first Development Architecture
 
@@ -49,14 +49,24 @@ Mac
     ├── media/
     ├── world/
     ├── heroes/
+    ├── memory-requests/  # processing requests, not formal Scene Memories
     └── scene.json
 
 External when needed
 ├── multimodal API
-└── Alibaba GPU ECS (future CUDA/SAM3D runtime)
+└── Alibaba GPU ECS (CUDA/SAM3 runtime)
 ```
 
-`scene.json` is a serialized runtime manifest/current state, not a production database.
+`scene.json` is a serialized runtime manifest/current state, not a relational
+production database. The same repositories currently persist it through a
+replaceable object-storage abstraction; a later indexed database can be added
+without making React or iOS authoritative for IDs.
+
+New Memory creation first persists an application-generated request record under
+`memory-requests/`. A request ID is not a Memory ID, and pending request state is
+not inserted into the Scene manifest. After media persistence and Memory analysis
+complete, the backend creates the authoritative Memory ID and updates
+`scene.json`.
 
 ## Future Alibaba Deployment
 
@@ -75,13 +85,34 @@ Local-first and cloud deployments must retain the same high-level Web, AI, GPU, 
 
 ### Web
 
-Future responsibilities include authoring UI, media selection, panorama import, the Three.js/SparkJS world runtime, Collider runtime, Wind Mode, gyroscope input, Anchor runtime, raycast, Memory Reveal, and media playback. Imperative world code belongs in `apps/web/src/world/`, not directly in React component state.
+Current responsibilities include the shared Memory manager/creation UI, panorama import, the Three.js/SparkJS world runtime, Collider runtime, Wind Mode, gyroscope input, Anchor runtime, Memory Reveal, and media playback. The Web has one `index.html`, one React bootstrap, and one `App`; manager, world, and reveal are React application states rather than separate HTML entries. Local preview and production use the same components and differ only at the data-source/configuration boundary (fixture JSON locally, authoritative API data in production). Imperative world code belongs in `apps/web/src/world/`, not directly in React component state.
 
 The Web must not care how a panorama was acquired. Both Web upload and a future native bridge produce a `PanoramaAsset` and call `importPanorama()`. Everything after that boundary is acquisition-independent.
 
+`tools/qwen-panorama-cleaner/` is the optional preprocessing implementation for a
+full 2:1 panorama. It projects a nadir crop, requests a Qwen image edit, applies a
+user-supplied mask, and inverse-maps only the repair into the original panorama.
+It is usable as a standalone CLI or as a bounded child process behind an explicit
+API `panorama_clean` job. The stitch result is immutable; a cleaned derivative
+must be previewed or explicitly activated. Missing cleaner credentials never
+block upload or stitching, and no private inputs or generated outputs are tracked.
+
 ### API
 
-Future responsibilities include Scene lifecycle, authoritative system-ID generation, persistence, storage abstraction, AI orchestration, GPU jobs, and world jobs. Development runs locally on macOS; later CPU deployment must not change Web contracts.
+Current responsibilities include Scene lifecycle and listing, authoritative
+system-ID generation, persistence, local/mounted/OSS storage, stitch/clean
+panorama jobs, Memory analysis, final-world 2D grounding, Marble world jobs,
+world registration, Anchor persistence, and Hero provider jobs. The world
+pipeline also selects and persists each Scene's management thumbnail; Web never
+owns a parallel cover-image registry. Development and Alibaba deployments retain
+the same HTTP and Scene contracts.
+
+World registration persists one coherent bundle in `scene.json`: SPZ URL,
+Collider URL, management `thumbnail_url`, provider-to-canonical
+`asset_transform`, and canonical camera-eye spawn. Provider adapters own this
+metadata. Web applies the exact same transform to the visual world and Collider,
+then performs navigation and Anchor geometry in a right-handed Y-up frame. The
+manager never shows storage filenames as product copy.
 
 The backend/application—not AI models—generates `scene_id`, `media_id`, `memory_id`, `anchor_id`, and `job_id`. Models may only return IDs supplied to them.
 
@@ -91,17 +122,125 @@ The FastAPI worker is the future boundary for PyTorch, NVIDIA CUDA, segmentation
 
 ### Optional iOS Capture Shell
 
-The future thin shell may use the Insta360 Camera SDK, X5 capture, the Media SDK, upload, and a WKWebView bridge. It must not reimplement the Web product.
+The thin shell hosts the same Web app in a WKWebView and supplies X5 preview,
+countdown, capture, local download, and Media SDK export. Durable upload remains
+pending. It must not reimplement the Web product or introduce a second home UI.
+
+The application executable does not link the large Insta360 binaries. It embeds
+a signed `PlaceEchoCaptureKit` framework without linking it, and dynamically
+loads that framework only after the user opens X5 acquisition. The capture kit
+owns the SDK-linked provider and native capture controller; a process-local
+request/result bridge returns the staged panorama to the shell. This keeps SDK
+class registration and media initialization out of the Web shell launch path.
+The shell prepares the dynamic framework on a dedicated background queue after
+that explicit action, then creates and presents UIKit controllers on the main
+thread, so first-use SDK loading cannot block Web gestures or manager animation.
+
+The iOS build embeds the production Web bundle and serves it through an internal
+resource handler, so changing temporarily to X5 Wi-Fi does not remove the home
+UI. The Spatial Runtime is a separate lazy Web chunk and is loaded only after a
+ready Memory is opened; neither it nor the capture kit may block the manager UI.
+The device-orientation adapter is part of that same deferred spatial boundary and
+must not make Three.js an initial manager dependency. If the system WebContent
+process does not become interactive promptly, the shell exposes a native recovery
+control that opens only the existing X5 acquisition screen. This is a capture
+availability fallback, not a second implementation of the product home UI.
+Development iOS builds may copy the small set of already-referenced Revisit
+artifacts from ignored `.local-data` into the embedded Web bundle. They retain
+the same `/local-world`, `/local-marble`, and `/local-memory` URL namespace used
+by the development server; this is an offline packaging step, not a second asset
+contract. Source media, PLY/LOD intermediates, and other large generated files
+remain outside Git and outside the app.
 
 ## StorageProvider Abstraction
 
-API business modules access storage through a replaceable `StorageProvider`, not scattered filesystem calls. v0.1 initializes `LocalStorageProvider`. A future `OSSStorageProvider` may replace it without changing Web, Memory AI, Spatial AI, or GPU business contracts. OSS is not implemented now.
+API business modules access storage through a replaceable `StorageProvider`, not scattered filesystem calls. v0.1 supports `LocalStorageProvider`, a mounted-volume local provider, and `OSSStorageProvider`, including Memory request records. Selecting local, mounted, or OSS storage changes environment configuration, not Web, AI, or job contracts.
+
+The repository maintains a small `scenes/index.json` through that abstraction so
+the manager can list Scenes without requiring OSS bucket enumeration permission.
+This is a v0.1 manifest index, not a replacement for a future transactional
+database.
 
 ## AI Responsibility Boundaries
 
-Memory AI owns media grouping, Memory names, summaries, and cues. Spatial AI owns source-panorama and final-world 2D grounding. One efficient multimodal request may combine the first semantic and spatial analysis, but code remains separated under `ai/memory/` and `ai/grounding/`.
+Memory AI owns media grouping, Memory names, summaries, cues, and an optional
+media-supported description of the overall Scene. Spatial AI owns
+source-panorama and final-world 2D grounding. One efficient multimodal request
+may combine the first semantic and spatial analysis, but code remains separated
+under `ai/memory/` and `ai/grounding/`.
 
 AI must never produce authoritative final 3D coordinates.
+
+The implemented API analysis service reads 1–12 selected uploaded image, audio,
+or video assets and the stitched panorama, calls a replaceable
+`MemoryAnalyzer`, validates the model's 1–3 groups and source pixels, then
+persists Memory groups. The default analyzer calls Bailian
+`qwen3.8-omni-flash` through the OpenAI-compatible Chat Completions API using
+the provider's native image, audio, and video content parts. INSP remains an
+image-compatible panorama capture upload but is excluded from automatic Memory
+analysis selection. Large visual inputs are decoded with EXIF orientation and
+converted in memory to bounded JPEG inference copies (2048×1024 panorama;
+1280×1280 media box); authoritative stored originals are never overwritten or
+brightness-normalized. A completed stitched panorama remains a prerequisite; the
+standalone Python multimedia prototype is not the API runtime. Reanalysis
+replaces prior Memory groups. A validated `scene_context_text` from that same
+analysis may update `scene_context.text`; when the selection contains exactly
+one audio asset, its registered URL is persisted as `scene_context.audio_url`.
+Neither field is copied automatically into individual Memory reflections.
+Audio and direct user text are global semantic evidence: they may disambiguate
+which visible panorama cue corresponds to a Memory and help produce the Scene
+Context summary. They cannot independently authorize a pixel or 3D location;
+`source_grounding` still requires visible evidence in the original panorama,
+and final position still requires Web Collider raycast.
+
+The authoritative Memory title first exists when this analysis succeeds. Before
+then, `memory-requests/` records are only processing receipts and must use a
+generic pending presentation. Management cards render the persisted
+`Scene.memories[].name`; Web, world generation, filenames, and thumbnails never
+derive or overwrite that title. Demo fixture titles are seeded sample data and
+must not be represented as model output.
+
+The Web creation boundary carries the actual panorama `File`, selected media
+`File` objects, recorded audio `Blob`, and optional typed context. Web uploads
+supported Memory binaries sequentially through the Media route, imports an
+already-stitched 2:1 JPEG/PNG panorama directly or starts the INSP stitch job,
+persists the processing receipt, waits for panorama readiness, and starts
+Memory analysis. Typed context is stored on the processing receipt and passed
+to analysis as Scene-level semantic evidence; it is never represented as an
+uploaded or transcribed binary.
+
+A completed optional Hero asset is currently rendered as a transparent Three.js
+turntable beside the Memory Reveal. This presentation renderer is intentionally
+independent of the Gaussian world and does not claim world-space placement at
+the Anchor. A future in-world Hero needs explicit scale/orientation placement
+metadata before `SpatialRuntime` may attach it to Anchor geometry.
+
+The implemented World Grounding service receives explicit final-world
+perspective render images with stable view IDs and dimensions. Its second
+Scene-level multimodal request also receives the already-validated Memory
+groups and their image media. A replaceable `WorldGrounder` returns cue pixels
+plus at most one validated Hero recommendation (or `skip`/additional-capture).
+Only an explicit generation option and provider-processing confirmation may turn
+a high-confidence recommendation into a Hero job. The API persists only
+`world_grounding`; registering new world assets or recomputing grounding clears
+stale 3D geometry. Web Geometry remains solely responsible for raycast position
+and normal, sent through the Anchor persistence route. Neither grounding nor
+Hero recommendation may infer an authoritative 3D point.
+
+The Web capture module binds every stable view ID to its exact perspective-camera
+pose and projection values, then uses that in-memory map immediately after the
+API response. This capture/ground/raycast sequence is an explicit authoring step
+after both the splat and Collider have loaded. It is never run from normal world
+entry or Revisit, and successful geometry must be reused until the registered
+world assets change. Camera metadata is not persisted in v0.1, so a page refresh
+restarts the whole explicit authoring transaction rather than guessing a ray.
+
+`SpatialRuntime` therefore defaults to `experience` mode. Authoring code must
+deliberately construct a separate `localization` runtime, start it, and call its
+one-shot `prepareGrounding()` method after world readiness. That mode suppresses
+Anchor visuals, Wind/gyroscope movement, and the entry glide while it captures
+the final-world views. The normal application entry path does not call this
+method; a failed or completed attempt cannot silently issue another model call.
 
 ## Source Grounding vs World Grounding
 
@@ -123,6 +262,12 @@ world_grounding
 ```
 
 This calculation belongs exclusively to Web Geometry because only the Web runtime has the authoritative Collider and runtime coordinate spaces.
+
+The stored Anchor position is the interaction/display point, not the raw triangle
+surface point. Web Geometry orients the world-space hit normal toward the render
+camera and offsets the point into free space (8 cm for the default marker, or the
+Hero half-depth plus a small margin) before persistence. This prevents z-fighting
+and collision embedding while preserving the surface normal.
 
 ## Module Ownership
 
