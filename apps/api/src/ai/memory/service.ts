@@ -71,12 +71,12 @@ export class MemoryAnalysisService {
             text: normalizedContextText,
           },
         };
-    const result = await this.analyzer.analyze({
+    const result = completeMissingCoverage(await this.analyzer.analyze({
       scene: analysisScene,
       panorama,
       media: material,
       memoryIds,
-    });
+    }), selected);
     validateAnalysis(result, selected, memoryIds, scene.world.panorama_width, scene.world.panorama_height);
     const memories: Memory[] = result.memories.map((group) => ({
       id: group.id,
@@ -108,6 +108,30 @@ export class MemoryAnalysisService {
       sceneContextAudioUrl ?? undefined,
     );
   }
+}
+
+function completeMissingCoverage(
+  result: AnalysisResult,
+  selected: string[],
+): AnalysisResult {
+  if (
+    !result ||
+    !Array.isArray(result.memories) ||
+    !Array.isArray(result.unassigned_media_ids)
+  ) {
+    return result;
+  }
+  const reported = new Set<string>(result.unassigned_media_ids);
+  for (const group of result.memories) {
+    if (!Array.isArray(group.media_ids)) continue;
+    for (const mediaId of group.media_ids) reported.add(mediaId);
+  }
+  const missing = selected.filter((mediaId) => !reported.has(mediaId));
+  if (missing.length === 0) return result;
+  return {
+    ...result,
+    unassigned_media_ids: [...result.unassigned_media_ids, ...missing],
+  };
 }
 
 function normalizeContextText(value: string | null | undefined): string | null | undefined {

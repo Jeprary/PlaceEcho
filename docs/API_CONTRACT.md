@@ -186,7 +186,9 @@ media is not replaced, recompressed, brightness-normalized, or written back.
 The backend supplies Memory IDs, validates that every selected media ID appears
 exactly once in a group or `unassigned_media_ids`, and checks source pixels
 against the original panorama dimensions. A one-asset analysis may return one
-Memory. The result may also contain a non-empty `scene_context_text`, which is
+Memory. A selected media ID omitted entirely by the provider is deterministically
+appended to `unassigned_media_ids`; unknown IDs and duplicate assignments remain
+invalid. The result may also contain a non-empty `scene_context_text`, which is
 persisted to `scene_context.text`; if the selection contains exactly one audio
 asset, its registered URL is persisted to `scene_context.audio_url`. Unselected
 Scene media remains unassigned. Returns the updated Scene. Analysis replaces the
