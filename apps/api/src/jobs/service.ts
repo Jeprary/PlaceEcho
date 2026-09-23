@@ -35,6 +35,8 @@ export interface PanoramaCleanJob {
   height: number | null;
   activate_on_completion: boolean;
   activated: boolean;
+  /** A paid model result is staged and can be resumed without another call. */
+  recovery_available: boolean;
   validation: Record<string, unknown> | null;
   error: string | null;
 }
@@ -131,6 +133,7 @@ export class PanoramaJobService {
       height: null,
       activate_on_completion: activate,
       activated: false,
+      recovery_available: false,
       validation: null,
       error: null,
     };
@@ -163,6 +166,36 @@ export class PanoramaJobService {
     );
     if (scene === null) return null;
     job.activated = true;
+    await this.save(job);
+    return job;
+  }
+
+  async resumeClean(jobId: string): Promise<PanoramaCleanJob | null> {
+    const job = await this.get(jobId);
+    if (job?.type !== "panorama_clean") return null;
+    if (
+      job.status !== "failed" ||
+      job.recovery_available !== true ||
+      job.width === null ||
+      job.height === null
+    ) {
+      throw new Error(
+        "Only a failed panorama clean job with a staged model result can be resumed.",
+      );
+    }
+    const recovered = await this.storage.get(this.recoveryKey(job));
+    if (recovered === null) {
+      throw new Error("The staged panorama clean result is unavailable.");
+    }
+    job.status = "running";
+    job.error = null;
+    await this.save(job);
+    try {
+      await this.completeClean(job, recovered);
+    } catch (error) {
+      job.status = "failed";
+      job.error = error instanceof Error ? error.message : String(error);
+    }
     await this.save(job);
     return job;
   }
@@ -252,21 +285,13 @@ export class PanoramaJobService {
         panorama: sourcePanorama,
         maskPng,
       });
-      await this.storage.put(this.outputKey(job), result.panorama);
-      job.status = "completed";
-      job.output_url = `/api/jobs/${job.job_id}/output`;
       job.width = width;
       job.height = height;
       job.validation = result.validation;
-      if (job.activate_on_completion) {
-        await this.scenes.setPanorama(
-          job.scene_id,
-          job.output_url,
-          width,
-          height,
-        );
-        job.activated = true;
-      }
+      await this.storage.put(this.recoveryKey(job), result.panorama);
+      job.recovery_available = true;
+      await this.save(job);
+      await this.completeClean(job, result.panorama);
     } catch (error) {
       job.status = "failed";
       job.error = error instanceof Error ? error.message : String(error);
@@ -274,9 +299,42 @@ export class PanoramaJobService {
     await this.save(job);
   }
 
+  private async completeClean(
+    job: PanoramaCleanJob,
+    panorama: Uint8Array,
+  ): Promise<void> {
+    if (job.width === null || job.height === null) {
+      throw new Error("Panorama clean dimensions are unavailable.");
+    }
+    await this.storage.put(this.outputKey(job), panorama);
+    job.output_url = `/api/jobs/${job.job_id}/output`;
+    if (job.activate_on_completion) {
+      const scene = await this.scenes.setPanorama(
+        job.scene_id,
+        job.output_url,
+        job.width,
+        job.height,
+      );
+      if (scene === null) throw new Error("Scene disappeared during panorama activation.");
+      job.activated = true;
+    }
+    job.status = "completed";
+    job.error = null;
+    job.recovery_available = false;
+    try {
+      await this.storage.delete(this.recoveryKey(job));
+    } catch {
+      // The completed output is authoritative; stale recovery cleanup is best-effort.
+    }
+  }
+
   private outputKey(job: PanoramaJob): string {
     const suffix = job.type === "panorama_clean" ? "-clean" : "";
     return `scenes/${job.scene_id}/panorama/${job.job_id}${suffix}.jpg`;
+  }
+
+  private recoveryKey(job: PanoramaCleanJob): string {
+    return `jobs/${job.job_id}-clean-recovery.jpg`;
   }
 
   private async save(job: PanoramaJob): Promise<void> {
