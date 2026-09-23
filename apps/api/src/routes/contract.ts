@@ -1,4 +1,8 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
+import type { Vector3 } from "@placeecho/shared";
+import { BailianUnavailableError } from "../ai/memory/bailian.js";
+import type { MemoryAnalysisService } from "../ai/memory/service.js";
+import type { RenderView, WorldGroundingService } from "../ai/grounding/service.js";
 import {
   HeroProviderUnavailableError,
   type HeroJobService,
@@ -33,6 +37,16 @@ export interface ContractRouteDependencies {
   panoramaJobs: PanoramaJobService;
   worldJobs: WorldJobService;
   heroJobs: HeroJobService;
+  memoryAnalysis: MemoryAnalysisService;
+  worldGrounding: WorldGroundingService;
+}
+
+function validVector(value: unknown): value is Vector3 {
+  return Array.isArray(value) && value.length === 3 && value.every((axis) => typeof axis === "number" && Number.isFinite(axis));
+}
+
+function isAssetUrl(value: unknown): value is string {
+  return typeof value === "string" && (/^https:\/\/[^\s]+$/.test(value) || /^\/api\/jobs\/job_[a-zA-Z0-9_-]+\/output$/.test(value));
 }
 
 export function registerContractRoutes(
@@ -154,17 +168,37 @@ export function registerContractRoutes(
     }
   });
 
-  app.post("/api/scenes/:sceneId/analyze", async (_request, reply) =>
-    notImplemented(reply, "analyze_scene"),
+  app.post<{ Params: { sceneId: string }; Body: { media_ids?: string[] } }>(
+    "/api/scenes/:sceneId/analyze", async (request, reply) => {
+      try {
+        const scene = await dependencies.memoryAnalysis.analyze(request.params.sceneId, request.body?.media_ids);
+        return scene ? reply.send(scene) : reply.code(404).send({ status: "not_found" });
+      } catch (error) {
+        const unavailable = error instanceof BailianUnavailableError;
+        return reply.code(unavailable ? 503 : 400).send({ status: unavailable ? "provider_unavailable" : "invalid_request", message: error instanceof Error ? error.message : String(error) });
+      }
+    },
   );
 
-  app.post(
-    "/api/scenes/:sceneId/world-grounding",
-    async (_request, reply) => notImplemented(reply, "world_grounding"),
+  app.post<{ Params: { sceneId: string }; Body: { views?: RenderView[] } }>(
+    "/api/scenes/:sceneId/world-grounding", async (request, reply) => {
+      try {
+        const scene = await dependencies.worldGrounding.ground(request.params.sceneId, request.body?.views ?? []);
+        return scene ? reply.send(scene) : reply.code(404).send({ status: "not_found" });
+      } catch (error) {
+        const unavailable = error instanceof BailianUnavailableError;
+        return reply.code(unavailable ? 503 : 400).send({ status: unavailable ? "provider_unavailable" : "invalid_request", message: error instanceof Error ? error.message : String(error) });
+      }
+    },
   );
 
-  app.patch("/api/scenes/:sceneId/world", async (_request, reply) =>
-    notImplemented(reply, "register_world"),
+  app.patch<{ Params: { sceneId: string }; Body: { splat_url?: string; collider_url?: string } }>(
+    "/api/scenes/:sceneId/world", async (request, reply) => {
+      const { splat_url: splatUrl, collider_url: colliderUrl } = request.body ?? {};
+      if (!isAssetUrl(splatUrl) || !isAssetUrl(colliderUrl)) return reply.code(400).send({ status: "invalid_request", message: "splat_url and collider_url must be safe asset URLs." });
+      const scene = await dependencies.sceneService.setWorldAssets(request.params.sceneId, splatUrl, colliderUrl);
+      return scene ? reply.send(scene) : reply.code(404).send({ status: "not_found" });
+    },
   );
 
   app.post<{
@@ -186,9 +220,19 @@ export function registerContractRoutes(
     }
   });
 
-  app.patch(
-    "/api/scenes/:sceneId/memories/:memoryId/anchor",
-    async (_request, reply) => notImplemented(reply, "persist_anchor"),
+  app.patch<{ Params: { sceneId: string; memoryId: string }; Body: { position?: Vector3; normal?: Vector3 | null } }>(
+    "/api/scenes/:sceneId/memories/:memoryId/anchor", async (request, reply) => {
+      const { position, normal = null } = request.body ?? {};
+      if (!validVector(position) || (normal !== null && (!validVector(normal) || Math.hypot(...normal) < 0.001))) {
+        return reply.code(400).send({ status: "invalid_request", message: "position and optional normal must be finite 3D vectors." });
+      }
+      try {
+        const scene = await dependencies.sceneService.setAnchor(request.params.sceneId, request.params.memoryId, position, normal);
+        return scene ? reply.send(scene) : reply.code(404).send({ status: "not_found" });
+      } catch (error) {
+        return reply.code(400).send({ status: "invalid_request", message: error instanceof Error ? error.message : String(error) });
+      }
+    },
   );
 
   app.post<{
