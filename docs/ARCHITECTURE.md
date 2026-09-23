@@ -97,6 +97,13 @@ Insta360-backed capture provider for capture, camera-file download, and 2:1 JPEG
 export. The native SDK binaries remain local ignored dependencies and are never
 committed.
 
+The application executable does not link the large Insta360 binaries. It embeds
+a signed `PlaceEchoCaptureKit` framework without linking it, and dynamically
+loads that framework only after the user opens X5 acquisition. The capture kit
+owns the SDK-linked provider and native capture controller; a process-local
+request/result bridge returns the staged panorama to the shell. This keeps SDK
+class registration and media initialization out of the Web shell launch path.
+
 The iOS build embeds the Web production bundle and loads it from the application
 resources by default. This keeps the Web UI alive while a Personal Team build
 manually switches from normal Wi-Fi to the X5 hotspot. A Scheme URL override is

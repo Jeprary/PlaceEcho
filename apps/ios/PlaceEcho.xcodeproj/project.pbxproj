@@ -13,6 +13,8 @@
 		10A000000000000000000004 /* Insta360PanoramaCaptureProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000006 /* Insta360PanoramaCaptureProvider.swift */; };
 		10A000000000000000000005 /* X5WiFiSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000007 /* X5WiFiSession.swift */; };
 		10A000000000000000000006 /* X5CaptureViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000009 /* X5CaptureViewController.swift */; };
+		10A000000000000000000007 /* CapturePluginTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000010 /* CapturePluginTypes.swift */; };
+		10A000000000000000000008 /* PlaceEchoCapturePluginFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000015 /* PlaceEchoCapturePluginFactory.swift */; };
 		10A000000000000000000011 /* INSCameraSDK.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000011 /* INSCameraSDK.xcframework */; };
 		10A000000000000000000012 /* INSCameraServiceSDK.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000012 /* INSCameraServiceSDK.xcframework */; };
 		10A000000000000000000013 /* INSCoreMedia.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000013 /* INSCoreMedia.xcframework */; };
@@ -21,7 +23,18 @@
 		10A000000000000000000022 /* INSCameraServiceSDK.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000012 /* INSCameraServiceSDK.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		10A000000000000000000023 /* INSCoreMedia.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000013 /* INSCoreMedia.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		10A000000000000000000024 /* SSZipArchive.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000014 /* SSZipArchive.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		10A000000000000000000025 /* PlaceEchoCaptureKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 10B000000000000000000016 /* PlaceEchoCaptureKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		10E000000000000000000005 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 10E000000000000000000002 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 10E000000000000000000003;
+			remoteInfo = PlaceEchoCaptureKit;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
 		10C000000000000000000004 /* Embed Frameworks */ = {
@@ -30,6 +43,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
+				10A000000000000000000025 /* PlaceEchoCaptureKit.framework in Embed Frameworks */,
 				10A000000000000000000021 /* INSCameraSDK.xcframework in Embed Frameworks */,
 				10A000000000000000000022 /* INSCameraServiceSDK.xcframework in Embed Frameworks */,
 				10A000000000000000000023 /* INSCoreMedia.xcframework in Embed Frameworks */,
@@ -50,14 +64,24 @@
 		10B000000000000000000007 /* X5WiFiSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = X5WiFiSession.swift; sourceTree = "<group>"; };
 		10B000000000000000000008 /* PlaceEcho.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PlaceEcho.entitlements; sourceTree = "<group>"; };
 		10B000000000000000000009 /* X5CaptureViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = X5CaptureViewController.swift; sourceTree = "<group>"; };
+		10B000000000000000000010 /* CapturePluginTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePluginTypes.swift; sourceTree = "<group>"; };
 		10B000000000000000000011 /* INSCameraSDK.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = INSCameraSDK.xcframework; sourceTree = "<group>"; };
 		10B000000000000000000012 /* INSCameraServiceSDK.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = INSCameraServiceSDK.xcframework; sourceTree = "<group>"; };
 		10B000000000000000000013 /* INSCoreMedia.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = INSCoreMedia.xcframework; sourceTree = "<group>"; };
 		10B000000000000000000014 /* SSZipArchive.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = SSZipArchive.xcframework; sourceTree = "<group>"; };
+		10B000000000000000000015 /* PlaceEchoCapturePluginFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceEchoCapturePluginFactory.swift; sourceTree = "<group>"; };
+		10B000000000000000000016 /* PlaceEchoCaptureKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = PlaceEchoCaptureKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		10C000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		10C000000000000000000006 /* CaptureKit Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -89,6 +113,8 @@
 				10B000000000000000000006 /* Insta360PanoramaCaptureProvider.swift */,
 				10B000000000000000000007 /* X5WiFiSession.swift */,
 				10B000000000000000000009 /* X5CaptureViewController.swift */,
+				10B000000000000000000010 /* CapturePluginTypes.swift */,
+				10B000000000000000000015 /* PlaceEchoCapturePluginFactory.swift */,
 				10B000000000000000000008 /* PlaceEcho.entitlements */,
 				10B000000000000000000004 /* Info.plist */,
 			);
@@ -99,6 +125,7 @@
 			isa = PBXGroup;
 			children = (
 				10B000000000000000000005 /* PlaceEcho.app */,
+				10B000000000000000000016 /* PlaceEchoCaptureKit.framework */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -130,11 +157,29 @@
 			buildRules = (
 			);
 			dependencies = (
+				10E000000000000000000004 /* PBXTargetDependency */,
 			);
 			name = PlaceEcho;
 			productName = PlaceEcho;
 			productReference = 10B000000000000000000005 /* PlaceEcho.app */;
 			productType = "com.apple.product-type.application";
+		};
+		10E000000000000000000003 /* PlaceEchoCaptureKit */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 10F000000000000000000003 /* Build configuration list for PBXNativeTarget "PlaceEchoCaptureKit" */;
+			buildPhases = (
+				10C000000000000000000007 /* CaptureKit Sources */,
+				10C000000000000000000006 /* CaptureKit Frameworks */,
+				10C000000000000000000008 /* CaptureKit Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PlaceEchoCaptureKit;
+			productName = PlaceEchoCaptureKit;
+			productReference = 10B000000000000000000016 /* PlaceEchoCaptureKit.framework */;
+			productType = "com.apple.product-type.framework";
 		};
 /* End PBXNativeTarget section */
 
@@ -147,6 +192,9 @@
 				LastUpgradeCheck = 2700;
 				TargetAttributes = {
 					10E000000000000000000001 = {
+						CreatedOnToolsVersion = 27.0;
+					};
+					10E000000000000000000003 = {
 						CreatedOnToolsVersion = 27.0;
 					};
 				};
@@ -166,12 +214,20 @@
 			projectRoot = "";
 			targets = (
 				10E000000000000000000001 /* PlaceEcho */,
+				10E000000000000000000003 /* PlaceEchoCaptureKit */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		10C000000000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		10C000000000000000000008 /* CaptureKit Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -210,13 +266,30 @@
 				10A000000000000000000001 /* PlaceEchoApp.swift in Sources */,
 				10A000000000000000000002 /* PlaceEchoWebView.swift in Sources */,
 				10A000000000000000000003 /* PanoramaCaptureProvider.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		10C000000000000000000007 /* CaptureKit Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 				10A000000000000000000004 /* Insta360PanoramaCaptureProvider.swift in Sources */,
 				10A000000000000000000005 /* X5WiFiSession.swift in Sources */,
 				10A000000000000000000006 /* X5CaptureViewController.swift in Sources */,
+				10A000000000000000000007 /* CapturePluginTypes.swift in Sources */,
+				10A000000000000000000008 /* PlaceEchoCapturePluginFactory.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		10E000000000000000000004 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 10E000000000000000000003 /* PlaceEchoCaptureKit */;
+			targetProxy = 10E000000000000000000005 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		110000000000000000000001 /* Debug */ = {
@@ -320,6 +393,74 @@
 			};
 			name = Release;
 		};
+		110000000000000000000005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = K42T8795ZN;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_BITCODE = NO;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Vendor",
+				);
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"TO_B_SDK=1",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@loader_path/..",
+				);
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.placeecho.capturekit;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		110000000000000000000006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = K42T8795ZN;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_BITCODE = NO;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Vendor",
+				);
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"TO_B_SDK=1",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@loader_path/..",
+				);
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.placeecho.capturekit;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -337,6 +478,15 @@
 			buildConfigurations = (
 				110000000000000000000003 /* Debug */,
 				110000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		10F000000000000000000003 /* Build configuration list for PBXNativeTarget "PlaceEchoCaptureKit" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				110000000000000000000005 /* Debug */,
+				110000000000000000000006 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

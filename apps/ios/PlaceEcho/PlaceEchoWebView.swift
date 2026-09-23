@@ -83,7 +83,7 @@ struct PlaceEchoWebView: UIViewRepresentable {
         fileprivate let bundledWebAppHandler = BundledWebAppSchemeHandler()
         private let captureProvider: PanoramaCaptureProviding
         private var stagedCaptures: [String: CapturedPanorama] = [:]
-        private weak var captureViewController: X5CaptureViewController?
+        private weak var captureViewController: UIViewController?
         private weak var loadingView: UIView?
         private weak var loadingLabel: UILabel?
         private var didRetryTerminatedWebContent = false
@@ -187,7 +187,7 @@ struct PlaceEchoWebView: UIViewRepresentable {
                 return
             }
 
-            if captureProvider is Insta360PanoramaCaptureProvider {
+            if captureProvider is PanoramaCaptureViewControllerProviding {
                 presentX5Capture(sceneID: sceneID)
             } else {
                 runCapture(sceneID: sceneID)
@@ -207,12 +207,26 @@ struct PlaceEchoWebView: UIViewRepresentable {
                 return
             }
 
-            let controller = X5CaptureViewController(
-                sceneID: sceneID,
-                captureProvider: captureProvider
-            ) { [weak self] result in
-                self?.captureViewController = nil
-                self?.handle(result, fallbackSceneID: sceneID)
+            guard let capturePresenter = captureProvider as? PanoramaCaptureViewControllerProviding else {
+                runCapture(sceneID: sceneID)
+                return
+            }
+
+            let controller: UIViewController
+            do {
+                controller = try capturePresenter.makeCaptureViewController(
+                    sceneID: sceneID
+                ) { [weak self] result in
+                    self?.captureViewController = nil
+                    self?.handle(result, fallbackSceneID: sceneID)
+                }
+            } catch {
+                send([
+                    "type": "capture_failed",
+                    "scene_id": sceneID,
+                    "message": error.localizedDescription,
+                ])
+                return
             }
             captureViewController = controller
             presenter.present(controller, animated: true)
