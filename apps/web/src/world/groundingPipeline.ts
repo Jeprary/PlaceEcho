@@ -147,7 +147,8 @@ const ANCHOR_GROUND_SAMPLE_RADIUS_METERS = 0.18;
 const ANCHOR_GROUND_RING_SAMPLES = 8;
 const ANCHOR_GROUND_MIN_SAMPLES = 3;
 const ANCHOR_GROUND_HEIGHT_CLUSTER_METERS = 0.2;
-const ANCHOR_GROUND_SETBACK_METERS = [0.45, 0.75, 1.05] as const;
+const ANCHOR_GROUND_SETBACK_METERS = [0.45, 0.75, 1.05, 1.35, 1.65] as const;
+const ANCHOR_GROUND_LATERAL_METERS = [0, 0.45, -0.45, 0.8, -0.8] as const;
 const MIN_GROUND_NORMAL_Y = 0.65;
 
 type GroundSample = { point: Vector3; normal: Vector3 };
@@ -260,11 +261,18 @@ function projectAnchorToGround(
   const probeCenters =
     horizontalNormal.lengthSq() < 1e-8
       ? [placementPosition]
-      : ANCHOR_GROUND_SETBACK_METERS.map((setbackMeters) =>
-          surfacePosition
-            .clone()
-            .addScaledVector(horizontalNormal.normalize(), setbackMeters),
-        );
+      : (() => {
+          const direction = horizontalNormal.normalize();
+          const lateral = new Vector3(-direction.z, 0, direction.x);
+          return ANCHOR_GROUND_SETBACK_METERS.flatMap((setbackMeters) =>
+            ANCHOR_GROUND_LATERAL_METERS.map((lateralMeters) =>
+              surfacePosition
+                .clone()
+                .addScaledVector(direction, setbackMeters)
+                .addScaledVector(lateral, lateralMeters),
+            ),
+          );
+        })();
 
   const candidates = probeCenters
     .map((center) => sampleGroundFootprint(center, collider))

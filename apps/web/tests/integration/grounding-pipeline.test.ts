@@ -237,7 +237,7 @@ test("a wall semantic hit exits the wall then projects to the lowest upward floo
   assert.ok(Math.abs(hit.ground_surface_position![0]) < 1e-9);
   assert.ok(Math.abs(hit.ground_surface_position![1] + 1) < 1e-9);
   assert.ok(hit.ground_surface_position![2] >= 0.45 - 1e-9);
-  assert.ok(hit.ground_surface_position![2] <= 1.05 + 1e-9);
+  assert.ok(hit.ground_surface_position![2] <= 1.65 + 1e-9);
   assert.ok(Math.abs(hit.position[1] + 0.98) < 1e-9);
   assert.deepEqual(hit.normal, [0, 1, 0]);
   assert.equal(hit.offset_meters, 0.2);

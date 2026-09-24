@@ -318,7 +318,7 @@ world_grounding
   -> known render camera pose and FOV
   -> Three.js semantic viewing ray
   -> camera-facing Collider surface hit + 20 cm exit
-  -> progressive free-space probes 45/75/105 cm from wall-like hits
+  -> bounded fan of free-space probes 45–165 cm from wall-like hits
   -> nine downward Collider rays over the interaction footprint
   -> dominant upward-floor cluster + 2 cm clearance
   -> grounded position + optional normal
@@ -331,9 +331,10 @@ The stored Anchor position is the grounded interaction/display point, not the ra
 semantic triangle hit. Web Geometry first orients the semantic hit normal toward
 the render camera and exits that surface by 20 cm. It then samples the center and
 eight points around the interaction footprint with downward Collider rays. For a
-wall-like hit, the footprint is tried progressively at 45, 75, and 105 cm along
-the camera-facing horizontal normal, so the probe clears the wall boundary before
-looking for walkable ground. Web compares every stable dominant upward-facing
+wall-like hit, the footprint is tried progressively from 45 to 165 cm along the
+camera-facing horizontal normal and at bounded lateral offsets on either side,
+so the probe can clear both the wall boundary and raised furniture before looking
+for walkable ground. Web compares every stable dominant upward-facing
 floor-height cluster, keeps the lowest one to reject raised bed/desk surfaces,
 and persists its median point with 2 cm clearance. A sparse
 or missing floor cluster falls back to the safe camera-facing surface offset.
