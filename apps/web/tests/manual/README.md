@@ -132,11 +132,12 @@ media/AI workflow creates the authoritative Memory.
 
 1. Put `IMG_0194-aholo-g1.glb` in
    `.local-data/hero-tests/IMG_0194-aholo-g1.glb`.
-2. Open `/?heroPreview=1`; the isolated test opens the first ready Memory.
+2. Open the first ready Memory from `/` and reach its Anchor. The normal Reveal
+   now uses the fixture's completed `anchor.hero.asset_url`. Use
+   `/?heroPreview=1` only when an isolated immediate preview is useful.
 3. Verify the complete Hero is visible beside the Reveal card, slowly rotates,
    keeps a transparent background, and the control reads “跳过”.
 4. Close and enter again; inspect the browser console for WebGL or asset errors.
 
-Expected: this is a Reveal presentation test, not world-space Anchor placement.
-The normal production path uses a completed `anchor.hero.asset_url`; a missing
-or failed Hero never blocks the Reveal.
+Expected: this is a Reveal presentation, not world-space Anchor placement. A
+missing or failed Hero never blocks the Reveal.

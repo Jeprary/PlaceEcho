@@ -68,6 +68,12 @@ not inserted into the Scene manifest. After media persistence and Memory analysi
 complete, the backend creates the authoritative Memory ID and updates
 `scene.json`.
 
+Opening the New Memory authoring UI is local and never waits for API
+availability. The Web may request an authoritative draft Scene ID in the
+background, then retries that request before submission if the API was offline.
+It never fabricates a client-owned Scene ID or persists a processing Memory
+locally.
+
 ## Future Alibaba Deployment
 
 ```text
@@ -161,10 +167,10 @@ control that opens only the existing X5 acquisition screen. This is a capture
 availability fallback, not a second implementation of the product home UI.
 Development iOS builds may copy the small set of already-referenced Revisit
 artifacts from ignored `.local-data` into the embedded Web bundle. They retain
-the same `/local-world`, `/local-marble`, and `/local-memory` URL namespace used
-by the development server; this is an offline packaging step, not a second asset
-contract. Source media, PLY/LOD intermediates, and other large generated files
-remain outside Git and outside the app.
+the same `/local-world`, `/local-marble`, `/local-memory`, and `/local-hero` URL
+namespace used by the development server; this is an offline packaging step,
+not a second asset contract. Source media, PLY/LOD intermediates, and other large
+generated files remain outside Git and outside the app.
 
 The internal resource handler accepts only the fixed `placeecho` scheme,
 `capture` host, UUID JPEG filename, and the app-owned capture directory. Native

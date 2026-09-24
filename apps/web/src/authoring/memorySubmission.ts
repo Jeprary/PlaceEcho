@@ -23,6 +23,9 @@ export type NewMemoryRequest = {
   contextText: string | null;
 };
 
+/** Local authoring state before the backend assigns the authoritative Scene ID. */
+export type NewMemoryDraft = Omit<NewMemoryRequest, "sceneId">;
+
 export type MemorySubmissionReceipt = {
   requestId: string;
   sceneId: string;

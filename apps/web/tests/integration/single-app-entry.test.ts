@@ -41,3 +41,20 @@ test("sensitive device permissions remain behind explicit user actions", async (
   assert.match(creation, /录音.*选填|选填.*录音/);
   assert.match(creation, /麦克风未授权，可跳过/);
 });
+
+test("New Memory authoring opens before the backend assigns a Scene ID", async () => {
+  const manager = await readFile(
+    new URL("../../src/authoring/SceneManagerPreview.tsx", import.meta.url),
+    "utf8",
+  );
+
+  const beginCreate = manager.slice(
+    manager.indexOf("function beginCreate"),
+    manager.indexOf("async function createMemory"),
+  );
+  assert.match(beginCreate, /setView\("create"\)/);
+  assert.match(beginCreate, /ensureDraftScene\(\)\.catch/);
+  assert.doesNotMatch(manager, /if \(!draftSceneId\) return null/);
+  assert.doesNotMatch(manager, /后端暂未连接/);
+  assert.match(manager, /暂时无法保存，请稍后重试/);
+});

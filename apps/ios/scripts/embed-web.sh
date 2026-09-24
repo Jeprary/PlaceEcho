@@ -83,6 +83,10 @@ if [[ "${PLACE_ECHO_EMBED_LOCAL_SCENES:-1}" == "1" ]]; then
       "${bundle_destination}/local-memory/${media_name}"
   done
 
+  embed_local_asset \
+    "${local_data_directory}/hero-tests/IMG_0194-aholo-g1.glb" \
+    "${bundle_destination}/local-hero/IMG_0194-aholo-g1.glb"
+
   marble_directory="${local_data_directory}/marble/4907920b-f2b4-4362-a3ed-8e628869fd2c"
   embed_local_asset \
     "${marble_directory}/splat-full.spz" \
@@ -110,7 +114,7 @@ if [[ "${PLACE_ECHO_EMBED_LOCAL_SCENES:-1}" == "1" ]]; then
   fi
 
   if [[ "${missing_local_assets}" == "0" ]]; then
-    echo "Embedded the two local PlaceEcho Revisit spaces."
+    echo "Embedded the two local PlaceEcho Revisit spaces and demo Hero."
   elif [[ "${PLACE_ECHO_REQUIRE_LOCAL_SCENES:-0}" == "1" ]]; then
     echo "error: Required PlaceEcho demo assets are incomplete."
     exit 1

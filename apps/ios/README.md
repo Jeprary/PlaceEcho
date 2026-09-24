@@ -120,9 +120,10 @@ available in the macOS login shell.
 
 On a development Mac that has the ignored `.local-data` demo artifacts, the same
 build phase also embeds the two referenced Revisit spaces under their existing
-`/local-world`, `/local-marble`, and `/local-memory` URL paths. Only the runtime
-SPZ, Collider, thumbnail, and Reveal media are copied (roughly 74 MB); source PLY,
-LOD intermediates, and the large authoring panorama stay outside the app. Set
+`/local-world`, `/local-marble`, `/local-memory`, and `/local-hero` URL paths.
+Only the runtime SPZ, Collider, thumbnail, Reveal media, and completed demo Hero
+are copied (roughly 85 MB); source PLY, LOD intermediates, and the large authoring
+panorama stay outside the app. Set
 `PLACE_ECHO_EMBED_LOCAL_SCENES=0` in the Scheme build environment to skip this
 developer-only copy. A managed Git worktree automatically reuses `.local-data`
 from its main checkout. `package-demo.sh` requires the complete two-space asset
