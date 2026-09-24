@@ -70,12 +70,10 @@ under the ignored `.local-data/` directory.
 
 Changing the computer movement mode does not reload the current world.
 
-## Test data and real data
+## Shared implementation
 
 `assets/demo/` contains synthetic public fixtures that make the shared React
-experience reproducible. Real panoramas, personal media, Gaussian worlds,
-Colliders, generated Hero assets, and request records belong in `.local-data/`
-or an external storage provider and must never be committed.
+experience reproducible.
 
 The test and deployment builds use the same Web components and Scene contract.
 Configuration and data sources may differ; product behavior and shared contracts
@@ -93,7 +91,7 @@ packages/
   shared/       shared Scene types and machine-readable JSON Schema
 docs/           product, architecture, API, and Scene contracts
 assets/demo/    synthetic public development fixtures
-.local-data/    ignored local development state and large/private assets
+.local-data/    local runtime state and generated assets
 ```
 
 Optional panorama cleanup is documented in
@@ -123,9 +121,3 @@ require the manual checks in
 The README is an onboarding map, not a second specification. Product,
 architecture, API, and Scene behavior must be changed in the corresponding
 source-of-truth document.
-
-## Security
-
-Treat all Git history as eventually public. Never commit credentials, `.env`
-files, private media, `.local-data/`, model weights, SDK binaries, or large and
-generated 3D assets.
