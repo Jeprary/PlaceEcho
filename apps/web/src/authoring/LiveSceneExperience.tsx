@@ -88,6 +88,7 @@ export function LiveSceneExperience({
       orientationSource={null}
       windMode="idle"
       initialDesktopTravelMode="wasd"
+      showAllAnchors
       revealActive={revealActive}
       onReached={() => setRevealActive(true)}
       onRevealFinished={() => setRevealActive(false)}

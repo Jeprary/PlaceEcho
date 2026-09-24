@@ -315,9 +315,11 @@ function GroundingResult({
       {resolution?.hit && (
         <dl>
           <div><dt>表面点</dt><dd>{resolution.hit.surface_position.map(format).join(", ")}</dd></div>
+          <div><dt>地面点</dt><dd>{resolution.hit.ground_surface_position?.map(format).join(", ") ?? "未找到，保留表面点"}</dd></div>
           <div><dt>最终点</dt><dd>{resolution.hit.position.map(format).join(", ")}</dd></div>
           <div><dt>法线</dt><dd>{resolution.hit.normal?.map(format).join(", ") ?? "不可用"}</dd></div>
-          <div><dt>前推</dt><dd>{format(resolution.hit.offset_meters)} m</dd></div>
+          <div><dt>墙面退出</dt><dd>{format(resolution.hit.offset_meters)} m</dd></div>
+          <div><dt>离地</dt><dd>{format(resolution.hit.ground_clearance_meters)} m</dd></div>
         </dl>
       )}
       {result.heroGenerationError && (

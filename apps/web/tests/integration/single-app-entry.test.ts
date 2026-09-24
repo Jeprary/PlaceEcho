@@ -32,6 +32,7 @@ test("the retained QA flow opens persisted scenes in movable experience mode", a
   );
 
   assert.match(experience, /initialDesktopTravelMode="wasd"/);
+  assert.match(experience, /showAllAnchors/);
   assert.match(experience, /windMode="idle"/);
   assert.doesNotMatch(experience, /mode:\s*"localization"/);
   assert.match(grounding, /进入可移动空间查看/);

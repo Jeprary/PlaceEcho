@@ -196,8 +196,11 @@ test("a pixel ray hits the Collider and offsets its Anchor 8cm toward the camera
   assert.ok(Math.abs(hit.position[0]) < 1e-9);
   assert.ok(Math.abs(hit.position[1]) < 1e-9);
   assert.ok(Math.abs(hit.position[2] - 1.08) < 1e-9);
+  assert.deepEqual(hit.surface_normal, [0, 0, 1]);
+  assert.equal(hit.ground_surface_position, null);
   assert.deepEqual(hit.normal, [0, 0, 1]);
   assert.equal(hit.offset_meters, 0.08);
+  assert.equal(hit.ground_clearance_meters, 0);
 
   const miss = raycastWorldGrounding(
     { view_id: view.view_id, x: 0, y: 0 },
@@ -205,6 +208,38 @@ test("a pixel ray hits the Collider and offsets its Anchor 8cm toward the camera
     colliderBox(),
   );
   assert.equal(miss, null);
+});
+
+test("a wall semantic hit exits the wall then projects to the lowest upward floor", () => {
+  const collider = new Group();
+  const material = new MeshBasicMaterial({ side: DoubleSide });
+  const wall = new Mesh(new PlaneGeometry(6, 4), material);
+  const raisedSurface = new Mesh(new PlaneGeometry(2, 2), material);
+  raisedSurface.rotation.x = -Math.PI / 2;
+  raisedSurface.position.set(0, -0.25, 0.5);
+  const floor = new Mesh(new PlaneGeometry(8, 8), material);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(0, -1, 2);
+  collider.add(wall, raisedSurface, floor);
+  collider.updateMatrixWorld(true);
+
+  const view = centerView();
+  const hit = raycastWorldGrounding(
+    { view_id: view.view_id, x: 50, y: 50 },
+    view,
+    collider,
+  );
+
+  assert.ok(hit);
+  assert.deepEqual(hit.surface_position, [0, 0, 0]);
+  assert.deepEqual(hit.surface_normal, [0, 0, 1]);
+  assert.ok(Math.abs(hit.ground_surface_position![0]) < 1e-9);
+  assert.ok(Math.abs(hit.ground_surface_position![1] + 1) < 1e-9);
+  assert.ok(Math.abs(hit.ground_surface_position![2] - 0.08) < 1e-9);
+  assert.ok(Math.abs(hit.position[1] + 0.98) < 1e-9);
+  assert.deepEqual(hit.normal, [0, 1, 0]);
+  assert.equal(hit.offset_meters, 0.08);
+  assert.equal(hit.ground_clearance_meters, 0.02);
 });
 
 test("back-facing Collider normals flip toward the render camera before offset", () => {

@@ -14,6 +14,7 @@ import {
   Raycaster,
   Scene,
   Vector2,
+  Vector3,
   WebGLRenderer,
 } from "three";
 
@@ -52,12 +53,21 @@ export interface GroundingViewCaptureOptions {
 }
 
 export interface ColliderRaycastHit {
-  /** Camera-facing interaction/display point, offset from the raw surface. */
+  /** Final interaction/display point, ground-projected when a floor is found. */
   position: SceneVector3;
+  /** Semantic surface selected by the AI pixel ray. */
   surface_position: SceneVector3;
+  /** Camera-facing normal of the semantic hit. */
+  surface_normal: SceneVector3 | null;
+  /** Raw upward-facing floor point selected by the second Collider ray. */
+  ground_surface_position: SceneVector3 | null;
+  /** Placement normal: floor-up after projection, otherwise semantic normal. */
   normal: SceneVector3 | null;
   distance: number;
+  /** Distance used to leave the semantic surface before the floor ray. */
   offset_meters: number;
+  /** Small clearance above the floor, zero when no floor was found. */
+  ground_clearance_meters: number;
 }
 
 export type AnchorResolutionStatus =
@@ -120,6 +130,110 @@ const DUPLICATE_YAW_THRESHOLD_DEGREES = 12;
 
 const IMAGE_DATA_URL = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
 export const DEFAULT_ANCHOR_SURFACE_OFFSET_METERS = 0.08;
+export const DEFAULT_ANCHOR_GROUND_CLEARANCE_METERS = 0.02;
+const ANCHOR_GROUND_RAY_LIFT_METERS = 0.5;
+const ANCHOR_GROUND_RAY_MAX_DROP_METERS = 4;
+const ANCHOR_GROUND_SAMPLE_RADIUS_METERS = 0.18;
+const ANCHOR_GROUND_RING_SAMPLES = 8;
+const ANCHOR_GROUND_MIN_SAMPLES = 3;
+const ANCHOR_GROUND_HEIGHT_CLUSTER_METERS = 0.2;
+const MIN_GROUND_NORMAL_Y = 0.65;
+
+type GroundSample = { point: Vector3; normal: Vector3 };
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[middle - 1]! + sorted[middle]!) / 2
+    : sorted[middle]!;
+}
+
+function lowestGroundSample(
+  origin: Vector3,
+  collider: Object3D,
+): GroundSample | null {
+  const ray = new Raycaster(
+    origin,
+    new Vector3(0, -1, 0),
+    0,
+    ANCHOR_GROUND_RAY_MAX_DROP_METERS,
+  );
+  let ground: GroundSample | null = null;
+  for (const candidate of ray.intersectObject(collider, true)) {
+    if (!candidate.face) continue;
+    const normal = candidate.face.normal
+      .clone()
+      .applyNormalMatrix(
+        new Matrix3().getNormalMatrix(candidate.object.matrixWorld),
+      )
+      .normalize();
+    if (normal.y < 0) normal.negate();
+    if (normal.y < MIN_GROUND_NORMAL_Y) continue;
+    if (!ground || candidate.point.y < ground.point.y) {
+      ground = { point: candidate.point.clone(), normal };
+    }
+  }
+  return ground;
+}
+
+function projectAnchorToGround(
+  placementPosition: Vector3,
+  collider: Object3D,
+): GroundSample | null {
+  const offsets = [new Vector3(0, 0, 0)];
+  for (let index = 0; index < ANCHOR_GROUND_RING_SAMPLES; index += 1) {
+    const angle = (index / ANCHOR_GROUND_RING_SAMPLES) * Math.PI * 2;
+    offsets.push(
+      new Vector3(
+        Math.cos(angle) * ANCHOR_GROUND_SAMPLE_RADIUS_METERS,
+        0,
+        Math.sin(angle) * ANCHOR_GROUND_SAMPLE_RADIUS_METERS,
+      ),
+    );
+  }
+  const samples = offsets
+    .map((offset) =>
+      lowestGroundSample(
+        placementPosition
+          .clone()
+          .add(offset)
+          .add(new Vector3(0, ANCHOR_GROUND_RAY_LIFT_METERS, 0)),
+        collider,
+      ),
+    )
+    .filter((sample): sample is GroundSample => sample !== null);
+  if (samples.length < ANCHOR_GROUND_MIN_SAMPLES) return null;
+
+  const clusters: GroundSample[][] = [];
+  for (const sample of samples.sort((left, right) => right.point.y - left.point.y)) {
+    const cluster = clusters.find(
+      (candidate) =>
+        Math.abs(median(candidate.map(({ point }) => point.y)) - sample.point.y) <=
+        ANCHOR_GROUND_HEIGHT_CLUSTER_METERS,
+    );
+    if (cluster) cluster.push(sample);
+    else clusters.push([sample]);
+  }
+  const dominant = clusters.sort((left, right) => {
+    if (right.length !== left.length) return right.length - left.length;
+    return (
+      median(right.map(({ point }) => point.y)) -
+      median(left.map(({ point }) => point.y))
+    );
+  })[0];
+  if (!dominant || dominant.length < ANCHOR_GROUND_MIN_SAMPLES) return null;
+
+  const point = new Vector3(
+    median(dominant.map((sample) => sample.point.x)),
+    median(dominant.map((sample) => sample.point.y)),
+    median(dominant.map((sample) => sample.point.z)),
+  );
+  const normal = dominant
+    .reduce((sum, sample) => sum.add(sample.normal), new Vector3())
+    .normalize();
+  return { point, normal };
+}
 
 function assertCaptureDimensions(width: number, height: number): void {
   if (
@@ -412,7 +526,10 @@ export function raycastWorldGrounding(
 
   const surfacePosition = intersection.point.clone();
   const placementPosition = surfacePosition.clone();
-  let normal: SceneVector3 | null = null;
+  let surfaceNormal: SceneVector3 | null = null;
+  let placementNormal: SceneVector3 | null = null;
+  let groundSurfacePosition: SceneVector3 | null = null;
+  let groundClearanceMeters = 0;
   if (intersection.face) {
     const worldNormal = intersection.face.normal
       .clone()
@@ -433,14 +550,29 @@ export function raycastWorldGrounding(
     ) {
       throw new Error("Collider hit did not produce a finite, non-penetrating Anchor offset.");
     }
-    normal = finiteDirectionTuple3(worldNormal.toArray());
+    surfaceNormal = finiteDirectionTuple3(worldNormal.toArray());
+    placementNormal = surfaceNormal;
+
+    const ground = projectAnchorToGround(placementPosition, collider);
+    if (ground) {
+      const groundPosition = ground.point;
+      groundSurfacePosition = finiteTuple3(groundPosition.toArray());
+      groundClearanceMeters = DEFAULT_ANCHOR_GROUND_CLEARANCE_METERS;
+      placementPosition
+        .copy(groundPosition)
+        .addScaledVector(ground.normal, groundClearanceMeters);
+      placementNormal = finiteDirectionTuple3(ground.normal.toArray());
+    }
   }
   return {
     position: finiteTuple3(placementPosition.toArray()),
     surface_position: finiteTuple3(surfacePosition.toArray()),
-    normal,
+    surface_normal: surfaceNormal,
+    ground_surface_position: groundSurfacePosition,
+    normal: placementNormal,
     distance: intersection.distance,
-    offset_meters: normal ? placementOffsetMeters : 0,
+    offset_meters: surfaceNormal ? placementOffsetMeters : 0,
+    ground_clearance_meters: groundClearanceMeters,
   };
 }
 

@@ -96,6 +96,8 @@ export interface SpatialRuntimeOptions {
   thresholds?: ProximityThresholds;
   reachedPresentationControl?: "timed" | "external";
   targetMemoryId?: string;
+  /** Render positioned non-target Memory Anchors as passive spatial context. */
+  showAllAnchors?: boolean;
 }
 
 export interface PrepareGroundingOptions {
@@ -123,6 +125,7 @@ export class SpatialRuntime {
   private readonly anchorCapturePosition = new Vector3();
   private readonly anchorGroup: Group | null;
   private readonly anchorPlume: Mesh | null;
+  private readonly passiveAnchorVisuals: Array<{ group: Group; plume: Mesh }> = [];
   private readonly memory: Memory;
   private readonly sourceScene: PlaceEchoScene;
   private readonly mode: SpatialRuntimeMode;
@@ -234,11 +237,26 @@ export class SpatialRuntime {
     });
     this.scene.add(this.sparkRenderer);
     if (this.mode === "experience") {
-      const anchorVisual = this.createMemoryAnchor();
+      const anchorVisual = this.createMemoryAnchor(
+        this.anchorPosition,
+        this.anchorAxis,
+      );
       this.anchorGroup = anchorVisual.group;
       this.anchorPlume = anchorVisual.plume;
       this.anchorGroup.visible = false;
       this.scene.add(this.anchorGroup);
+      if (options.showAllAnchors) {
+        for (const memory of options.scene.memories) {
+          if (memory.id === this.memory.id || !memory.anchor.position) continue;
+          const visual = this.createMemoryAnchor(
+            new Vector3().fromArray(memory.anchor.position),
+            resolveAnchorAxis(memory.anchor.normal),
+          );
+          visual.group.visible = false;
+          this.passiveAnchorVisuals.push(visual);
+          this.scene.add(visual.group);
+        }
+      }
     } else {
       this.anchorGroup = null;
       this.anchorPlume = null;
@@ -683,6 +701,9 @@ export class SpatialRuntime {
         this.settleWorldReadiness("ready");
         if (this.mode === "experience") {
           if (this.anchorGroup) this.anchorGroup.visible = true;
+          for (const visual of this.passiveAnchorVisuals) {
+            visual.group.visible = true;
+          }
           this.startGlideWhenColliderReady();
         }
       }
@@ -761,12 +782,14 @@ export class SpatialRuntime {
         this.reachedPresentationActive = false;
       }
     }
-    const pulse = 1 + Math.sin(elapsedSeconds * 2.2) * 0.055;
-    this.anchorGroup.scale.setScalar(pulse);
-    const plumePulse = 1 + Math.sin(elapsedSeconds * 1.35) * 0.035;
-    this.anchorPlume.scale.set(plumePulse, 1, plumePulse);
-    const plumeMaterial = this.anchorPlume.material as ShaderMaterial;
-    plumeMaterial.uniforms.uTime!.value = elapsedSeconds;
+    this.animateAnchorVisual(this.anchorGroup, this.anchorPlume, elapsedSeconds);
+    for (const [index, visual] of this.passiveAnchorVisuals.entries()) {
+      this.animateAnchorVisual(
+        visual.group,
+        visual.plume,
+        elapsedSeconds + (index + 1) * 0.4,
+      );
+    }
 
     const proximityChanged = proximity !== this.lastProximity;
     if (!proximityChanged && elapsedSeconds - this.lastSnapshotAt < 0.2) return;
@@ -881,12 +904,28 @@ export class SpatialRuntime {
     return this.collisionNormal.normalize();
   };
 
-  private createMemoryAnchor(): { group: Group; plume: Mesh } {
+  private animateAnchorVisual(
+    group: Group,
+    plume: Mesh,
+    elapsedSeconds: number,
+  ): void {
+    const pulse = 1 + Math.sin(elapsedSeconds * 2.2) * 0.055;
+    group.scale.setScalar(pulse);
+    const plumePulse = 1 + Math.sin(elapsedSeconds * 1.35) * 0.035;
+    plume.scale.set(plumePulse, 1, plumePulse);
+    const plumeMaterial = plume.material as ShaderMaterial;
+    plumeMaterial.uniforms.uTime!.value = elapsedSeconds;
+  }
+
+  private createMemoryAnchor(
+    position: Vector3,
+    axis: Vector3,
+  ): { group: Group; plume: Mesh } {
     const group = new Group();
-    group.position.copy(this.anchorPosition);
+    group.position.copy(position);
     group.quaternion.setFromUnitVectors(
       new Vector3(0, 1, 0),
-      this.anchorAxis,
+      axis,
     );
 
     const halo = new Mesh(

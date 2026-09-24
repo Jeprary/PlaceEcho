@@ -316,19 +316,26 @@ They are separate stages and coordinate systems. Neither is an authoritative 3D 
 ```text
 world_grounding
   -> known render camera pose and FOV
-  -> Three.js viewing ray
-  -> Collider intersection
-  -> position + optional normal
+  -> Three.js semantic viewing ray
+  -> camera-facing Collider surface hit + 8 cm exit
+  -> nine downward Collider rays over the interaction footprint
+  -> dominant upward-floor cluster + 2 cm clearance
+  -> grounded position + optional normal
   -> API persistence
 ```
 
 This calculation belongs exclusively to Web Geometry because only the Web runtime has the authoritative Collider and runtime coordinate spaces.
 
-The stored Anchor position is the interaction/display point, not the raw triangle
-surface point. Web Geometry orients the world-space hit normal toward the render
-camera and offsets the point into free space (8 cm for the default marker, or the
-Hero half-depth plus a small margin) before persistence. This prevents z-fighting
-and collision embedding while preserving the surface normal.
+The stored Anchor position is the grounded interaction/display point, not the raw
+semantic triangle hit. Web Geometry first orients the semantic hit normal toward
+the render camera and exits that surface by 8 cm. It then samples the center and
+eight points around the interaction footprint with downward Collider rays, keeps
+the dominant upward-facing floor-height cluster, and persists its median point
+with 2 cm clearance. A sparse or missing floor cluster falls back to the safe
+camera-facing surface offset. This prevents wall embedding, rejects isolated
+furniture tops and Collider seams, and keeps the visible interaction ring on a
+stable floor surface. The retained QA experience may render all positioned
+Memory Anchors, while only its selected target drives proximity and Reveal.
 
 ## Module Ownership
 

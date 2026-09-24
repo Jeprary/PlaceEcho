@@ -61,6 +61,7 @@ interface SpatialExperienceProps {
   orientationSource: DeviceOrientationSource | null;
   windMode: "idle" | "requesting" | "active" | "denied";
   initialDesktopTravelMode?: DesktopTravelMode;
+  showAllAnchors?: boolean;
   revealActive: boolean;
   onReached: (memoryId: string) => void;
   onRevealFinished: () => void;
@@ -73,6 +74,7 @@ export default function SpatialExperience({
   orientationSource,
   windMode,
   initialDesktopTravelMode = "wind",
+  showAllAnchors = false,
   revealActive,
   onReached,
   onRevealFinished,
@@ -136,6 +138,7 @@ export default function SpatialExperience({
       orientationSource: orientationSource ?? new DeviceOrientationSource(),
       manualTravel:
         mobileTravel || desktopTravelModeRef.current === "wasd",
+      showAllAnchors,
       reachedPresentationControl: "external",
     });
     runtimeRef.current = runtime;
@@ -144,7 +147,7 @@ export default function SpatialExperience({
       runtimeRef.current = null;
       runtime.dispose();
     };
-  }, [handleSnapshot, memoryId, mobileTravel, orientationSource, scene]);
+  }, [handleSnapshot, memoryId, mobileTravel, orientationSource, scene, showAllAnchors]);
 
   const handleTravel = useCallback((strafe: number, forward: number) => {
     runtimeRef.current?.setTravelInput(strafe, forward);
