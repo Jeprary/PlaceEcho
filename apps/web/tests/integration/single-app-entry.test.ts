@@ -13,6 +13,9 @@ test("the Web product has one HTML shell and one React bootstrap", async () => {
   );
 
   assert.match(html, /id="root"/);
+  assert.match(html, /apple-mobile-web-app-capable/);
+  assert.match(html, /black-translucent/);
+  assert.match(html, /manifest\.webmanifest/);
   assert.match(entry, /scene-manager-preview\.json/);
   assert.match(entry, /VITE_PLACEECHO_PUBLIC_DEMO/);
   assert.match(entry, /scene\.scene_id === "scene_demo"/);

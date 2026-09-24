@@ -140,6 +140,34 @@ test("mobile joystick moves relative to the camera in four directions", () => {
   assert.ok(camera.position.x > beforeCameraRelativeForwardX + 0.3);
 });
 
+test("negative gyroscope yaw turns the camera to the right", async () => {
+  const canvas = {
+    dataset: {},
+    addEventListener() {},
+    removeEventListener() {},
+  } as unknown as HTMLCanvasElement;
+  const camera = new PerspectiveCamera();
+  const controller = new WindController(camera, canvas, {
+    startsActive: true,
+    manualTravel: true,
+    orientationSource: {
+      async connect() {
+        return true;
+      },
+      disconnect() {},
+      getOrientation() {
+        return { yaw: -1, pitch: 0 };
+      },
+    },
+  });
+
+  assert.equal(await controller.enableGyroscope(), true);
+  for (let frame = 0; frame < 60; frame += 1) controller.update(1 / 60);
+
+  const forward = new Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+  assert.ok(forward.x > 0.1);
+});
+
 test("desktop travel can switch between automatic Wind and manual WASD", () => {
   const canvas = {
     dataset: {},

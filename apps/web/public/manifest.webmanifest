@@ -1,0 +1,11 @@
+{
+  "name": "PlaceEcho · 你的记忆空间",
+  "short_name": "PlaceEcho",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["fullscreen", "standalone"],
+  "background_color": "#020504",
+  "theme_color": "#07100d",
+  "lang": "zh-CN"
+}
