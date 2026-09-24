@@ -1,0 +1,79 @@
+name: Deploy Web demo to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  DEMO_RELEASE_TAG: web-demo-assets-v1
+  DEMO_ASSET_ARCHIVE: placeecho-web-demo-v1.tar.gz
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the frontend-only demo
+        env:
+          VITE_PLACEECHO_PUBLIC_DEMO: "1"
+        run: pnpm --filter @placeecho/web build
+
+      - name: Download the public demo scene
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "$DEMO_RELEASE_TAG" --pattern "$DEMO_ASSET_ARCHIVE" --dir "$RUNNER_TEMP/placeecho-demo"
+
+      - name: Add the demo scene to the site
+        run: |
+          tar -xzf "$RUNNER_TEMP/placeecho-demo/$DEMO_ASSET_ARCHIVE" -C apps/web/dist
+          test -f apps/web/dist/local-world/world.spz
+          test -f apps/web/dist/local-world/collider.glb
+          test -f apps/web/dist/local-memory/05-clip.mp4
+          test -f apps/web/dist/local-hero/IMG_0194-aholo-g1.glb
+          touch apps/web/dist/.nojekyll
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: apps/web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -74,6 +74,17 @@ background, then retries that request before submission if the API was offline.
 It never fabricates a client-owned Scene ID or persists a processing Memory
 locally.
 
+## Public Web Demo Deployment
+
+The public GitHub Pages demo is a frontend-only build of `apps/web`. Its build
+configuration exposes only the completed `scene_demo` fixture. A GitHub Actions
+workflow downloads one versioned, public demo-asset archive from a GitHub
+Release, expands it into the Web build output, and deploys that output as one
+same-origin Pages artifact. SPZ, Collider, Reveal media, and the completed Hero
+therefore remain outside Git source history while loading from the same HTTPS
+origin as the React application. The Pages demo has no server persistence;
+authoring can open locally, while final submission still requires the API.
+
 ## Future Alibaba Deployment
 
 ```text
