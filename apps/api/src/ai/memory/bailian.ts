@@ -148,6 +148,8 @@ export class BailianMemoryAnalyzer implements MemoryAnalyzer {
       "Return JSON only: {memories:[{id,media_ids,name,summary,cue,source_grounding}],unassigned_media_ids,scene_context_text}. " +
       "scene_context_text may be a concise description of the overall preserved space supported by the media, or null when it cannot be inferred reliably. " +
       "Group, name, and describe visual Memory candidates from what is visibly present in the images or video; visual similarity and visible objects dominate grouping. " +
+      "For each non-context candidate, use the dominant visible object or activity and overall cross-item cohesion; a generic setting or generic merchandise label must not override a clear object-category match. " +
+      "Before returning, audit every candidate against all proposed groups, move obvious outliers to the closest coherent group, and use unassigned_media_ids only for corrupt, uninterpretable, or genuinely unrelated media. " +
       "Treat context audio and text as global Scene Context only: they may disambiguate the meaning and likely spatial cue of visual media across the whole Scene, but they must not assert what an image contains. " +
       "A source cue is a visible display carrier for the whole Memory, not a claim that its media were captured there, that an event happened there, or that two similar objects are identical. " +
       "Choose a cue in this order: a reliable direct visible correspondence; a visible object or functional area semantically related to the Memory; then a visible display area suited to that Memory. Prefer a concrete, clearly bounded object and distinct carriers for different Memories. " +

@@ -344,6 +344,7 @@ test("Bailian uses official Qwen3.8 Omni multimodal parts and safely parses text
   assert.match(String(messages[0]?.content), /display carrier/);
   assert.match(String(messages[0]?.content), /semantically related/);
   assert.match(String(messages[0]?.content), /normalized 0\.\.1000 grid/);
+  assert.match(String(messages[0]?.content), /audit every candidate/);
   const content = messages[1]!.content;
   assert.ok(content.some((part) => part.type === "image_url"));
   assert.ok(content.some((part) => part.type === "input_audio"));

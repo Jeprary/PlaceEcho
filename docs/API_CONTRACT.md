@@ -217,6 +217,11 @@ semantically related visible object or functional area, then a suitable visible
 display area. Context may choose among visible candidates but cannot invent a
 panorama object or pixel.
 
+Before returning, the default analyzer audits every non-context candidate
+against all proposed groups. Dominant visible objects/activities and cross-item
+cohesion outrank generic setting or merchandise labels; `unassigned_media_ids`
+is reserved for corrupt, uninterpretable, or genuinely unrelated candidates.
+
 This analysis call is the only point at which the model creates the authoritative
 `memory.name`, `summary`, and cue. A processing Memory request has no final
 Memory name. After analysis, the backend persists those fields in `scene.json`
