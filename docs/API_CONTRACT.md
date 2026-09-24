@@ -227,8 +227,11 @@ every Memory has one grounding result, each pixel lies inside its named view,
 and every Hero observation references media in the recommended Memory. A
 changed grounding clears existing 3D position and normal.
 When the model chooses `action: "skip"`, the backend treats that action as
-authoritative and discards any contradictory candidate fields instead of
-rejecting otherwise valid world-grounding pixels.
+authoritative and discards any contradictory candidate fields. Any other Hero
+candidate that fails ID, bounding-box, confidence, or observation validation is
+also reduced to a deterministic `skip` with
+`uncertainty_codes: ["invalid_provider_output"]`. Optional Hero output never
+causes otherwise valid world-grounding pixels to be rejected.
 
 The optional `hero_generation` object requests automatic creation only when the
 model returns `action: "trigger_3d"` with confidence at least `0.75`. Passing
@@ -270,7 +273,13 @@ Memory:
 
 This route must not return authoritative 3D position or normal.
 
-The Web capture pipeline retains exact perspective-camera position, quaternion,
+The Web capture pipeline starts with four horizontal cardinal renders and may
+add bounded cue-guided renders derived from validated original-panorama pixels.
+For a single cue it also covers the mirrored yaw because provider world
+reconstruction may use the opposite horizontal handedness. These extra views
+only improve visibility: AI still selects a final-render pixel and never
+converts the original panorama pixel into authoritative 3D geometry. The
+pipeline retains exact perspective-camera position, quaternion,
 vertical FOV, aspect, near, and far for every submitted `view_id`. That metadata
 is deliberately used locally in the same authoring transaction for ray
 reconstruction; v0.1 does not persist it. Grounding is an explicit, once-per-world

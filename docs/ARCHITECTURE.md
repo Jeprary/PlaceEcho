@@ -244,6 +244,8 @@ perspective render images with stable view IDs and dimensions. Its second
 Scene-level multimodal request also receives the already-validated Memory
 groups and their image media. A replaceable `WorldGrounder` returns cue pixels
 plus at most one validated Hero recommendation (or `skip`/additional-capture).
+Invalid optional Hero candidates degrade to `skip` and never discard otherwise
+valid final-world grounding pixels.
 Only an explicit generation option and provider-processing confirmation may turn
 a high-confidence recommendation into a Hero job. The API persists only
 `world_grounding`; registering new world assets or recomputing grounding clears
@@ -251,7 +253,13 @@ stale 3D geometry. Web Geometry remains solely responsible for raycast position
 and normal, sent through the Anchor persistence route. Neither grounding nor
 Hero recommendation may infer an authoritative 3D point.
 
-The Web capture module binds every stable view ID to its exact perspective-camera
+The Web capture module covers four horizontal cardinal directions and may add
+bounded direct/mirrored directions derived from validated source-panorama cue
+pixels. This is only a visibility hint for the generative final world; it does
+not transfer source pixels into 3D coordinates. Final-world grounding treats
+stable room layout and semantic equivalence as evidence when generation changes
+colors or small details, but returns no pixel when no plausible cue is visible.
+Every stable view ID remains bound to its exact perspective-camera
 pose and projection values, then uses that in-memory map immediately after the
 API response. This capture/ground/raycast sequence is an explicit authoring step
 after both the splat and Collider have loaded. It is never run from normal world

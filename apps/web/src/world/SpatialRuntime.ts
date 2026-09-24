@@ -47,6 +47,7 @@ import {
 import {
   captureRendererGroundingViews,
   resolveWorldAnchors,
+  sourceGuidedGroundingOrientations,
   type GroundingViewOrientation,
   type ResolveWorldAnchorsResult,
 } from "./groundingPipeline";
@@ -277,6 +278,17 @@ export class SpatialRuntime {
     this.windController.setTravelInput(strafe, forward);
   }
 
+  setManualTravelEnabled(enabled: boolean): void {
+    if (this.mode !== "experience") return;
+    this.windController.setManualTravelEnabled(enabled);
+    this.renderer.domElement.setAttribute(
+      "aria-label",
+      enabled
+        ? "PlaceEcho 空间。拖动画面转向，使用 W A S D 前后左右移动。"
+        : "PlaceEcho 空间。使用触控板或拖动画面转向。",
+    );
+  }
+
   async prepareGrounding(
     options: PrepareGroundingOptions,
   ): Promise<ResolveWorldAnchorsResult> {
@@ -307,7 +319,8 @@ export class SpatialRuntime {
         this.renderer,
         this.scene,
         this.camera,
-        options.orientations,
+        options.orientations ??
+          sourceGuidedGroundingOrientations(this.sourceScene),
       );
       const result = await resolveWorldAnchors({
         sceneId: options.sceneId,

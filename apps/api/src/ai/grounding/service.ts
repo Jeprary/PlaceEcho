@@ -116,6 +116,10 @@ export class BailianWorldGrounder implements WorldGrounder {
     return (await bailianJson(
       content,
       "Return JSON only. First, find each Memory cue in the supplied FINAL-world perspective renders. " +
+        "The final world is a generative reconstruction: colors, textures, and small details can differ " +
+        "from the original panorama and media. Re-find the closest clearly visible, semantically equivalent " +
+        "physical cue using stable room layout and structural context instead of requiring pixel-identical appearance. " +
+        "Return null when no plausible corresponding cue is visible. " +
         "Second, recommend at most one Hero Object across the whole Scene. A Hero must be one concrete, " +
         "separable physical object with enough visual evidence for image-to-3D. Exclude people, food, " +
         "screens, posters, whole beds, whole tables, rooms, stages, buildings, object collections, and " +
@@ -176,10 +180,10 @@ export class WorldGroundingService {
     );
     const result = await this.grounder.ground(scene, views, groundingMedia);
     const heroRecommendation = normalizeHeroRecommendation(
+      scene,
       result.hero_recommendation,
     );
     validateGroundings(scene, views, result.groundings);
-    validateHeroRecommendation(scene, heroRecommendation);
     const persisted = await this.scenes.setWorldGroundings(
       sceneId,
       result.groundings,
@@ -190,16 +194,34 @@ export class WorldGroundingService {
 }
 
 function normalizeHeroRecommendation(
+  scene: Scene,
   recommendation: HeroRecommendation,
 ): HeroRecommendation {
-  if (recommendation?.action !== "skip") return recommendation;
-  return {
-    ...recommendation,
-    memory_id: null,
-    object_name: null,
-    observations: [],
-    reconstruction_mode: null,
-  };
+  const candidate = recommendation?.action === "skip"
+    ? {
+        ...recommendation,
+        memory_id: null,
+        object_name: null,
+        observations: [],
+        reconstruction_mode: null,
+      }
+    : recommendation;
+  try {
+    validateHeroRecommendation(scene, candidate);
+    return candidate;
+  } catch {
+    return {
+      action: "skip",
+      memory_id: null,
+      object_name: null,
+      observations: [],
+      reconstruction_mode: null,
+      confidence: 0,
+      rationale:
+        "Hero recommendation was discarded because it failed validation.",
+      uncertainty_codes: ["invalid_provider_output"],
+    };
+  }
 }
 
 function validateViews(views: RenderView[]): void {

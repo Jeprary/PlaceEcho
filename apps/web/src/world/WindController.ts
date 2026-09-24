@@ -155,8 +155,14 @@ export class WindController {
     this.speedScale = MathUtils.clamp(scale, 0, 1);
   }
 
+  setManualTravelEnabled(enabled: boolean): void {
+    this.manualTravel = enabled;
+    this.travelStrafe = 0;
+    this.travelForward = 0;
+    this.currentSpeed = 0;
+  }
+
   setTravelInput(strafe: number, forward: number): void {
-    this.manualTravel = true;
     if (this.inputLocked) {
       this.travelStrafe = 0;
       this.travelForward = 0;

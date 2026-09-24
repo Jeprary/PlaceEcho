@@ -41,6 +41,20 @@ function shouldUseMobileTravelControl(): boolean {
   );
 }
 
+type DesktopTravelMode = "wind" | "wasd";
+
+const desktopTravelKeys = new Set(["KeyW", "KeyA", "KeyS", "KeyD"]);
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target.isContentEditable ||
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT"
+  );
+}
+
 interface SpatialExperienceProps {
   scene: Scene;
   memoryId: string;
@@ -65,6 +79,7 @@ export default function SpatialExperience({
   const runtimeHost = useRef<HTMLDivElement>(null);
   const runtimeRef = useRef<SpatialRuntime | null>(null);
   const onReachedRef = useRef(onReached);
+  const optionsRef = useRef<HTMLDivElement>(null);
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [worldStatus, setWorldStatus] = useState<WorldLoadStatus>("loading");
   const [worldProgress, setWorldProgress] = useState(initialWorldProgress);
@@ -72,6 +87,11 @@ export default function SpatialExperience({
   const [motionStatus, setMotionStatus] = useState(windMode);
   const [heroPreviewDismissed, setHeroPreviewDismissed] = useState(false);
   const [mobileTravel] = useState(shouldUseMobileTravelControl);
+  const [desktopTravelMode, setDesktopTravelMode] =
+    useState<DesktopTravelMode>("wind");
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const desktopTravelModeRef = useRef(desktopTravelMode);
+  desktopTravelModeRef.current = desktopTravelMode;
   const presentation = useMemo(
     () =>
       buildMemoryPresentation(
@@ -112,7 +132,8 @@ export default function SpatialExperience({
       onWorldStatus: setWorldStatus,
       onWorldProgress: setWorldProgress,
       orientationSource: orientationSource ?? new DeviceOrientationSource(),
-      manualTravel: mobileTravel,
+      manualTravel:
+        mobileTravel || desktopTravelModeRef.current === "wasd",
       reachedPresentationControl: "external",
     });
     runtimeRef.current = runtime;
@@ -126,6 +147,68 @@ export default function SpatialExperience({
   const handleTravel = useCallback((strafe: number, forward: number) => {
     runtimeRef.current?.setTravelInput(strafe, forward);
   }, []);
+
+  useEffect(() => {
+    if (mobileTravel) return;
+    runtimeRef.current?.setManualTravelEnabled(desktopTravelMode === "wasd");
+  }, [desktopTravelMode, mobileTravel, memoryId, scene]);
+
+  useEffect(() => {
+    if (mobileTravel || desktopTravelMode !== "wasd") return;
+    const pressedKeys = new Set<string>();
+    const syncTravel = () => {
+      const strafe =
+        Number(pressedKeys.has("KeyD")) - Number(pressedKeys.has("KeyA"));
+      const forward =
+        Number(pressedKeys.has("KeyW")) - Number(pressedKeys.has("KeyS"));
+      runtimeRef.current?.setTravelInput(strafe, forward);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!desktopTravelKeys.has(event.code) || isTypingTarget(event.target)) {
+        return;
+      }
+      event.preventDefault();
+      pressedKeys.add(event.code);
+      syncTravel();
+    };
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (!desktopTravelKeys.has(event.code)) return;
+      event.preventDefault();
+      pressedKeys.delete(event.code);
+      syncTravel();
+    };
+    const stopTravel = () => {
+      pressedKeys.clear();
+      syncTravel();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", stopTravel);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", stopTravel);
+      stopTravel();
+    };
+  }, [desktopTravelMode, mobileTravel]);
+
+  useEffect(() => {
+    if (!optionsOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!optionsRef.current?.contains(event.target as Node)) {
+        setOptionsOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOptionsOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [optionsOpen]);
 
   useEffect(() => {
     setMotionStatus(windMode);
@@ -211,14 +294,65 @@ export default function SpatialExperience({
       {mobileTravel && (
         <MobileTravelControl onTravelChange={handleTravel} />
       )}
-      <button
-        className="world-entry-return"
-        type="button"
-        onClick={onReturnToManager}
-        aria-label="返回记忆空间"
-      >
-        <span aria-hidden="true">…</span>
-      </button>
+      <div className="world-options" ref={optionsRef}>
+        <button
+          className="world-entry-return"
+          type="button"
+          onClick={() => setOptionsOpen((open) => !open)}
+          aria-label="打开空间菜单"
+          aria-haspopup="menu"
+          aria-expanded={optionsOpen}
+        >
+          <span aria-hidden="true">…</span>
+        </button>
+        {optionsOpen && (
+          <div className="world-options-menu" role="menu">
+            {!mobileTravel && (
+              <div className="world-options-menu__group">
+                <p>移动方式</p>
+                <button
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={desktopTravelMode === "wind"}
+                  className={
+                    desktopTravelMode === "wind" ? "is-active" : undefined
+                  }
+                  onClick={() => {
+                    setDesktopTravelMode("wind");
+                    setOptionsOpen(false);
+                  }}
+                >
+                  <span>风行</span>
+                  <small>自动前进，拖动转向</small>
+                </button>
+                <button
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={desktopTravelMode === "wasd"}
+                  className={
+                    desktopTravelMode === "wasd" ? "is-active" : undefined
+                  }
+                  onClick={() => {
+                    setDesktopTravelMode("wasd");
+                    setOptionsOpen(false);
+                  }}
+                >
+                  <span>WASD</span>
+                  <small>键盘移动，拖动转向</small>
+                </button>
+              </div>
+            )}
+            <button
+              className="world-options-menu__return"
+              type="button"
+              role="menuitem"
+              onClick={onReturnToManager}
+            >
+              返回记忆空间
+            </button>
+          </div>
+        )}
+      </div>
     </main>
   );
 }
