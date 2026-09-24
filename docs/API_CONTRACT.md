@@ -172,7 +172,7 @@ accepts 1–4000
 characters of direct user description and enters the same request as
 Scene-level semantic evidence. It is not presented as a transcript and cannot
 independently authorize a source pixel or final 3D coordinate.
-Requires 1–12 distinct supported uploaded image/audio/video assets and a
+Requires 1–16 distinct supported uploaded image/audio/video assets and a
 completed panorama stitch. Uses Bailian (`DASHSCOPE_API_KEY`, optional
 `DASHSCOPE_BASE_URL` and `DASHSCOPE_MODEL`; legacy `BAILIAN_API_KEY`,
 `BAILIAN_HOST`/`BAILIAN_API_HOST`, and `BAILIAN_MODEL` aliases are accepted) to
@@ -189,6 +189,10 @@ Before either multimodal request, large images are decoded with EXIF orientation
 and converted only in memory to bounded JPEG inference copies: the panorama is
 limited to 2048×1024 and ordinary images to a 1280×1280 box. Original stored
 media is not replaced, recompressed, brightness-normalized, or written back.
+The model reports source grounding on a normalized 0–1000 grid over the exact
+bounded panorama image it sees; the backend deterministically scales that point
+to the authoritative original panorama dimensions before persisting
+`source_grounding`.
 
 The backend supplies Memory IDs, validates that every selected media ID appears
 exactly once in a group or `unassigned_media_ids`, and checks source pixels
@@ -205,6 +209,18 @@ Scene media remains unassigned. Returns the updated Scene. Analysis replaces the
 previous Memory groups; clients should only rerun it when that loss is intended.
 Missing provider configuration returns 503; invalid input or model output
 returns 400.
+
+`source_grounding` is a visible panorama display carrier for a Memory, not a
+claim that its media were captured there or depict the same physical object.
+The default analyzer searches direct visible correspondence first, then a
+semantically related visible object or functional area, then a suitable visible
+display area. Context may choose among visible candidates but cannot invent a
+panorama object or pixel.
+
+Before returning, the default analyzer audits every non-context candidate
+against all proposed groups. Dominant visible objects/activities and cross-item
+cohesion outrank generic setting or merchandise labels; `unassigned_media_ids`
+is reserved for corrupt, uninterpretable, or genuinely unrelated candidates.
 
 This analysis call is the only point at which the model creates the authoritative
 `memory.name`, `summary`, and cue. A processing Memory request has no final
@@ -256,9 +272,15 @@ Aholo requires `confirm_external_processing: true`; `skip` or
 }
 ```
 
-The response is `{ scene, hero_recommendation, hero_job_id }`.
-`hero_job_id` is null when no generation started. Example grounding within a
-Memory:
+The response is
+`{ scene, hero_recommendation, hero_job_id, hero_generation_error }`. The validated
+recommendation is also persisted as `Scene.hero_recommendation`, including a
+normalized `skip`, so a reload does not lose the model decision. Replacing
+Memory analysis or world assets clears the stale recommendation.
+`hero_job_id` is null when no generation started. Hero creation is an optional
+side effect: an unavailable or rejecting provider returns a bounded
+`hero_generation_error` without rolling back grounding, so Web Geometry can
+still raycast and persist the Anchor. Example grounding within a Memory:
 
 ```json
 {
@@ -288,8 +310,14 @@ potentially billable endpoint automatically.
 
 The current Web integration exposes this operation through a separately-created
 `SpatialRuntime` in `localization` mode and its explicit, one-shot
-`prepareGrounding()` method. It is an authoring integration boundary, not an
-automatic action or an end-user Revisit control.
+`prepareGrounding()` method. The retained authoring QA page passes Aholo
+`G1-Turbo` generation options with external-processing confirmation as part of
+that same explicit user action. A validated `trigger_3d` result therefore starts
+one Hero job without a second Hero button; `skip` and
+`request_additional_capture` start nothing. The page polls a started job and
+renders a Hero only after `anchor.hero.asset_url` is persisted. It is an
+authoring integration boundary, not an automatic action or an end-user Revisit
+control.
 
 ## World
 

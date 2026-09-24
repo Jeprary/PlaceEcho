@@ -34,6 +34,7 @@ export class SceneRepository {
     // into the Scene contract. New saves always serialize both fields.
     scene.world.thumbnail_url ??= null;
     scene.world.asset_transform ??= null;
+    scene.hero_recommendation ??= null;
     if (scene.scene_id !== sceneId) {
       throw new Error(`Stored Scene ID does not match key: ${sceneId}`);
     }

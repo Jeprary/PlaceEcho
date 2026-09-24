@@ -192,7 +192,7 @@ under `ai/memory/` and `ai/grounding/`.
 
 AI must never produce authoritative final 3D coordinates.
 
-The implemented API analysis service reads 1–12 selected uploaded image, audio,
+The implemented API analysis service reads 1–16 selected uploaded image, audio,
 or video assets and the stitched panorama, calls a replaceable
 `MemoryAnalyzer`, validates the model's 1–3 groups and source pixels, then
 persists Memory groups. The default analyzer calls Bailian
@@ -202,7 +202,10 @@ image-compatible panorama capture upload but is excluded from automatic Memory
 analysis selection. Large visual inputs are decoded with EXIF orientation and
 converted in memory to bounded JPEG inference copies (2048×1024 panorama;
 1280×1280 media box); authoritative stored originals are never overwritten or
-brightness-normalized. A completed stitched panorama remains a prerequisite; the
+brightness-normalized. The model grounds on a normalized 0–1000 grid over the
+bounded image it actually sees, and the API deterministically rescales that
+point to the authoritative original panorama dimensions before persistence. A
+completed stitched panorama remains a prerequisite; the
 standalone Python multimedia prototype is not the API runtime. Reanalysis
 replaces prior Memory groups. A validated `scene_context_text` from that same
 analysis may update `scene_context.text`; when the selection contains exactly
@@ -216,6 +219,9 @@ and final position still requires Web Collider raycast. The Web marks its live
 recording with `context_media_ids`; the provider receives the audio, while the
 backend guarantees that ID remains Scene Context rather than an individual
 Memory attachment. Separately uploaded audio remains eligible Memory media.
+For source grounding, the analyzer treats the cue as a display carrier rather
+than a capture/event-location claim and searches direct, semantic, then
+display-use correspondence among objects actually visible in the panorama.
 
 The authoritative Memory title first exists when this analysis succeeds. Before
 then, `memory-requests/` records are only processing receipts and must use a
@@ -245,13 +251,23 @@ Scene-level multimodal request also receives the already-validated Memory
 groups and their image media. A replaceable `WorldGrounder` returns cue pixels
 plus at most one validated Hero recommendation (or `skip`/additional-capture).
 Invalid optional Hero candidates degrade to `skip` and never discard otherwise
-valid final-world grounding pixels.
+valid final-world grounding pixels. The normalized decision is persisted on the
+Scene as `hero_recommendation`, while per-Memory `anchor.hero` remains the
+separate asynchronous generation state. Replacing Memory analysis or final
+world assets clears the stale recommendation.
 Only an explicit generation option and provider-processing confirmation may turn
 a high-confidence recommendation into a Hero job. The API persists only
 `world_grounding`; registering new world assets or recomputing grounding clears
 stale 3D geometry. Web Geometry remains solely responsible for raycast position
 and normal, sent through the Anchor persistence route. Neither grounding nor
 Hero recommendation may infer an authoritative 3D point.
+
+The authoring QA page supplies Aholo `G1-Turbo` plus provider-processing
+confirmation in the same user-triggered grounding transaction. It does not add
+a second generation button: `trigger_3d` queues and polls a job, while `skip` or
+`request_additional_capture` leaves no Hero presentation. The existing Memory
+Reveal and QA renderers display a Hero only after a completed GLB URL is
+persisted, so optional-provider failure never creates a fake visual result.
 
 The Web capture module covers four horizontal cardinal directions and may add
 bounded direct/mirrored directions derived from validated source-panorama cue

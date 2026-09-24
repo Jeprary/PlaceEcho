@@ -124,6 +124,24 @@
 
 .grounding-verification__result h2 { font-size: 1rem; }
 
+.grounding-verification__hero-status,
+.grounding-verification__hero-result {
+  margin-top: 1.4rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.grounding-verification__hero-status h2,
+.grounding-verification__hero-result h2 {
+  margin: 0 0 0.6rem;
+  font-size: 1rem;
+}
+
+.grounding-verification__hero-result .memory-hero {
+  width: min(100%, 22rem);
+  margin: 0 auto;
+}
+
 .grounding-verification__capture {
   position: relative;
   margin: 0.8rem 0 1.2rem;

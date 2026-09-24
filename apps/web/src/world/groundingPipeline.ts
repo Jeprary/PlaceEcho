@@ -1,4 +1,5 @@
 import type {
+  HeroRecommendation,
   Quaternion as SceneQuaternion,
   Scene as PlaceEchoScene,
   Vector3 as SceneVector3,
@@ -90,13 +91,7 @@ export interface ResolveWorldAnchorsOptions {
   };
 }
 
-export interface HeroRecommendationResult {
-  action: "trigger_3d" | "request_additional_capture" | "skip";
-  memory_id: string | null;
-  object_name: string | null;
-  confidence: number;
-  rationale: string;
-}
+export type HeroRecommendationResult = HeroRecommendation;
 
 export interface ResolveWorldAnchorsResult {
   scene: PlaceEchoScene;
@@ -105,6 +100,8 @@ export interface ResolveWorldAnchorsResult {
   views: readonly GroundingRenderView[];
   heroRecommendation: HeroRecommendationResult | null;
   heroJobId: string | null;
+  /** Optional Hero creation failure; grounding and Web geometry still continue. */
+  heroGenerationError: string | null;
 }
 
 const DEFAULT_VIEW_ORIENTATIONS: readonly GroundingViewOrientation[] = [
@@ -478,6 +475,7 @@ async function readGroundingResponse(response: Response): Promise<{
   scene: PlaceEchoScene;
   heroRecommendation: HeroRecommendationResult | null;
   heroJobId: string | null;
+  heroGenerationError: string | null;
 }> {
   if (!response.ok) {
     await readSceneResponse(response);
@@ -486,6 +484,7 @@ async function readGroundingResponse(response: Response): Promise<{
     scene?: PlaceEchoScene;
     hero_recommendation?: HeroRecommendationResult;
     hero_job_id?: string | null;
+    hero_generation_error?: string | null;
   };
   const scene = payload.scene ?? payload;
   if (!scene.scene_id || !Array.isArray(scene.memories)) {
@@ -495,6 +494,7 @@ async function readGroundingResponse(response: Response): Promise<{
     scene,
     heroRecommendation: payload.hero_recommendation ?? null,
     heroJobId: payload.hero_job_id ?? null,
+    heroGenerationError: payload.hero_generation_error ?? null,
   };
 }
 
@@ -571,5 +571,6 @@ export async function resolveWorldAnchors(
     views: options.views,
     heroRecommendation: grounding.heroRecommendation,
     heroJobId: grounding.heroJobId,
+    heroGenerationError: grounding.heroGenerationError,
   };
 }

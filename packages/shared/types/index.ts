@@ -6,6 +6,28 @@ export type HeroStatus =
   | "completed"
   | "failed";
 
+export type HeroRecommendationAction =
+  | "trigger_3d"
+  | "request_additional_capture"
+  | "skip";
+
+export interface HeroObservation {
+  media_id: string;
+  bbox_xyxy_norm: [number, number, number, number];
+  view_role: "primary" | "supporting";
+}
+
+export interface HeroRecommendation {
+  action: HeroRecommendationAction;
+  memory_id: string | null;
+  object_name: string | null;
+  observations: HeroObservation[];
+  reconstruction_mode: "single_view" | "multi_view" | null;
+  confidence: number;
+  rationale: string;
+  uncertainty_codes: string[];
+}
+
 export interface SceneContext {
   text: string | null;
   audio_url: string | null;
@@ -84,6 +106,8 @@ export interface Scene {
   world: WorldAssets;
   media: MediaAsset[];
   memories: Memory[];
+  /** Last validated Scene-wide Hero recommendation from final-world grounding. */
+  hero_recommendation: HeroRecommendation | null;
   unassigned_media_ids: string[];
 }
 

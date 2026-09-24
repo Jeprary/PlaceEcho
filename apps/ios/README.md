@@ -124,7 +124,11 @@ build phase also embeds the two referenced Revisit spaces under their existing
 SPZ, Collider, thumbnail, and Reveal media are copied (roughly 74 MB); source PLY,
 LOD intermediates, and the large authoring panorama stay outside the app. Set
 `PLACE_ECHO_EMBED_LOCAL_SCENES=0` in the Scheme build environment to skip this
-developer-only copy. The source assets remain ignored and must never be committed.
+developer-only copy. A managed Git worktree automatically reuses `.local-data`
+from its main checkout. `package-demo.sh` requires the complete two-space asset
+set and stops instead of producing a black/incomplete demo package. Override the
+source only when needed with `PLACEECHO_LOCAL_DATA_DIR`. The source assets remain
+ignored and must never be committed.
 
 For the current Personal Team build, open the app on normal Wi-Fi, press the Web
 capture button, and then manually connect the iPhone to the X5 Wi-Fi. The bundled

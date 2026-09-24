@@ -1,4 +1,9 @@
-import type { MediaAsset, Scene, WorldGrounding } from "@placeecho/shared";
+import type {
+  HeroRecommendation,
+  MediaAsset,
+  Scene,
+  WorldGrounding,
+} from "@placeecho/shared";
 import type { MediaService } from "../../media/service.js";
 import type { SceneService } from "../../scenes/service.js";
 import { bailianJson } from "../memory/bailian.js";
@@ -14,28 +19,6 @@ export interface RenderView {
 export interface GroundingCandidate {
   memory_id: string;
   world_grounding: WorldGrounding | null;
-}
-
-export type HeroRecommendationAction =
-  | "trigger_3d"
-  | "request_additional_capture"
-  | "skip";
-
-export interface HeroObservation {
-  media_id: string;
-  bbox_xyxy_norm: [number, number, number, number];
-  view_role: "primary" | "supporting";
-}
-
-export interface HeroRecommendation {
-  action: HeroRecommendationAction;
-  memory_id: string | null;
-  object_name: string | null;
-  observations: HeroObservation[];
-  reconstruction_mode: "single_view" | "multi_view" | null;
-  confidence: number;
-  rationale: string;
-  uncertainty_codes: string[];
 }
 
 export interface GroundingAnalysis {
@@ -187,6 +170,7 @@ export class WorldGroundingService {
     const persisted = await this.scenes.setWorldGroundings(
       sceneId,
       result.groundings,
+      heroRecommendation,
     );
     if (!persisted) return null;
     return { scene: persisted, hero_recommendation: heroRecommendation };

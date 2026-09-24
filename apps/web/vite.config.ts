@@ -1,6 +1,6 @@
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
-import { createReadStream, statSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import { extname, resolve } from "node:path";
 
 const localDataDirectory = resolve(
@@ -18,6 +18,20 @@ const localMarbleDirectory = resolve(
   "marble/4907920b-f2b4-4362-a3ed-8e628869fd2c",
 );
 const localHeroDirectory = resolve(localDataDirectory, "hero-tests");
+const localHttpsDirectory = resolve(localDataDirectory, "https");
+const localHttpsCertificate =
+  process.env.PLACEECHO_HTTPS_CERT ??
+  resolve(localHttpsDirectory, "placeecho-dev.pem");
+const localHttpsKey =
+  process.env.PLACEECHO_HTTPS_KEY ??
+  resolve(localHttpsDirectory, "placeecho-dev-key.pem");
+const localHttps =
+  existsSync(localHttpsCertificate) && existsSync(localHttpsKey)
+    ? {
+        cert: readFileSync(localHttpsCertificate),
+        key: readFileSync(localHttpsKey),
+      }
+    : undefined;
 const localWorldFiles = new Set(["collider.glb", "world.spz"]);
 const localMemoryFiles = new Set([
   "01-arrival.jpg",
@@ -135,6 +149,7 @@ export default defineConfig({
   base: "./",
   plugins: [react(), localSceneAssets()],
   server: {
+    https: localHttps,
     proxy: {
       "/api": "http://127.0.0.1:3000",
     },

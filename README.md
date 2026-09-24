@@ -46,6 +46,12 @@ phone on the same network, start it with a LAN host:
 pnpm --filter @placeecho/web dev --host 0.0.0.0
 ```
 
+Mobile motion/orientation APIs require a trusted HTTPS origin. When
+`placeecho-dev.pem` and `placeecho-dev-key.pem` exist under the configured
+`.local-data/https/` directory, the Vite server uses them automatically. A
+different local certificate can be selected with `PLACEECHO_HTTPS_CERT` and
+`PLACEECHO_HTTPS_KEY`; its issuing CA must also be trusted by the phone.
+
 Run the API in a second terminal when testing creation or persistence:
 
 ```bash

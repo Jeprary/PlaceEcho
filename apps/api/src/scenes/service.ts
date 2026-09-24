@@ -1,5 +1,15 @@
 import { randomUUID } from "node:crypto";
-import type { HeroState, MediaAsset, Memory, Quaternion, Scene, Vector3, WorldGrounding, WorldSpawn } from "@placeecho/shared";
+import type {
+  HeroRecommendation,
+  HeroState,
+  MediaAsset,
+  Memory,
+  Quaternion,
+  Scene,
+  Vector3,
+  WorldGrounding,
+  WorldSpawn,
+} from "@placeecho/shared";
 import type { SceneRepository } from "./repository.js";
 
 export class SceneService {
@@ -67,6 +77,7 @@ export class SceneService {
     if (!scene) return null;
     scene.memories = memories;
     scene.unassigned_media_ids = unassigned;
+    scene.hero_recommendation = null;
     if (sceneContextText !== undefined) scene.scene_context.text = sceneContextText;
     if (sceneContextAudioUrl !== undefined) scene.scene_context.audio_url = sceneContextAudioUrl;
     await this.scenes.save(scene);
@@ -88,6 +99,7 @@ export class SceneService {
     scene.world.asset_transform = assetTransform;
     scene.world.thumbnail_url = thumbnailUrl;
     scene.world.spawn = spawn;
+    scene.hero_recommendation = null;
     for (const memory of scene.memories) {
       memory.anchor.world_grounding = null;
       memory.anchor.position = null;
@@ -97,7 +109,11 @@ export class SceneService {
     return scene;
   }
 
-  async setWorldGroundings(sceneId: string, results: { memory_id: string; world_grounding: WorldGrounding | null }[]): Promise<Scene | null> {
+  async setWorldGroundings(
+    sceneId: string,
+    results: { memory_id: string; world_grounding: WorldGrounding | null }[],
+    heroRecommendation: HeroRecommendation,
+  ): Promise<Scene | null> {
     const scene = await this.scenes.get(sceneId);
     if (!scene) return null;
     for (const result of results) {
@@ -107,6 +123,7 @@ export class SceneService {
       memory.anchor.position = null;
       memory.anchor.normal = null;
     }
+    scene.hero_recommendation = heroRecommendation;
     await this.scenes.save(scene);
     return scene;
   }
@@ -144,6 +161,7 @@ function createEmptyScene(sceneId: string): Scene {
     },
     media: [],
     memories: [],
+    hero_recommendation: null,
     unassigned_media_ids: [],
   };
 }

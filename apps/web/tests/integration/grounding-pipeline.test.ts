@@ -95,6 +95,7 @@ function groundedScene(viewId: string): Scene {
         },
       },
     ],
+    hero_recommendation: null,
     unassigned_media_ids: [],
   };
 }
@@ -232,13 +233,34 @@ test("back-facing Collider normals flip toward the render camera before offset",
 test("the pipeline PATCHes only Collider hits and submits camera metadata", async () => {
   const view = centerView();
   const grounded = groundedScene(view.view_id);
+  const heroRecommendation = {
+    action: "trigger_3d" as const,
+    memory_id: "memory_hit",
+    object_name: "Desk charm",
+    observations: [{
+      media_id: "media_source",
+      bbox_xyxy_norm: [0.1, 0.1, 0.8, 0.8] as [number, number, number, number],
+      view_role: "primary" as const,
+    }],
+    reconstruction_mode: "single_view" as const,
+    confidence: 0.9,
+    rationale: "Clearly isolated.",
+    uncertainty_codes: ["single_view"],
+  };
   const requests: Array<{ url: string; method: string; body: unknown }> = [];
   const fetchImplementation: typeof fetch = async (input, init) => {
     const url = String(input);
     const method = init?.method ?? "GET";
     const body = init?.body ? JSON.parse(String(init.body)) : null;
     requests.push({ url, method, body });
-    if (method === "POST") return Response.json(grounded);
+    if (method === "POST") {
+      return Response.json({
+        scene: grounded,
+        hero_recommendation: heroRecommendation,
+        hero_job_id: "job_hero",
+        hero_generation_error: null,
+      });
+    }
     const next = structuredClone(grounded);
     next.memories[0]!.anchor.position = [0, 0, 1.08];
     next.memories[0]!.anchor.normal = [0, 0, 1];
@@ -251,6 +273,11 @@ test("the pipeline PATCHes only Collider hits and submits camera metadata", asyn
     collider: colliderBox(),
     apiBaseUrl: "https://placeecho.test/",
     fetchImplementation,
+    heroGeneration: {
+      provider: "aholo",
+      version: "G1-Turbo",
+      confirm_external_processing: true,
+    },
   });
 
   assert.deepEqual(
@@ -261,11 +288,22 @@ test("the pipeline PATCHes only Collider hits and submits camera metadata", asyn
     ],
   );
   assert.deepEqual(result.views, [view]);
+  assert.deepEqual(result.heroRecommendation, heroRecommendation);
+  assert.equal(result.heroJobId, "job_hero");
+  assert.equal(result.heroGenerationError, null);
   assert.equal(requests.length, 2);
   assert.equal(
     (requests[0]?.body as { views: GroundingRenderView[] }).views[0]?.camera
       .projection,
     "perspective",
+  );
+  assert.deepEqual(
+    (requests[0]?.body as { hero_generation?: unknown }).hero_generation,
+    {
+      provider: "aholo",
+      version: "G1-Turbo",
+      confirm_external_processing: true,
+    },
   );
   assert.match(requests[1]?.url ?? "", /\/memories\/memory_hit\/anchor$/);
   assert.deepEqual(requests[1]?.body, {

@@ -25,6 +25,8 @@ test("large source images become bounded temporary JPEG model inputs", async () 
 
   assert.equal(prepared.mime, "image/jpeg");
   assert.equal(prepared.resized, true);
+  assert.equal(prepared.width, metadata.width);
+  assert.equal(prepared.height, metadata.height);
   assert.ok((metadata.width ?? Infinity) <= 640);
   assert.ok((metadata.height ?? Infinity) <= 640);
   assert.ok(prepared.bytes.length < source.length);
@@ -39,4 +41,6 @@ test("small inputs keep their original bytes and MIME type", async () => {
   assert.equal(prepared.bytes, bytes);
   assert.equal(prepared.mime, "image/webp");
   assert.equal(prepared.resized, false);
+  assert.equal(prepared.width, null);
+  assert.equal(prepared.height, null);
 });

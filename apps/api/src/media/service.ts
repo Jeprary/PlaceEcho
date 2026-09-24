@@ -56,8 +56,14 @@ export class MediaService {
 }
 
 function sanitizeMediaFilename(sourceName: string): string {
-  const filename = path.basename(sourceName.trim());
-  if (!filename || !/^[a-zA-Z0-9._-]+\.(insp|jpe?g|png|webp|m4a|wav|webm|mp4|mov)$/i.test(filename)) {
+  const filename = sourceName.trim().normalize("NFC");
+  const validBasename = path.basename(filename) === filename &&
+    !filename.includes("\\") &&
+    filename !== "." &&
+    filename !== "..";
+  const validLength = Buffer.byteLength(filename, "utf8") <= 255;
+  const validCharacters = /^[\p{L}\p{N} ._-]+\.(insp|jpe?g|png|webp|m4a|wav|webm|mp4|mov)$/iu.test(filename);
+  if (!filename || !validBasename || !validLength || !validCharacters) {
     throw new Error("Media filename must be a safe INSP, JPG, PNG, WebP, M4A, WAV, WebM, MP4, or MOV filename.");
   }
   return filename;

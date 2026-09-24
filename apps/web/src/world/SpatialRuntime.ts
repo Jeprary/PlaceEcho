@@ -49,6 +49,7 @@ import {
   resolveWorldAnchors,
   sourceGuidedGroundingOrientations,
   type GroundingViewOrientation,
+  type ResolveWorldAnchorsOptions,
   type ResolveWorldAnchorsResult,
 } from "./groundingPipeline";
 import {
@@ -103,6 +104,7 @@ export interface PrepareGroundingOptions {
   fetchImplementation?: typeof fetch;
   orientations?: readonly GroundingViewOrientation[];
   placementOffsetMeters?: number;
+  heroGeneration?: ResolveWorldAnchorsOptions["heroGeneration"];
 }
 
 type WorldReadiness = "ready" | "fallback" | "disposed";
@@ -329,6 +331,7 @@ export class SpatialRuntime {
         apiBaseUrl: options.apiBaseUrl,
         fetchImplementation: options.fetchImplementation,
         placementOffsetMeters: options.placementOffsetMeters,
+        heroGeneration: options.heroGeneration,
       });
       this.showGroundingDiagnostics(result);
       this.groundingPreparation.complete();

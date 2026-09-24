@@ -46,8 +46,8 @@ export class MemoryAnalysisService {
     if (!scene) return null;
     const normalizedContextText = normalizeContextText(contextText);
     const selected = mediaIds ?? scene.media.filter(isAnalyzableMedia).map((item) => item.id);
-    if (selected.length < 1 || selected.length > 12 || new Set(selected).size !== selected.length) {
-      throw new Error("Select 1–12 distinct media IDs.");
+    if (selected.length < 1 || selected.length > 16 || new Set(selected).size !== selected.length) {
+      throw new Error("Select 1–16 distinct media IDs.");
     }
     const assets = selected.map((id) => scene.media.find((item) => item.id === id));
     if (assets.some((asset) => !asset || !isAnalyzableMedia(asset))) {
