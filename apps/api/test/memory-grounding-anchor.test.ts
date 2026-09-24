@@ -319,3 +319,82 @@ test("analyzes selected media, grounds final views, and persists Web geometry", 
   const afterReject = JSON.parse(new TextDecoder().decode(await storage.get(`scenes/${sceneId}/scene.json`) ?? new Uint8Array())) as Scene;
   assert.deepEqual(afterReject, persisted);
 });
+
+test("rejects an incomplete grounding array with an actionable count", async (t) => {
+  const storage = new MemoryStorage();
+  const sceneId = "scene_incomplete_grounding";
+  const scene: Scene = {
+    schema_version: "0.1",
+    scene_id: sceneId,
+    status: "draft",
+    scene_context: { text: null, audio_url: null },
+    world: {
+      panorama_url: "https://example.com/panorama.jpg",
+      panorama_width: 2048,
+      panorama_height: 1024,
+      splat_url: "https://example.com/world.spz",
+      collider_url: "https://example.com/collider.glb",
+      thumbnail_url: null,
+      asset_transform: [0, 0, 0, 1],
+      spawn: { position: [0, 0, 0], quaternion: [0, 0, 0, 1] },
+    },
+    media: [],
+    memories: ["one", "two"].map((id) => ({
+      id: `memory_${id}`,
+      name: id,
+      summary: null,
+      media_ids: [],
+      reflection: null,
+      anchor: {
+        id: `anchor_${id}`,
+        cue: { label: id },
+        source_grounding: null,
+        world_grounding: null,
+        position: null,
+        normal: null,
+        hero: { status: "not_requested", job_id: null, asset_url: null },
+      },
+    })),
+    hero_recommendation: null,
+    unassigned_media_ids: [],
+  };
+  const enc = new TextEncoder();
+  await storage.put(`scenes/${sceneId}/scene.json`, enc.encode(JSON.stringify(scene)));
+  const app = buildApp({
+    logger: false,
+    storageProvider: storage,
+    worldGrounder: {
+      async ground() {
+        return {
+          groundings: [{ memory_id: "memory_one", world_grounding: null }],
+          hero_recommendation: {
+            action: "skip" as const,
+            memory_id: null,
+            object_name: null,
+            observations: [],
+            reconstruction_mode: null,
+            confidence: 0,
+            rationale: "No candidate.",
+            uncertainty_codes: [],
+          },
+        };
+      },
+    },
+  });
+  t.after(async () => app.close());
+
+  const response = await app.inject({
+    method: "POST",
+    url: `/api/scenes/${sceneId}/world-grounding`,
+    payload: {
+      views: [{
+        view_id: "front",
+        width: 100,
+        height: 100,
+        image_data_url: "data:image/png;base64,YQ==",
+      }],
+    },
+  });
+  assert.equal(response.statusCode, 400);
+  assert.match(response.body, /expected 2, got 1/);
+});

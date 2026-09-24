@@ -239,7 +239,8 @@ and `image_data_url` (`data:image/jpeg`, PNG, or WebP base64). One
 `qwen3.8-omni-flash` request receives these renders, the validated Memory
 groups, their original image media, and Scene Context. It returns both the cue
 pixels and at most one Scene-wide Hero recommendation. The API validates that
-every Memory has one grounding result, each pixel lies inside its named view,
+every Memory has exactly one grounding result (using `world_grounding: null`
+instead of omitting a Memory when no cue is visible), each pixel lies inside its named view,
 and every Hero observation references media in the recommended Memory. A
 changed grounding clears existing 3D position and normal.
 When the model chooses `action: "skip"`, the backend treats that action as

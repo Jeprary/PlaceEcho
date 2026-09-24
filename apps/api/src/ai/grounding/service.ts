@@ -102,7 +102,8 @@ export class BailianWorldGrounder implements WorldGrounder {
         "The final world is a generative reconstruction: colors, textures, and small details can differ " +
         "from the original panorama and media. Re-find the closest clearly visible, semantically equivalent " +
         "physical cue using stable room layout and structural context instead of requiring pixel-identical appearance. " +
-        "Return null when no plausible corresponding cue is visible. " +
+        "The groundings array MUST contain exactly one item for every supplied Memory ID, in the same order. " +
+        "When no plausible corresponding cue is visible, keep that Memory item and set world_grounding to null; never omit it. " +
         "Second, recommend at most one Hero Object across the whole Scene. A Hero must be one concrete, " +
         "separable physical object with enough visual evidence for image-to-3D. Exclude people, food, " +
         "screens, posters, whole beds, whole tables, rooms, stages, buildings, object collections, and " +
@@ -245,12 +246,16 @@ function validateGroundings(
   views: RenderView[],
   result: GroundingCandidate[],
 ): void {
-  if (
-    !Array.isArray(result) ||
-    result.length !== scene.memories.length ||
-    new Set(result.map((item) => item.memory_id)).size !== result.length
-  ) {
-    throw new Error("Grounder must return one result per Memory.");
+  if (!Array.isArray(result)) {
+    throw new Error("groundings must be an array.");
+  }
+  if (result.length !== scene.memories.length) {
+    throw new Error(
+      `groundings must return one item per Memory: expected ${scene.memories.length}, got ${result.length}.`,
+    );
+  }
+  if (new Set(result.map((item) => item.memory_id)).size !== result.length) {
+    throw new Error("groundings contains duplicate memory_id values.");
   }
   for (const item of result) {
     const memory = scene.memories.find((candidate) => candidate.id === item.memory_id);
