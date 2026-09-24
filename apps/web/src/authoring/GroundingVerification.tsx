@@ -172,6 +172,22 @@ export function GroundingVerification({
     }
   };
 
+  const reproject = async () => {
+    const runtime = runtimeRef.current;
+    if (!runtime || run.type === "running") return;
+    setRun({ type: "running" });
+    try {
+      const result = await runtime.reprojectGrounding({ sceneId, apiBaseUrl });
+      setScene(result.scene);
+      setRun({ type: "completed", result });
+    } catch (error) {
+      setRun({
+        type: "failed",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+
   if (loadError) {
     return <main className="grounding-verification grounding-verification--message">{loadError}</main>;
   }
@@ -228,6 +244,17 @@ export function GroundingVerification({
               ? "重新运行定位与 Hero 验收"
               : "运行一次定位与 Hero 验收"}
         </button>
+        {scene.memories.some((memory) => memory.anchor.world_grounding !== null) && (
+          <button
+            type="button"
+            disabled={worldStatus !== "ready" || run.type !== "idle"}
+            onClick={reproject}
+          >
+            {run.type === "running"
+              ? "正在重算 Collider 地面锚点…"
+              : "复用二维定位，只重算地面锚点"}
+          </button>
+        )}
         {run.type === "failed" && <p role="alert">{run.message}</p>}
         {run.type === "completed" && (
           <GroundingResult result={run.result} memoryId={targetMemory.id} />

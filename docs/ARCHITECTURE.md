@@ -339,7 +339,10 @@ or missing floor cluster falls back to the safe camera-facing surface offset.
 This prevents wall embedding, rejects isolated furniture tops and Collider seams,
 and keeps the visible interaction ring on a stable floor surface. The retained
 QA experience may render all positioned Memory Anchors, while only its selected
-target drives proximity and Reveal.
+target drives proximity and Reveal. The authoring QA page may also recapture the
+same deterministic views and re-run only this Collider geometry against existing
+`world_grounding`; that path makes no multimodal or Hero-provider call and is
+intended for validating Web Geometry parameter changes without paid AI retries.
 
 ## Module Ownership
 

@@ -46,6 +46,7 @@ import {
 } from "./anchorGeometry";
 import {
   captureRendererGroundingViews,
+  reprojectWorldAnchors,
   resolveWorldAnchors,
   sourceGuidedGroundingOrientations,
   type GroundingViewOrientation,
@@ -352,6 +353,56 @@ export class SpatialRuntime {
         fetchImplementation: options.fetchImplementation,
         placementOffsetMeters: options.placementOffsetMeters,
         heroGeneration: options.heroGeneration,
+      });
+      this.showGroundingDiagnostics(result);
+      this.groundingPreparation.complete();
+      return result;
+    } catch (error) {
+      this.groundingPreparation.fail();
+      throw error;
+    }
+  }
+
+  async reprojectGrounding(
+    options: Omit<PrepareGroundingOptions, "heroGeneration">,
+  ): Promise<ResolveWorldAnchorsResult> {
+    if (options.sceneId !== this.sourceScene.scene_id) {
+      throw new Error("Grounding sceneId must match the Spatial Runtime Scene.");
+    }
+    this.groundingPreparation.begin({
+      mode: this.mode,
+      started: this.animationFrame !== null,
+      disposed: this.disposed,
+    });
+    try {
+      const readiness = await this.worldReadiness;
+      if (readiness !== "ready") {
+        throw new Error(`Final world is unavailable for grounding (${readiness}).`);
+      }
+      await this.colliderLoadPromise;
+      if (
+        this.disposed ||
+        !this.worldReady ||
+        !this.splatFormationComplete ||
+        !this.splatMesh ||
+        !this.collider
+      ) {
+        throw new Error("Final Gaussian world and Collider are not ready for grounding.");
+      }
+      const views = await captureRendererGroundingViews(
+        this.renderer,
+        this.scene,
+        this.camera,
+        options.orientations ??
+          sourceGuidedGroundingOrientations(this.sourceScene),
+      );
+      const result = await reprojectWorldAnchors({
+        scene: this.sourceScene,
+        views,
+        collider: this.collider,
+        apiBaseUrl: options.apiBaseUrl,
+        fetchImplementation: options.fetchImplementation,
+        placementOffsetMeters: options.placementOffsetMeters,
       });
       this.showGroundingDiagnostics(result);
       this.groundingPreparation.complete();

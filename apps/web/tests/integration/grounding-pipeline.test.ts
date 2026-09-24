@@ -13,6 +13,7 @@ import {
 import {
   captureGroundingViews,
   raycastWorldGrounding,
+  reprojectWorldAnchors,
   resolveWorldAnchors,
   sourceGuidedGroundingOrientations,
   type GroundingRenderView,
@@ -345,6 +346,33 @@ test("the pipeline PATCHes only Collider hits and submits camera metadata", asyn
     position: [0, 0, 1.2],
     normal: [0, 0, 1],
   });
+});
+
+test("geometry-only reprojection reuses persisted pixels without another AI POST", async () => {
+  const view = centerView();
+  const grounded = groundedScene(view.view_id);
+  const methods: string[] = [];
+  const fetchImplementation: typeof fetch = async (_input, init) => {
+    const method = init?.method ?? "GET";
+    methods.push(method);
+    assert.equal(method, "PATCH");
+    const next = structuredClone(grounded);
+    next.memories[0]!.anchor.position = [0, 0, 1.2];
+    next.memories[0]!.anchor.normal = [0, 0, 1];
+    return Response.json(next);
+  };
+
+  const result = await reprojectWorldAnchors({
+    scene: grounded,
+    views: [view],
+    collider: colliderBox(),
+    fetchImplementation,
+  });
+
+  assert.deepEqual(methods, ["PATCH"]);
+  assert.equal(result.anchors[0]?.status, "persisted");
+  assert.equal(result.anchors[1]?.status, "grounding_missing");
+  assert.deepEqual(result.scene.memories[0]?.anchor.position, [0, 0, 1.2]);
 });
 
 test("a Collider miss never reaches the Anchor persistence route", async () => {

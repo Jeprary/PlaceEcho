@@ -101,6 +101,16 @@ export interface ResolveWorldAnchorsOptions {
   };
 }
 
+export interface ReprojectWorldAnchorsOptions {
+  scene: PlaceEchoScene;
+  views: readonly GroundingRenderView[];
+  collider: Object3D;
+  apiBaseUrl?: string;
+  fetchImplementation?: typeof fetch;
+  /** Use hero/marker half-depth + 0.02m when that dimension is known. */
+  placementOffsetMeters?: number;
+}
+
 export type HeroRecommendationResult = HeroRecommendation;
 
 export interface ResolveWorldAnchorsResult {
@@ -689,12 +699,50 @@ export async function resolveWorldAnchors(
     },
   );
   const grounding = await readGroundingResponse(groundingResponse);
-  let scene = grounding.scene;
+  return persistWorldAnchors({
+    scene: grounding.scene,
+    views: options.views,
+    collider: options.collider,
+    apiBaseUrl: options.apiBaseUrl,
+    fetchImplementation,
+    placementOffsetMeters: options.placementOffsetMeters,
+    heroRecommendation: grounding.heroRecommendation,
+    heroJobId: grounding.heroJobId,
+    heroGenerationError: grounding.heroGenerationError,
+  });
+}
+
+/**
+ * Re-run only deterministic Web Geometry against already-persisted 2D
+ * groundings. This never calls the multimodal grounding or Hero providers.
+ */
+export async function reprojectWorldAnchors(
+  options: ReprojectWorldAnchorsOptions,
+): Promise<ResolveWorldAnchorsResult> {
+  return persistWorldAnchors({
+    ...options,
+    heroRecommendation: options.scene.hero_recommendation,
+    heroJobId: null,
+    heroGenerationError: null,
+  });
+}
+
+async function persistWorldAnchors(options: ReprojectWorldAnchorsOptions & {
+  heroRecommendation: HeroRecommendationResult | null;
+  heroJobId: string | null;
+  heroGenerationError: string | null;
+}): Promise<ResolveWorldAnchorsResult> {
+  if (options.views.length < 1 || options.views.length > 8) {
+    throw new Error("Resolve anchors from 1–8 submitted render views.");
+  }
+  const fetchImplementation = options.fetchImplementation ?? fetch;
+  const baseUrl = options.apiBaseUrl ?? "";
+  let scene = options.scene;
   const viewsById = new Map(options.views.map((view) => [view.view_id, view]));
   const anchors: AnchorResolutionResult[] = [];
 
   // Serial PATCH calls avoid racing the current scene.json read-modify-write.
-  for (const memory of scene.memories) {
+  for (const memory of options.scene.memories) {
     const grounding = memory.anchor.world_grounding;
     if (!grounding) {
       anchors.push({ memory_id: memory.id, status: "grounding_missing" });
@@ -718,7 +766,7 @@ export async function resolveWorldAnchors(
     const patchResponse = await fetchImplementation(
       endpoint(
         baseUrl,
-        `/api/scenes/${encodeURIComponent(options.sceneId)}/memories/${encodeURIComponent(memory.id)}/anchor`,
+        `/api/scenes/${encodeURIComponent(options.scene.scene_id)}/memories/${encodeURIComponent(memory.id)}/anchor`,
       ),
       {
         method: "PATCH",
@@ -734,8 +782,8 @@ export async function resolveWorldAnchors(
     scene,
     anchors,
     views: options.views,
-    heroRecommendation: grounding.heroRecommendation,
-    heroJobId: grounding.heroJobId,
-    heroGenerationError: grounding.heroGenerationError,
+    heroRecommendation: options.heroRecommendation,
+    heroJobId: options.heroJobId,
+    heroGenerationError: options.heroGenerationError,
   };
 }
