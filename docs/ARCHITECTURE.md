@@ -333,8 +333,9 @@ the render camera and exits that surface by 20 cm. It then samples the center an
 eight points around the interaction footprint with downward Collider rays. For a
 wall-like hit, the footprint is tried progressively at 45, 75, and 105 cm along
 the camera-facing horizontal normal, so the probe clears the wall boundary before
-looking for walkable ground. Web keeps the first stable dominant upward-facing
-floor-height cluster and persists its median point with 2 cm clearance. A sparse
+looking for walkable ground. Web compares every stable dominant upward-facing
+floor-height cluster, keeps the lowest one to reject raised bed/desk surfaces,
+and persists its median point with 2 cm clearance. A sparse
 or missing floor cluster falls back to the safe camera-facing surface offset.
 This prevents wall embedding, rejects isolated furniture tops and Collider seams,
 and keeps the visible interaction ring on a stable floor surface. The retained

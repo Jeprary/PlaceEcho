@@ -266,11 +266,11 @@ function projectAnchorToGround(
             .addScaledVector(horizontalNormal.normalize(), setbackMeters),
         );
 
-  for (const center of probeCenters) {
-    const ground = sampleGroundFootprint(center, collider);
-    if (ground) return ground;
-  }
-  return null;
+  const candidates = probeCenters
+    .map((center) => sampleGroundFootprint(center, collider))
+    .filter((sample): sample is GroundSample => sample !== null);
+  if (candidates.length === 0) return null;
+  return candidates.sort((left, right) => left.point.y - right.point.y)[0]!;
 }
 
 function assertCaptureDimensions(width: number, height: number): void {
