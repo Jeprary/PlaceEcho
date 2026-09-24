@@ -24,11 +24,6 @@ AI service boundaries, and native capture workflow.
 - an optional iOS WKWebView shell for Insta360 X5 preview, capture, app-local
   panorama import, and later durable synchronization.
 
-The browser entry currently reads the checked-in demo fixture for its Memory
-manager. New creation requests use the API boundary. Moving from fixture data to
-authoritative deployment data must happen at that data-source boundary; it must
-not introduce a second frontend or a second iOS home screen.
-
 ## Quick start
 
 Prerequisites: Node.js 22+, pnpm 11+, and Python 3.11+ only when working on the
@@ -70,15 +65,6 @@ under the ignored `.local-data/` directory.
 
 Changing the computer movement mode does not reload the current world.
 
-## Shared implementation
-
-`assets/demo/` contains synthetic public fixtures that make the shared React
-experience reproducible.
-
-The test and deployment builds use the same Web components and Scene contract.
-Configuration and data sources may differ; product behavior and shared contracts
-must not be forked into separate “test” and “production” implementations.
-
 ## Repository map
 
 ```text
@@ -109,15 +95,3 @@ This runs repository type checks, production builds, and automated tests. WebGL,
 real device motion, media decoding, X5 capture, and real local world assets also
 require the manual checks in
 [`apps/web/tests/manual/README.md`](apps/web/tests/manual/README.md).
-
-## Source-of-truth documents
-
-- [Product](docs/PRODUCT.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [API contract](docs/API_CONTRACT.md)
-- [Scene schema](docs/SCENE_SCHEMA.md)
-- [Machine-readable Scene schema](packages/shared/schema/scene.schema.json)
-
-The README is an onboarding map, not a second specification. Product,
-architecture, API, and Scene behavior must be changed in the corresponding
-source-of-truth document.
