@@ -4,7 +4,7 @@ PlaceEcho is an AI-assisted spatial-memory experience. A person preserves a
 lived-in space, selects the personal media that matters to them, and later
 revisits those memories through cues anchored back into the space.
 
-> 长期生活的空间里，积累着许多通向个人回忆的线索。
+> 最后一次看向宿舍，你想留下什么？
 
 This repository brings together the PlaceEcho Web experience, spatial runtime,
 AI service boundaries, and native capture workflow.
