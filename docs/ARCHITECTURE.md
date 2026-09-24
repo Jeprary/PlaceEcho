@@ -317,7 +317,8 @@ They are separate stages and coordinate systems. Neither is an authoritative 3D 
 world_grounding
   -> known render camera pose and FOV
   -> Three.js semantic viewing ray
-  -> camera-facing Collider surface hit + 8 cm exit
+  -> camera-facing Collider surface hit + 20 cm exit
+  -> progressive free-space probes 45/75/105 cm from wall-like hits
   -> nine downward Collider rays over the interaction footprint
   -> dominant upward-floor cluster + 2 cm clearance
   -> grounded position + optional normal
@@ -328,14 +329,17 @@ This calculation belongs exclusively to Web Geometry because only the Web runtim
 
 The stored Anchor position is the grounded interaction/display point, not the raw
 semantic triangle hit. Web Geometry first orients the semantic hit normal toward
-the render camera and exits that surface by 8 cm. It then samples the center and
-eight points around the interaction footprint with downward Collider rays, keeps
-the dominant upward-facing floor-height cluster, and persists its median point
-with 2 cm clearance. A sparse or missing floor cluster falls back to the safe
-camera-facing surface offset. This prevents wall embedding, rejects isolated
-furniture tops and Collider seams, and keeps the visible interaction ring on a
-stable floor surface. The retained QA experience may render all positioned
-Memory Anchors, while only its selected target drives proximity and Reveal.
+the render camera and exits that surface by 20 cm. It then samples the center and
+eight points around the interaction footprint with downward Collider rays. For a
+wall-like hit, the footprint is tried progressively at 45, 75, and 105 cm along
+the camera-facing horizontal normal, so the probe clears the wall boundary before
+looking for walkable ground. Web keeps the first stable dominant upward-facing
+floor-height cluster and persists its median point with 2 cm clearance. A sparse
+or missing floor cluster falls back to the safe camera-facing surface offset.
+This prevents wall embedding, rejects isolated furniture tops and Collider seams,
+and keeps the visible interaction ring on a stable floor surface. The retained
+QA experience may render all positioned Memory Anchors, while only its selected
+target drives proximity and Reveal.
 
 ## Module Ownership
 

@@ -129,7 +129,7 @@ const MAX_GROUNDING_VIEWS = 8;
 const DUPLICATE_YAW_THRESHOLD_DEGREES = 12;
 
 const IMAGE_DATA_URL = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
-export const DEFAULT_ANCHOR_SURFACE_OFFSET_METERS = 0.08;
+export const DEFAULT_ANCHOR_SURFACE_OFFSET_METERS = 0.2;
 export const DEFAULT_ANCHOR_GROUND_CLEARANCE_METERS = 0.02;
 const ANCHOR_GROUND_RAY_LIFT_METERS = 0.5;
 const ANCHOR_GROUND_RAY_MAX_DROP_METERS = 4;
@@ -137,6 +137,7 @@ const ANCHOR_GROUND_SAMPLE_RADIUS_METERS = 0.18;
 const ANCHOR_GROUND_RING_SAMPLES = 8;
 const ANCHOR_GROUND_MIN_SAMPLES = 3;
 const ANCHOR_GROUND_HEIGHT_CLUSTER_METERS = 0.2;
+const ANCHOR_GROUND_SETBACK_METERS = [0.45, 0.75, 1.05] as const;
 const MIN_GROUND_NORMAL_Y = 0.65;
 
 type GroundSample = { point: Vector3; normal: Vector3 };
@@ -177,8 +178,8 @@ function lowestGroundSample(
   return ground;
 }
 
-function projectAnchorToGround(
-  placementPosition: Vector3,
+function sampleGroundFootprint(
+  center: Vector3,
   collider: Object3D,
 ): GroundSample | null {
   const offsets = [new Vector3(0, 0, 0)];
@@ -195,7 +196,7 @@ function projectAnchorToGround(
   const samples = offsets
     .map((offset) =>
       lowestGroundSample(
-        placementPosition
+        center
           .clone()
           .add(offset)
           .add(new Vector3(0, ANCHOR_GROUND_RAY_LIFT_METERS, 0)),
@@ -233,6 +234,33 @@ function projectAnchorToGround(
     .reduce((sum, sample) => sum.add(sample.normal), new Vector3())
     .normalize();
   return { point, normal };
+}
+
+function projectAnchorToGround(
+  surfacePosition: Vector3,
+  surfaceNormal: Vector3,
+  placementPosition: Vector3,
+  collider: Object3D,
+): GroundSample | null {
+  const horizontalNormal = new Vector3(
+    surfaceNormal.x,
+    0,
+    surfaceNormal.z,
+  );
+  const probeCenters =
+    horizontalNormal.lengthSq() < 1e-8
+      ? [placementPosition]
+      : ANCHOR_GROUND_SETBACK_METERS.map((setbackMeters) =>
+          surfacePosition
+            .clone()
+            .addScaledVector(horizontalNormal.normalize(), setbackMeters),
+        );
+
+  for (const center of probeCenters) {
+    const ground = sampleGroundFootprint(center, collider);
+    if (ground) return ground;
+  }
+  return null;
 }
 
 function assertCaptureDimensions(width: number, height: number): void {
@@ -553,7 +581,12 @@ export function raycastWorldGrounding(
     surfaceNormal = finiteDirectionTuple3(worldNormal.toArray());
     placementNormal = surfaceNormal;
 
-    const ground = projectAnchorToGround(placementPosition, collider);
+    const ground = projectAnchorToGround(
+      surfacePosition,
+      worldNormal,
+      placementPosition,
+      collider,
+    );
     if (ground) {
       const groundPosition = ground.point;
       groundSurfacePosition = finiteTuple3(groundPosition.toArray());

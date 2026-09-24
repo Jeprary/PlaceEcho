@@ -184,7 +184,7 @@ test("capture views keep stable IDs and exact camera metadata without mutating t
   assert.deepEqual(camera.quaternion.toArray(), originalQuaternion);
 });
 
-test("a pixel ray hits the Collider and offsets its Anchor 8cm toward the camera", () => {
+test("a pixel ray hits the Collider and offsets its Anchor 20cm toward the camera", () => {
   const view = centerView();
   const hit = raycastWorldGrounding(
     { view_id: view.view_id, x: 50, y: 50 },
@@ -195,11 +195,11 @@ test("a pixel ray hits the Collider and offsets its Anchor 8cm toward the camera
   assert.deepEqual(hit.surface_position, [0, 0, 1]);
   assert.ok(Math.abs(hit.position[0]) < 1e-9);
   assert.ok(Math.abs(hit.position[1]) < 1e-9);
-  assert.ok(Math.abs(hit.position[2] - 1.08) < 1e-9);
+  assert.ok(Math.abs(hit.position[2] - 1.2) < 1e-9);
   assert.deepEqual(hit.surface_normal, [0, 0, 1]);
   assert.equal(hit.ground_surface_position, null);
   assert.deepEqual(hit.normal, [0, 0, 1]);
-  assert.equal(hit.offset_meters, 0.08);
+  assert.equal(hit.offset_meters, 0.2);
   assert.equal(hit.ground_clearance_meters, 0);
 
   const miss = raycastWorldGrounding(
@@ -235,10 +235,10 @@ test("a wall semantic hit exits the wall then projects to the lowest upward floo
   assert.deepEqual(hit.surface_normal, [0, 0, 1]);
   assert.ok(Math.abs(hit.ground_surface_position![0]) < 1e-9);
   assert.ok(Math.abs(hit.ground_surface_position![1] + 1) < 1e-9);
-  assert.ok(Math.abs(hit.ground_surface_position![2] - 0.08) < 1e-9);
+  assert.ok(Math.abs(hit.ground_surface_position![2] - 0.45) < 1e-9);
   assert.ok(Math.abs(hit.position[1] + 0.98) < 1e-9);
   assert.deepEqual(hit.normal, [0, 1, 0]);
-  assert.equal(hit.offset_meters, 0.08);
+  assert.equal(hit.offset_meters, 0.2);
   assert.equal(hit.ground_clearance_meters, 0.02);
 });
 
@@ -262,7 +262,7 @@ test("back-facing Collider normals flip toward the render camera before offset",
   );
   assert.ok(hit);
   assert.deepEqual(hit.normal, [0, 0, -1]);
-  assert.ok(Math.abs(hit.position[2] + 0.08) < 1e-9);
+  assert.ok(Math.abs(hit.position[2] + 0.2) < 1e-9);
 });
 
 test("the pipeline PATCHes only Collider hits and submits camera metadata", async () => {
@@ -297,7 +297,7 @@ test("the pipeline PATCHes only Collider hits and submits camera metadata", asyn
       });
     }
     const next = structuredClone(grounded);
-    next.memories[0]!.anchor.position = [0, 0, 1.08];
+    next.memories[0]!.anchor.position = [0, 0, 1.2];
     next.memories[0]!.anchor.normal = [0, 0, 1];
     return Response.json(next);
   };
@@ -342,7 +342,7 @@ test("the pipeline PATCHes only Collider hits and submits camera metadata", asyn
   );
   assert.match(requests[1]?.url ?? "", /\/memories\/memory_hit\/anchor$/);
   assert.deepEqual(requests[1]?.body, {
-    position: [0, 0, 1.08],
+    position: [0, 0, 1.2],
     normal: [0, 0, 1],
   });
 });

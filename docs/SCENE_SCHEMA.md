@@ -77,9 +77,11 @@ A Memory has an application-generated ID, AI-produced name and optional summary,
 `position` and optional `normal` are nullable three-number vectors. Only Web
 Geometry may produce them. It uses a known render camera pose/FOV and semantic
 Collider hit, exits the hit surface toward the camera, then uses a bounded
-multi-ray downward floor projection for the final interaction position. The
-original semantic evidence remains in `world_grounding`; the stored `position`
-is the grounded user-arrival/display point.
+multi-ray downward floor projection for the final interaction position. For
+wall-like hits the Web advances the footprint through bounded free-space probe
+distances before choosing the first stable floor-height cluster. The original
+semantic evidence remains in `world_grounding`; the stored `position` is the
+grounded user-arrival/display point.
 
 ## Hero State
 
