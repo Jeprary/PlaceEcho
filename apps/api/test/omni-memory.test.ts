@@ -3,7 +3,7 @@ import test from "node:test";
 import type { Scene } from "@placeecho/shared";
 import {
   BailianMemoryAnalyzer,
-  scaleModelGroundingsToSource,
+  scaleNormalizedGroundingsToSource,
 } from "../src/ai/memory/bailian.js";
 import { buildApp } from "../src/app.js";
 import type { StorageProvider } from "../src/storage/provider.js";
@@ -266,24 +266,24 @@ test("analysis accepts a complete 13-asset capture set in one request", async (t
   assert.equal(response.json<Scene>().memories[0]?.media_ids.length, 13);
 });
 
-test("model-image panorama pixels scale deterministically to source pixels", () => {
-  const result = scaleModelGroundingsToSource({
+test("normalized panorama points scale deterministically to source pixels", () => {
+  const result = scaleNormalizedGroundingsToSource({
     memories: [{
       id: "memory_one",
       media_ids: ["media_one"],
       name: "One",
       summary: null,
       cue: "desk",
-      source_grounding: { x: 1024, y: 512 },
+      source_grounding: { x: 500, y: 480 },
     }],
     unassigned_media_ids: [],
-  }, [2048, 1024], [8600, 4300]);
-  assert.deepEqual(result.memories[0]?.source_grounding, { x: 4302, y: 2152 });
+  }, [8600, 4300]);
+  assert.deepEqual(result.memories[0]?.source_grounding, { x: 4300, y: 2064 });
 
-  const invalid = scaleModelGroundingsToSource({
+  const invalid = scaleNormalizedGroundingsToSource({
     ...result,
-    memories: [{ ...result.memories[0]!, source_grounding: { x: 2048, y: 0 } }],
-  }, [2048, 1024], [8600, 4300]);
+    memories: [{ ...result.memories[0]!, source_grounding: { x: 1001, y: 0 } }],
+  }, [8600, 4300]);
   assert.equal(invalid.memories[0]?.source_grounding, null);
 });
 
@@ -343,6 +343,7 @@ test("Bailian uses official Qwen3.8 Omni multimodal parts and safely parses text
   const messages = requestBody?.messages as Array<{ content: Array<Record<string, unknown>> }>;
   assert.match(String(messages[0]?.content), /display carrier/);
   assert.match(String(messages[0]?.content), /semantically related/);
+  assert.match(String(messages[0]?.content), /normalized 0\.\.1000 grid/);
   const content = messages[1]!.content;
   assert.ok(content.some((part) => part.type === "image_url"));
   assert.ok(content.some((part) => part.type === "input_audio"));

@@ -202,9 +202,10 @@ image-compatible panorama capture upload but is excluded from automatic Memory
 analysis selection. Large visual inputs are decoded with EXIF orientation and
 converted in memory to bounded JPEG inference copies (2048×1024 panorama;
 1280×1280 media box); authoritative stored originals are never overwritten or
-brightness-normalized. The model grounds in the bounded image it actually sees,
-and the API deterministically rescales that pixel to the authoritative original
-panorama dimensions before persistence. A completed stitched panorama remains a prerequisite; the
+brightness-normalized. The model grounds on a normalized 0–1000 grid over the
+bounded image it actually sees, and the API deterministically rescales that
+point to the authoritative original panorama dimensions before persistence. A
+completed stitched panorama remains a prerequisite; the
 standalone Python multimedia prototype is not the API runtime. Reanalysis
 replaces prior Memory groups. A validated `scene_context_text` from that same
 analysis may update `scene_context.text`; when the selection contains exactly
