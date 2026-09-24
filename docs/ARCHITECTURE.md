@@ -296,6 +296,13 @@ Anchor visuals, Wind/gyroscope movement, and the entry glide while it captures
 the final-world views. The normal application entry path does not call this
 method; a failed or completed attempt cannot silently issue another model call.
 
+The retained Web QA entry points keep those modes visibly separate. The
+`groundingScene` query loads the one-shot localization page; the
+`experienceScene` query fetches the same authoritative API Scene and opens its
+persisted world in normal `experience` mode, defaulting desktop inspection to
+WASD. This lets a reviewer inspect the actual SPZ, Collider, spawn, and Anchor
+result without re-running grounding or copying generated assets into a fixture.
+
 ## Source Grounding vs World Grounding
 
 `source_grounding` is an `(x, y)` coordinate in the original 360 panorama. It identifies the intended cue.

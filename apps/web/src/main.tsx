@@ -11,6 +11,12 @@ const GroundingVerification = lazy(() =>
   })),
 );
 
+const LiveSceneExperience = lazy(() =>
+  import("./authoring/LiveSceneExperience").then((module) => ({
+    default: module.LiveSceneExperience,
+  })),
+);
+
 type LocalPreviewConfig = {
   scenes: Scene[];
 };
@@ -18,11 +24,21 @@ type LocalPreviewConfig = {
 const previewConfig = previewConfigFixture as unknown as LocalPreviewConfig;
 const search = new URLSearchParams(window.location.search);
 const groundingSceneId = search.get("groundingScene");
+const experienceSceneId = search.get("experienceScene");
+const experienceMemoryId = search.get("memoryId");
 const groundingApiBaseUrl = search.get("apiBase") ?? "";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {groundingSceneId ? (
+    {experienceSceneId ? (
+      <Suspense fallback={<main className="grounding-verification" />}>
+        <LiveSceneExperience
+          sceneId={experienceSceneId}
+          apiBaseUrl={groundingApiBaseUrl}
+          requestedMemoryId={experienceMemoryId}
+        />
+      </Suspense>
+    ) : groundingSceneId ? (
       <Suspense fallback={<main className="grounding-verification" />}>
         <GroundingVerification
           sceneId={groundingSceneId}

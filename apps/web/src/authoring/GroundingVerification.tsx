@@ -44,6 +44,16 @@ export function GroundingVerification({
   const [worldStatus, setWorldStatus] = useState<WorldLoadStatus>("loading");
   const [run, setRun] = useState<RunState>({ type: "idle" });
   const [heroJob, setHeroJob] = useState<HeroJobSnapshot | null>(null);
+  const experienceUrl = useMemo(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("groundingScene");
+    url.searchParams.set("experienceScene", sceneId);
+    const requested = scene?.memories.find(
+      (memory) => memory.anchor.position !== null,
+    );
+    if (requested) url.searchParams.set("memoryId", requested.id);
+    return `${url.pathname}${url.search}${url.hash}`;
+  }, [scene, sceneId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -199,6 +209,14 @@ export function GroundingVerification({
           <div><dt>世界</dt><dd>{worldStatus}</dd></div>
           <div><dt>Memory</dt><dd>{targetMemory.id}</dd></div>
         </dl>
+        {scene.memories.some((memory) => memory.anchor.position !== null) && (
+          <a
+            className="grounding-verification__experience-link"
+            href={experienceUrl}
+          >
+            进入可移动空间查看
+          </a>
+        )}
         <button
           type="button"
           disabled={worldStatus !== "ready" || run.type !== "idle"}

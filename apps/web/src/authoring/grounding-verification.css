@@ -116,6 +116,24 @@
   opacity: 0.45;
 }
 
+.grounding-verification__experience-link {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0 0 0.75rem;
+  border: 1px solid rgba(237, 247, 240, 0.28);
+  border-radius: 999px;
+  padding: 0.78rem 1rem;
+  color: #edf7f0;
+  text-align: center;
+  text-decoration: none;
+  background: rgba(237, 247, 240, 0.08);
+}
+
+.grounding-verification__experience-link:hover {
+  background: rgba(237, 247, 240, 0.14);
+}
+
 .grounding-verification__result {
   margin-top: 1.4rem;
   padding-top: 1.2rem;

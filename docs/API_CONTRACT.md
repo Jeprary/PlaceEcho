@@ -248,6 +248,8 @@ candidate that fails ID, bounding-box, confidence, or observation validation is
 also reduced to a deterministic `skip` with
 `uncertainty_codes: ["invalid_provider_output"]`. Optional Hero output never
 causes otherwise valid world-grounding pixels to be rejected.
+The normalized `rationale` names the rejected field or invariant for debugging;
+the provider's raw response is not persisted.
 
 The optional `hero_generation` object requests automatic creation only when the
 model returns `action: "trigger_3d"` with confidence at least `0.75`. Passing

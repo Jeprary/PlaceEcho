@@ -15,9 +15,26 @@ test("the Web product has one HTML shell and one React bootstrap", async () => {
   assert.match(html, /id="root"/);
   assert.match(entry, /scene-manager-preview\.json/);
   assert.match(entry, /<App/);
+  assert.match(entry, /experienceScene/);
   await assert.rejects(
     readFile(new URL("../../scene-manager-preview.html", import.meta.url)),
   );
+});
+
+test("the retained QA flow opens persisted scenes in movable experience mode", async () => {
+  const experience = await readFile(
+    new URL("../../src/authoring/LiveSceneExperience.tsx", import.meta.url),
+    "utf8",
+  );
+  const grounding = await readFile(
+    new URL("../../src/authoring/GroundingVerification.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(experience, /initialDesktopTravelMode="wasd"/);
+  assert.match(experience, /windMode="idle"/);
+  assert.doesNotMatch(experience, /mode:\s*"localization"/);
+  assert.match(grounding, /进入可移动空间查看/);
 });
 
 test("sensitive device permissions remain behind explicit user actions", async () => {

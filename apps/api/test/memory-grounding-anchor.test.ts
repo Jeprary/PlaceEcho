@@ -177,6 +177,7 @@ test("analyzes selected media, grounds final views, and persists Web geometry", 
     hero_recommendation: {
       action: string;
       memory_id: string | null;
+      rationale: string;
       uncertainty_codes: string[];
     };
   }>();
@@ -185,6 +186,10 @@ test("analyzes selected media, grounds final views, and persists Web geometry", 
   assert.deepEqual(
     invalidHeroResult.hero_recommendation.uncertainty_codes,
     ["invalid_provider_output"],
+  );
+  assert.match(
+    invalidHeroResult.hero_recommendation.rationale,
+    /observations\[0\]\.media_id/,
   );
   assert.deepEqual(
     invalidHeroResult.scene.hero_recommendation,

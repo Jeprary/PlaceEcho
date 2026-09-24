@@ -60,6 +60,7 @@ interface SpatialExperienceProps {
   memoryId: string;
   orientationSource: DeviceOrientationSource | null;
   windMode: "idle" | "requesting" | "active" | "denied";
+  initialDesktopTravelMode?: DesktopTravelMode;
   revealActive: boolean;
   onReached: (memoryId: string) => void;
   onRevealFinished: () => void;
@@ -71,6 +72,7 @@ export default function SpatialExperience({
   memoryId,
   orientationSource,
   windMode,
+  initialDesktopTravelMode = "wind",
   revealActive,
   onReached,
   onRevealFinished,
@@ -88,7 +90,7 @@ export default function SpatialExperience({
   const [heroPreviewDismissed, setHeroPreviewDismissed] = useState(false);
   const [mobileTravel] = useState(shouldUseMobileTravelControl);
   const [desktopTravelMode, setDesktopTravelMode] =
-    useState<DesktopTravelMode>("wind");
+    useState<DesktopTravelMode>(initialDesktopTravelMode);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const desktopTravelModeRef = useRef(desktopTravelMode);
   desktopTravelModeRef.current = desktopTravelMode;
