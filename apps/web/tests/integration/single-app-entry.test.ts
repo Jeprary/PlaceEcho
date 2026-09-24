@@ -14,6 +14,8 @@ test("the Web product has one HTML shell and one React bootstrap", async () => {
 
   assert.match(html, /id="root"/);
   assert.match(entry, /scene-manager-preview\.json/);
+  assert.match(entry, /VITE_PLACEECHO_PUBLIC_DEMO/);
+  assert.match(entry, /scene\.scene_id === "scene_demo"/);
   assert.match(entry, /<App/);
   await assert.rejects(
     readFile(new URL("../../scene-manager-preview.html", import.meta.url)),

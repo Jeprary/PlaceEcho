@@ -6,6 +6,8 @@ revisits those memories through cues anchored back into the space.
 
 > 最后一次看向宿舍，你想留下什么？
 
+[Open the live demo](https://jeprary.github.io/PlaceEcho/)
+
 This repository brings together the PlaceEcho Web experience, spatial runtime,
 AI service boundaries, and native capture workflow.
 

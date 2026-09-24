@@ -6,12 +6,12 @@
     "status": "ready",
     "scene_context": { "text": "A local end-to-end test Scene with real Gaussian, Collider, and concert media assets.", "audio_url": null },
     "world": {
-      "panorama_url": "/demo/living-room-360.jpg",
+      "panorama_url": "demo/living-room-360.jpg",
       "panorama_width": 4096,
       "panorama_height": 2048,
-      "splat_url": "/local-world/world.spz",
-      "collider_url": "/local-world/collider.glb",
-      "thumbnail_url": "/local-memory/04-stage-blue.jpg",
+      "splat_url": "local-world/world.spz",
+      "collider_url": "local-world/collider.glb",
+      "thumbnail_url": "local-memory/04-stage-blue.jpg",
       "asset_transform": null,
       "spawn": {
         "position": [-1.12, 1.55, 1.3],
@@ -19,11 +19,11 @@
       }
     },
     "media": [
-      { "id": "media_concert_01", "source_name": "01-arrival.jpg", "type": "image", "url": "/local-memory/01-arrival.jpg" },
-      { "id": "media_concert_02", "source_name": "02-merch.jpg", "type": "image", "url": "/local-memory/02-merch.jpg" },
-      { "id": "media_concert_03", "source_name": "03-stage-purple.jpg", "type": "image", "url": "/local-memory/03-stage-purple.jpg" },
-      { "id": "media_concert_04", "source_name": "04-stage-blue.jpg", "type": "image", "url": "/local-memory/04-stage-blue.jpg" },
-      { "id": "media_concert_05", "source_name": "05-clip.mp4", "type": "video", "url": "/local-memory/05-clip.mp4" }
+      { "id": "media_concert_01", "source_name": "01-arrival.jpg", "type": "image", "url": "local-memory/01-arrival.jpg" },
+      { "id": "media_concert_02", "source_name": "02-merch.jpg", "type": "image", "url": "local-memory/02-merch.jpg" },
+      { "id": "media_concert_03", "source_name": "03-stage-purple.jpg", "type": "image", "url": "local-memory/03-stage-purple.jpg" },
+      { "id": "media_concert_04", "source_name": "04-stage-blue.jpg", "type": "image", "url": "local-memory/04-stage-blue.jpg" },
+      { "id": "media_concert_05", "source_name": "05-clip.mp4", "type": "video", "url": "local-memory/05-clip.mp4" }
     ],
     "memories": [
       {
@@ -39,7 +39,7 @@
           "world_grounding": null,
           "position": [-0.32, 0.03, -1.15],
           "normal": [0, 1, 0],
-          "hero": { "status": "completed", "job_id": null, "asset_url": "/local-hero/IMG_0194-aholo-g1.glb" }
+          "hero": { "status": "completed", "job_id": null, "asset_url": "local-hero/IMG_0194-aholo-g1.glb" }
         }
       }
     ],
@@ -52,12 +52,12 @@
     "status": "ready",
     "scene_context": { "text": "A local test Scene for the separately measured Marble world origin.", "audio_url": null },
     "world": {
-      "panorama_url": "/local-marble/panorama.png",
+      "panorama_url": "local-marble/panorama.png",
       "panorama_width": 8600,
       "panorama_height": 4300,
-      "splat_url": "/local-marble/splat-full.spz",
-      "collider_url": "/local-marble/collider.glb",
-      "thumbnail_url": "/local-marble/thumbnail.webp",
+      "splat_url": "local-marble/splat-full.spz",
+      "collider_url": "local-marble/collider.glb",
+      "thumbnail_url": "local-marble/thumbnail.webp",
       "asset_transform": [1, 0, 0, 0],
       "spawn": {
         "position": [0, 0, 0],

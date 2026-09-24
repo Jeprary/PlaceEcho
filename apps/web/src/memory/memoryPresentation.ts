@@ -34,8 +34,8 @@ export const demoMediaPresentationOverrides: MediaPresentationOverrides = {
   media_concert_03: { durationMs: 2_800 },
   media_concert_04: { durationMs: 3_000 },
   media_concert_05: {
-    poster: "/local-memory/04-stage-blue.jpg",
-    ambientSrc: "/local-memory/05-clip-ambient.mp4",
+    poster: "local-memory/04-stage-blue.jpg",
+    ambientSrc: "local-memory/05-clip-ambient.mp4",
   },
 };
 

@@ -108,7 +108,7 @@ export default function SpatialExperience({
       : debugHeroPreview &&
           scene.scene_id === "scene_demo" &&
           memoryId === "memory_demo_001"
-        ? "/local-hero/IMG_0194-aholo-g1.glb"
+        ? "local-hero/IMG_0194-aholo-g1.glb"
         : null;
   const heroLayout = debugHeroLayout || Boolean(heroAssetUrl);
 

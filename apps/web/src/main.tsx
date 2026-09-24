@@ -16,6 +16,9 @@ type LocalPreviewConfig = {
 };
 
 const previewConfig = previewConfigFixture as unknown as LocalPreviewConfig;
+const initialScenes = import.meta.env.VITE_PLACEECHO_PUBLIC_DEMO === "1"
+  ? previewConfig.scenes.filter((scene) => scene.scene_id === "scene_demo")
+  : previewConfig.scenes;
 const search = new URLSearchParams(window.location.search);
 const groundingSceneId = search.get("groundingScene");
 const groundingApiBaseUrl = search.get("apiBase") ?? "";
@@ -30,7 +33,7 @@ createRoot(document.getElementById("root")!).render(
         />
       </Suspense>
     ) : (
-      <App initialScenes={previewConfig.scenes} />
+      <App initialScenes={initialScenes} />
     )}
   </StrictMode>,
 );

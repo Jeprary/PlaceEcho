@@ -25,7 +25,7 @@ test("the single manager fixture exposes two independent ready spaces", async ()
   assert.equal(items.filter((item) => !item.canEnterSpace).length, 0);
   assert.equal(
     items.find((item) => item.sceneId === "scene_demo")?.coverUrl,
-    "/local-memory/04-stage-blue.jpg",
+    "local-memory/04-stage-blue.jpg",
   );
   const heroDemo = resolveMemoryEntry(fixture.scenes, {
     sceneId: "scene_demo",
@@ -36,7 +36,7 @@ test("the single manager fixture exposes two independent ready spaces", async ()
     assert.deepEqual(heroDemo.memory.anchor.hero, {
       status: "completed",
       job_id: null,
-      asset_url: "/local-hero/IMG_0194-aholo-g1.glb",
+      asset_url: "local-hero/IMG_0194-aholo-g1.glb",
     });
   }
   assert.equal(
@@ -45,12 +45,12 @@ test("the single manager fixture exposes two independent ready spaces", async ()
   );
   assert.equal(
     items.find((item) => item.sceneId === "scene_marble_origin")?.coverUrl,
-    "/local-marble/thumbnail.webp",
+    "local-marble/thumbnail.webp",
   );
   assert.equal(
     items.find((item) => item.sceneId === "scene_marble_origin")
       ?.fallbackCoverUrl,
-    "/local-marble/panorama.png",
+    "local-marble/panorama.png",
   );
 
   const marble = resolveMemoryEntry(fixture.scenes, {
