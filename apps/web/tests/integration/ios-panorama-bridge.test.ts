@@ -72,7 +72,7 @@ test("device panorama sync stays explicit and uses the import API boundary", asy
     }
     return Response.json({ job_id: "job_device_sync" }, { status: 201 });
   };
-  const port = createHTTPPanoramaSyncPort(fetchImpl);
+  const port = createHTTPPanoramaSyncPort(fetchImpl, "https://api.placeecho.test/");
   assert.equal(calls.length, 0, "creating the port must not start a sync");
 
   const receipt = await port.startDeviceSync({
@@ -90,7 +90,7 @@ test("device panorama sync stays explicit and uses the import API boundary", asy
   });
   assert.deepEqual(calls.map(({ url }) => url), [
     captureURL,
-    "/api/scenes/scene%20%2F%20device/panorama/import?width=8600&height=4300",
+    "https://api.placeecho.test/api/scenes/scene%20%2F%20device/panorama/import?width=8600&height=4300",
   ]);
   assert.equal(calls[1]?.init?.method, "POST");
   assert.equal(

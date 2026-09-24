@@ -2,6 +2,10 @@ import type { PanoramaAsset } from "./panorama";
 
 type FetchLike = typeof fetch;
 
+function apiEndpoint(baseUrl: string, path: string): string {
+  return `${baseUrl.trim().replace(/\/$/, "")}${path}`;
+}
+
 export interface PanoramaSyncReceipt {
   sceneId: string;
   jobId: string;
@@ -17,6 +21,7 @@ export interface PanoramaSyncPort {
 
 export function createHTTPPanoramaSyncPort(
   fetchImpl: FetchLike = fetch,
+  apiBaseUrl = "",
 ): PanoramaSyncPort {
   return {
     async startDeviceSync(asset) {
@@ -34,7 +39,10 @@ export function createHTTPPanoramaSyncPort(
       }
 
       const response = await fetchImpl(
-        `/api/scenes/${encodeURIComponent(asset.sceneId)}/panorama/import?width=${asset.width}&height=${asset.height}`,
+        apiEndpoint(
+          apiBaseUrl,
+          `/api/scenes/${encodeURIComponent(asset.sceneId)}/panorama/import?width=${asset.width}&height=${asset.height}`,
+        ),
         {
           method: "POST",
           headers: { "content-type": "application/octet-stream" },

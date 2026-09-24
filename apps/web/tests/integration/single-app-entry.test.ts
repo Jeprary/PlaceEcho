@@ -16,6 +16,8 @@ test("the Web product has one HTML shell and one React bootstrap", async () => {
   assert.match(entry, /scene-manager-preview\.json/);
   assert.match(entry, /<App/);
   assert.match(entry, /experienceScene/);
+  assert.match(entry, /VITE_API_BASE_URL/);
+  assert.match(entry, /apiBaseUrl=\{groundingApiBaseUrl\}/);
   await assert.rejects(
     readFile(new URL("../../scene-manager-preview.html", import.meta.url)),
   );

@@ -26,7 +26,9 @@ const search = new URLSearchParams(window.location.search);
 const groundingSceneId = search.get("groundingScene");
 const experienceSceneId = search.get("experienceScene");
 const experienceMemoryId = search.get("memoryId");
-const groundingApiBaseUrl = search.get("apiBase") ?? "";
+const configuredApiBaseUrl =
+  import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/$/, "") ?? "";
+const groundingApiBaseUrl = search.get("apiBase") ?? configuredApiBaseUrl;
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -46,7 +48,10 @@ createRoot(document.getElementById("root")!).render(
         />
       </Suspense>
     ) : (
-      <App initialScenes={previewConfig.scenes} />
+      <App
+        initialScenes={previewConfig.scenes}
+        apiBaseUrl={groundingApiBaseUrl}
+      />
     )}
   </StrictMode>,
 );

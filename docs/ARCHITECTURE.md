@@ -87,6 +87,16 @@ Web HTTPS
 
 Local-first and cloud deployments must retain the same high-level Web, AI, GPU, and Scene contracts.
 
+The Web API origin is a deployment boundary configured at build time through
+`VITE_API_BASE_URL`; same-origin deployments leave it empty, while the
+`apiBase` query parameter is reserved for QA overrides. Browser-side world
+prewarming is host-independent because SPZ, Collider, thumbnails, and Reveal
+media are resolved from persisted HTTPS URLs. Moving hosts still requires
+durable Scene/media storage and explicit recreation of service secrets. GPU
+weights and caches are deployment artifacts rather than repository assets, so a
+replacement GPU ECS must preload them while preserving the worker HTTP
+contracts.
+
 ## Application Responsibilities
 
 ### Web

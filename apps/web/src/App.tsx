@@ -3,11 +3,13 @@ import {
   lazy,
   Suspense,
   useEffect,
+  useMemo,
   useReducer,
   useRef,
   useState,
 } from "react";
 import demoSceneFixture from "../../../assets/demo/demo-scene.json";
+import { apiEndpoint, createApiFetch } from "./api/client";
 import { MemoryManager } from "./authoring/SceneManagerPreview";
 import {
   submitNewMemoryRequest,
@@ -42,10 +44,12 @@ type CaptureStatus =
 
 export interface AppProps {
   initialScenes?: readonly Scene[];
+  apiBaseUrl?: string;
 }
 
-export function App({ initialScenes = [demoScene] }: AppProps) {
+export function App({ initialScenes = [demoScene], apiBaseUrl = "" }: AppProps) {
   const scenes = initialScenes;
+  const apiFetch = useMemo(() => createApiFetch(apiBaseUrl), [apiBaseUrl]);
   const [iosCaptureAvailable] = useState(isIOSPanoramaCaptureAvailable);
   const [experience, dispatch] = useReducer(
     reduceExperience,
@@ -132,10 +136,13 @@ export function App({ initialScenes = [demoScene] }: AppProps) {
 
   const persistMemoryRequest = async (
     request: NewMemoryRequest,
-  ): Promise<MemorySubmissionReceipt> => submitNewMemoryRequest(request);
+  ): Promise<MemorySubmissionReceipt> =>
+    submitNewMemoryRequest(request, apiFetch);
 
   const beginMemoryRequest = async (): Promise<{ sceneId: string }> => {
-    const response = await fetch("/api/scenes", { method: "POST" });
+    const response = await fetch(apiEndpoint(apiBaseUrl, "/api/scenes"), {
+      method: "POST",
+    });
     if (!response.ok) {
       throw new Error(`Scene creation failed with status ${response.status}.`);
     }

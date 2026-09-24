@@ -56,6 +56,25 @@ pnpm dev:api
 The API listens on port `3000` by default and stores local development state
 under the ignored `.local-data/` directory.
 
+## Deploying or moving to Alibaba Cloud
+
+Set `VITE_API_BASE_URL` when building the Web if its API is hosted on a
+different HTTPS origin. Leave it empty for a same-origin reverse-proxy setup.
+The `apiBase` query parameter remains available as a temporary QA override.
+
+Scene world resources (SPZ, Collider, thumbnails, and Reveal media) are fetched
+by the browser from their persisted HTTPS URLs. The runtime loads the SPZ and
+Collider concurrently, renders warm-up frames behind the loading cover, and
+then preloads Reveal media. Moving the Web or API to another ECS therefore does
+not require changing those URLs, provided they remain reachable with the right
+CORS policy.
+
+Before switching ECS instances, copy local `LOCAL_DATA_DIR` state to durable
+storage or configure mounted storage/OSS, then recreate the service environment
+and secrets outside Git. GPU model weights and caches are also outside Git: a
+new GPU ECS must preload its runtime and checkpoints and expose the same worker
+URL contract before traffic is moved.
+
 ## Controls
 
 | Device | Movement | Direction |
