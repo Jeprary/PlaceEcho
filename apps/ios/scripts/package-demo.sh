@@ -41,6 +41,8 @@ echo "  Archive: ${archive_path}"
 
 DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}" \
 PLACE_ECHO_EMBED_LOCAL_SCENES="${PLACE_ECHO_EMBED_LOCAL_SCENES:-1}" \
+PLACE_ECHO_REQUIRE_LOCAL_SCENES="${PLACE_ECHO_REQUIRE_LOCAL_SCENES:-1}" \
+PLACEECHO_LOCAL_DATA_DIR="${PLACEECHO_LOCAL_DATA_DIR:-${repository_root}/.local-data}" \
 /usr/bin/xcodebuild \
   -project "${project_path}" \
   -scheme "${scheme_name}" \

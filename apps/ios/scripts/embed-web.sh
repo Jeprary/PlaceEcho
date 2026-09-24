@@ -37,7 +37,18 @@ esac
 # The copied paths intentionally mirror the Web development server routes, so
 # React and SpatialRuntime do not need an iOS-specific asset contract.
 if [[ "${PLACE_ECHO_EMBED_LOCAL_SCENES:-1}" == "1" ]]; then
-  local_data_directory="${repository_root}/.local-data"
+  local_data_directory="${PLACEECHO_LOCAL_DATA_DIR:-${repository_root}/.local-data}"
+  if [[ ! -d "${local_data_directory}" ]]; then
+    common_git_directory="$(
+      /usr/bin/git -C "${repository_root}" \
+        rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true
+    )"
+    shared_local_data_directory="${common_git_directory:h}/.local-data"
+    if [[ -n "${common_git_directory}" && -d "${shared_local_data_directory}" ]]; then
+      local_data_directory="${shared_local_data_directory}"
+    fi
+  fi
+  echo "Embedding PlaceEcho demo assets from: ${local_data_directory}"
   missing_local_assets=0
 
   embed_local_asset() {
@@ -100,5 +111,8 @@ if [[ "${PLACE_ECHO_EMBED_LOCAL_SCENES:-1}" == "1" ]]; then
 
   if [[ "${missing_local_assets}" == "0" ]]; then
     echo "Embedded the two local PlaceEcho Revisit spaces."
+  elif [[ "${PLACE_ECHO_REQUIRE_LOCAL_SCENES:-0}" == "1" ]]; then
+    echo "error: Required PlaceEcho demo assets are incomplete."
+    exit 1
   fi
 fi
