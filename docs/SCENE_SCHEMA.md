@@ -15,7 +15,7 @@ The Schema allows incomplete asynchronous states through nullable URLs, dimensio
 | Backend/application | `scene_id`, media IDs, Memory IDs, Anchor IDs, job IDs |
 | World pipeline | `world.thumbnail_url`, `world.asset_transform`, and `world.spawn` |
 | Memory AI | media grouping, Memory name, summary, cue |
-| Spatial AI | `source_grounding`, `world_grounding` |
+| Spatial AI | `source_grounding`, `world_grounding`, `hero_recommendation` |
 | Web Geometry | `anchor.position`, `anchor.normal` |
 | GPU worker | Hero processing result and asset |
 
@@ -79,6 +79,13 @@ A Memory has an application-generated ID, AI-produced name and optional summary,
 ## Hero State
 
 Hero Object is optional. `hero.status` supports `not_requested`, `queued`, `running`, `completed`, and `failed`; `job_id` and `asset_url` may be null. A missing or failed Hero must not invalidate the Memory Anchor or block Memory Reveal.
+
+`hero_recommendation` stores the last validated Scene-wide recommendation from
+final-world grounding. It is null before grounding or after Memory/world
+replacement. A non-null value records the action, target Memory, object name,
+source-media observations and boxes, reconstruction mode, confidence, rationale,
+and uncertainty codes. `skip` has no target candidate. This persisted audit
+record is separate from each Memory's asynchronous `anchor.hero` job state.
 
 ## Live Photo
 

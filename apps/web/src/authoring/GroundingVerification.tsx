@@ -1,5 +1,6 @@
 import type { Scene } from "@placeecho/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { HeroObject } from "../memory/HeroObject";
 import {
   SpatialRuntime,
   type WorldLoadStatus,
@@ -21,6 +22,13 @@ type RunState =
   | { type: "completed"; result: ResolveWorldAnchorsResult }
   | { type: "failed"; message: string };
 
+type HeroJobSnapshot = {
+  job_id: string;
+  status: "queued" | "running" | "completed" | "failed";
+  asset_url: string | null;
+  error: string | null;
+};
+
 function endpoint(baseUrl: string, path: string): string {
   return `${baseUrl.replace(/\/$/, "")}${path}`;
 }
@@ -35,6 +43,7 @@ export function GroundingVerification({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [worldStatus, setWorldStatus] = useState<WorldLoadStatus>("loading");
   const [run, setRun] = useState<RunState>({ type: "idle" });
+  const [heroJob, setHeroJob] = useState<HeroJobSnapshot | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -58,9 +67,58 @@ export function GroundingVerification({
   }, [apiBaseUrl, sceneId]);
 
   const targetMemory = useMemo(
-    () => scene?.memories.find((memory) => memory.anchor.position === null) ?? null,
+    () => {
+      if (!scene) return null;
+      const recommendedId = scene.hero_recommendation?.memory_id;
+      return scene.memories.find((memory) => memory.id === recommendedId) ??
+        scene.memories.find((memory) => memory.anchor.position === null) ??
+        scene.memories[0] ??
+        null;
+    },
     [scene],
   );
+
+  useEffect(() => {
+    const jobId = targetMemory?.anchor.hero.job_id;
+    const status = targetMemory?.anchor.hero.status;
+    if (!jobId || (status !== "queued" && status !== "running")) return;
+    const controller = new AbortController();
+
+    const poll = async () => {
+      while (!controller.signal.aborted) {
+        const response = await fetch(
+          endpoint(apiBaseUrl, `/api/jobs/${encodeURIComponent(jobId)}`),
+          { signal: controller.signal },
+        );
+        if (!response.ok) throw new Error(`Hero 任务读取失败（${response.status}）`);
+        const job = (await response.json()) as HeroJobSnapshot;
+        setHeroJob(job);
+        if (job.status === "completed" || job.status === "failed") {
+          const sceneResponse = await fetch(
+            endpoint(apiBaseUrl, `/api/scenes/${encodeURIComponent(sceneId)}`),
+            { signal: controller.signal },
+          );
+          if (!sceneResponse.ok) {
+            throw new Error(`场景读取失败（${sceneResponse.status}）`);
+          }
+          setScene((await sceneResponse.json()) as Scene);
+          return;
+        }
+        await delay(5_000, controller.signal);
+      }
+    };
+
+    void poll().catch((error: unknown) => {
+      if (controller.signal.aborted) return;
+      setHeroJob({
+        job_id: jobId,
+        status: "failed",
+        asset_url: null,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+    return () => controller.abort();
+  }, [apiBaseUrl, sceneId, targetMemory?.anchor.hero.job_id, targetMemory?.anchor.hero.status]);
 
   useEffect(() => {
     if (!scene || !targetMemory || !runtimeHost.current) return;
@@ -83,7 +141,18 @@ export function GroundingVerification({
     if (!runtime || run.type === "running") return;
     setRun({ type: "running" });
     try {
-      const result = await runtime.prepareGrounding({ sceneId, apiBaseUrl });
+      const result = await runtime.prepareGrounding({
+        sceneId,
+        apiBaseUrl,
+        heroGeneration: {
+          provider: "aholo",
+          version: "G1-Turbo",
+          enable_pbr: true,
+          ai_predict_size: true,
+          confirm_external_processing: true,
+        },
+      });
+      setScene(result.scene);
       setRun({ type: "completed", result });
     } catch (error) {
       setRun({
@@ -135,15 +204,77 @@ export function GroundingVerification({
           disabled={worldStatus !== "ready" || run.type !== "idle"}
           onClick={verify}
         >
-          {run.type === "running" ? "正在定位并反投…" : "运行一次定位验收"}
+          {run.type === "running"
+            ? "正在定位、反投并判断 Hero…"
+            : targetMemory.anchor.position
+              ? "重新运行定位与 Hero 验收"
+              : "运行一次定位与 Hero 验收"}
         </button>
         {run.type === "failed" && <p role="alert">{run.message}</p>}
         {run.type === "completed" && (
           <GroundingResult result={run.result} memoryId={targetMemory.id} />
         )}
+        <HeroResult
+          apiBaseUrl={apiBaseUrl}
+          hero={targetMemory.anchor.hero}
+          job={heroJob}
+        />
       </aside>
     </main>
   );
+}
+
+function HeroResult({
+  apiBaseUrl,
+  hero,
+  job,
+}: {
+  apiBaseUrl: string;
+  hero: Scene["memories"][number]["anchor"]["hero"];
+  job: HeroJobSnapshot | null;
+}) {
+  if (hero.status === "not_requested") return null;
+  if (hero.status === "queued" || hero.status === "running") {
+    return (
+      <section className="grounding-verification__hero-status" aria-live="polite">
+        <h2>Hero 正在生成</h2>
+        <p>{job?.status === "running" ? "模型正在重建三维物体…" : "任务已进入队列…"}</p>
+      </section>
+    );
+  }
+  if (hero.status === "failed") {
+    return (
+      <section className="grounding-verification__hero-status" role="alert">
+        <h2>Hero 未生成</h2>
+        <p>{job?.error ?? "生成服务没有返回可用模型。"}</p>
+      </section>
+    );
+  }
+  if (!hero.asset_url) return null;
+  return (
+    <section className="grounding-verification__hero-result">
+      <h2>Hero 已生成并保存</h2>
+      <HeroObject assetUrl={resolveAssetUrl(apiBaseUrl, hero.asset_url)} />
+    </section>
+  );
+}
+
+function resolveAssetUrl(baseUrl: string, value: string): string {
+  return /^https:\/\//.test(value) ? value : endpoint(baseUrl, value);
+}
+
+function delay(milliseconds: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(resolve, milliseconds);
+    signal.addEventListener(
+      "abort",
+      () => {
+        window.clearTimeout(timer);
+        reject(new DOMException("Aborted", "AbortError"));
+      },
+      { once: true },
+    );
+  });
 }
 
 function GroundingResult({
@@ -170,6 +301,9 @@ function GroundingResult({
           <div><dt>法线</dt><dd>{resolution.hit.normal?.map(format).join(", ") ?? "不可用"}</dd></div>
           <div><dt>前推</dt><dd>{format(resolution.hit.offset_meters)} m</dd></div>
         </dl>
+      )}
+      {result.heroGenerationError && (
+        <p role="alert">定位已保存，但 Hero 未启动：{result.heroGenerationError}</p>
       )}
     </section>
   );

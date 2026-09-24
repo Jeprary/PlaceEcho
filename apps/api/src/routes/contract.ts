@@ -237,7 +237,7 @@ export function registerContractRoutes(
     if (!isMemoryRequestInput(request.body)) {
       return reply.code(400).send({
         status: "invalid_request",
-        message: "A panorama name and 1–12 media descriptors are required.",
+        message: "A panorama name and 1–16 media descriptors are required.",
       });
     }
     const record = await dependencies.memoryRequests.create(
@@ -333,30 +333,39 @@ export function registerContractRoutes(
         );
         if (!result) return reply.code(404).send({ status: "not_found" });
         let heroJobId: string | null = null;
+        let heroGenerationError: string | null = null;
         const generation = request.body?.hero_generation;
         if (
           result.hero_recommendation.action === "trigger_3d" &&
           generation?.provider
         ) {
-          const job = await dependencies.heroJobs.create(
-            request.params.sceneId,
-            result.hero_recommendation.memory_id!,
-            {
-              provider: generation.provider,
-              image_urls: [],
-              media_ids: result.hero_recommendation.observations.map(
-                (observation) => observation.media_id,
-              ),
-              version: generation.version,
-              face_count: generation.face_count,
-              enable_pbr: generation.enable_pbr,
-              ai_predict_size: generation.ai_predict_size,
-              confirm_external_processing:
-                generation.confirm_external_processing,
-            },
-          );
-          if (!job) throw new Error("Recommended Hero Memory disappeared.");
-          heroJobId = job.job_id;
+          try {
+            const job = await dependencies.heroJobs.create(
+              request.params.sceneId,
+              result.hero_recommendation.memory_id!,
+              {
+                provider: generation.provider,
+                image_urls: [],
+                media_ids: result.hero_recommendation.observations.map(
+                  (observation) => observation.media_id,
+                ),
+                version: generation.version,
+                face_count: generation.face_count,
+                enable_pbr: generation.enable_pbr,
+                ai_predict_size: generation.ai_predict_size,
+                confirm_external_processing:
+                  generation.confirm_external_processing,
+              },
+            );
+            if (!job) throw new Error("Recommended Hero Memory disappeared.");
+            heroJobId = job.job_id;
+          } catch (error) {
+            // Hero generation is an optional side effect. Its provider must not
+            // discard the already-persisted grounding or block Web raycasting.
+            heroGenerationError = (
+              error instanceof Error ? error.message : String(error)
+            ).slice(0, 2_000);
+          }
         }
         const scene = await dependencies.sceneService.get(request.params.sceneId);
         if (!scene) return reply.code(404).send({ status: "not_found" });
@@ -364,6 +373,7 @@ export function registerContractRoutes(
           scene,
           hero_recommendation: result.hero_recommendation,
           hero_job_id: heroJobId,
+          hero_generation_error: heroGenerationError,
         });
       } catch (error) {
         const unavailable =
@@ -560,7 +570,7 @@ function isMemoryRequestInput(value: unknown): value is MemoryRequestInput {
         body.context_text.trim().length > 4_000)) ||
     !Array.isArray(body.media) ||
     body.media.length < 1 ||
-    body.media.length > 12
+    body.media.length > 16
   ) {
     return false;
   }

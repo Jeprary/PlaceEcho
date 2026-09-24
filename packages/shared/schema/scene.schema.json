@@ -13,6 +13,7 @@
     "world",
     "media",
     "memories",
+    "hero_recommendation",
     "unassigned_media_ids"
   ],
   "properties": {
@@ -28,6 +29,12 @@
     "memories": {
       "type": "array",
       "items": { "$ref": "#/$defs/memory" }
+    },
+    "hero_recommendation": {
+      "oneOf": [
+        { "$ref": "#/$defs/heroRecommendation" },
+        { "type": "null" }
+      ]
     },
     "unassigned_media_ids": {
       "type": "array",
@@ -150,6 +157,63 @@
       "properties": {
         "position": { "$ref": "#/$defs/vector3" },
         "quaternion": { "$ref": "#/$defs/quaternion" }
+      }
+    },
+    "heroObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["media_id", "bbox_xyxy_norm", "view_role"],
+      "properties": {
+        "media_id": { "type": "string", "minLength": 1 },
+        "bbox_xyxy_norm": {
+          "type": "array",
+          "prefixItems": [
+            { "type": "number", "minimum": 0, "maximum": 1 },
+            { "type": "number", "minimum": 0, "maximum": 1 },
+            { "type": "number", "minimum": 0, "maximum": 1 },
+            { "type": "number", "minimum": 0, "maximum": 1 }
+          ],
+          "items": false,
+          "minItems": 4,
+          "maxItems": 4
+        },
+        "view_role": { "enum": ["primary", "supporting"] }
+      }
+    },
+    "heroRecommendation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action",
+        "memory_id",
+        "object_name",
+        "observations",
+        "reconstruction_mode",
+        "confidence",
+        "rationale",
+        "uncertainty_codes"
+      ],
+      "properties": {
+        "action": {
+          "enum": ["trigger_3d", "request_additional_capture", "skip"]
+        },
+        "memory_id": { "$ref": "#/$defs/nullableString" },
+        "object_name": { "$ref": "#/$defs/nullableString" },
+        "observations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/heroObservation" },
+          "maxItems": 8
+        },
+        "reconstruction_mode": {
+          "type": ["string", "null"],
+          "enum": ["single_view", "multi_view", null]
+        },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "rationale": { "type": "string" },
+        "uncertainty_codes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
       }
     },
     "hero": {

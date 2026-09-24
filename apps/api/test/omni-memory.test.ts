@@ -41,6 +41,25 @@ test("media upload registers supported image, audio, and video extensions", asyn
     payload: Buffer.from("unsafe"),
   });
   assert.equal(rejected.statusCode, 400);
+
+  for (const filename of ["新录音 4.m4a", "fxn 2025-09-20 132124.568.JPG"]) {
+    const response = await app.inject({
+      method: "POST",
+      url: `/api/scenes/${sceneId}/media?filename=${encodeURIComponent(filename)}`,
+      headers: { "content-type": "application/octet-stream" },
+      payload: Buffer.from(filename),
+    });
+    assert.equal(response.statusCode, 201, response.body);
+    assert.equal(response.json<{ media: { source_name: string } }>().media.source_name, filename);
+  }
+
+  const traversal = await app.inject({
+    method: "POST",
+    url: `/api/scenes/${sceneId}/media?filename=${encodeURIComponent("../photo.jpg")}`,
+    headers: { "content-type": "application/octet-stream" },
+    payload: Buffer.from("unsafe"),
+  });
+  assert.equal(traversal.statusCode, 400);
 });
 
 test("analysis accepts mixed media, excludes INSP, and supports single-image or single-audio Memories", async (t) => {
@@ -68,6 +87,7 @@ test("analysis accepts mixed media, excludes INSP, and supports single-image or 
       { id: "media_insp", source_name: "capture.insp", type: "image", url: `/api/scenes/${sceneId}/media/media_insp` },
     ],
     memories: [],
+    hero_recommendation: null,
     unassigned_media_ids: ["media_image", "media_audio", "media_video", "media_insp"],
   };
   const encoder = new TextEncoder();
@@ -169,6 +189,80 @@ test("analysis accepts mixed media, excludes INSP, and supports single-image or 
   );
 });
 
+test("analysis accepts a complete 13-asset capture set in one request", async (t) => {
+  const storage = new MemoryStorage();
+  const sceneId = "scene_thirteen";
+  const media = Array.from({ length: 13 }, (_, index) => ({
+    id: `media_${index + 1}`,
+    source_name: `capture-${index + 1}.jpg`,
+    type: "image" as const,
+    url: `/api/scenes/${sceneId}/media/media_${index + 1}`,
+  }));
+  const scene: Scene = {
+    schema_version: "0.1",
+    scene_id: sceneId,
+    status: "draft",
+    scene_context: { text: null, audio_url: null },
+    world: {
+      panorama_url: "/api/jobs/job_thirteen/output",
+      panorama_width: 2000,
+      panorama_height: 1000,
+      splat_url: null,
+      collider_url: null,
+      thumbnail_url: null,
+      asset_transform: null,
+      spawn: null,
+    },
+    media,
+    memories: [],
+    hero_recommendation: null,
+    unassigned_media_ids: media.map(({ id }) => id),
+  };
+  const encoder = new TextEncoder();
+  await storage.put(`scenes/${sceneId}/scene.json`, encoder.encode(JSON.stringify(scene)));
+  await storage.put("jobs/job_thirteen.json", encoder.encode(JSON.stringify({
+    job_id: "job_thirteen",
+    type: "panorama_stitch",
+    scene_id: sceneId,
+    status: "completed",
+  })));
+  await storage.put(`scenes/${sceneId}/panorama/job_thirteen.jpg`, encoder.encode("panorama"));
+  for (const asset of media) {
+    await storage.put(
+      `scenes/${sceneId}/media/${asset.id}/${asset.source_name}`,
+      encoder.encode(asset.id),
+    );
+  }
+  const app = buildApp({
+    logger: false,
+    storageProvider: storage,
+    memoryAnalyzer: {
+      async analyze(input) {
+        return {
+          memories: [{
+            id: input.memoryIds[0]!,
+            media_ids: input.media.map(({ asset }) => asset.id),
+            name: "Complete capture set",
+            summary: null,
+            cue: null,
+            source_grounding: null,
+          }],
+          unassigned_media_ids: [],
+        };
+      },
+    },
+  });
+  t.after(async () => app.close());
+
+  const response = await app.inject({
+    method: "POST",
+    url: `/api/scenes/${sceneId}/analyze`,
+    payload: { media_ids: media.map(({ id }) => id) },
+  });
+  assert.equal(response.statusCode, 200, response.body);
+  assert.equal(response.json<Scene>().memories[0]?.media_ids.length, 13);
+});
+
 test("Bailian uses official Qwen3.8 Omni multimodal parts and safely parses text-array JSON", async (t) => {
   const previous = {
     key: process.env.DASHSCOPE_API_KEY,
@@ -205,7 +299,7 @@ test("Bailian uses official Qwen3.8 Omni multimodal parts and safely parses text
     schema_version: "0.1", scene_id: "scene_payload", status: "draft",
     scene_context: { text: null, audio_url: null },
     world: { panorama_url: null, panorama_width: 2000, panorama_height: 1000, splat_url: null, collider_url: null, thumbnail_url: null, asset_transform: null, spawn: null },
-    media: [], memories: [], unassigned_media_ids: [],
+    media: [], memories: [], hero_recommendation: null, unassigned_media_ids: [],
   };
   const bytes = new TextEncoder().encode("payload");
   const result = await new BailianMemoryAnalyzer().analyze({
@@ -223,6 +317,8 @@ test("Bailian uses official Qwen3.8 Omni multimodal parts and safely parses text
   assert.equal(requestBody?.reasoning_effort, "max");
   assert.deepEqual(requestBody?.response_format, { type: "json_object" });
   const messages = requestBody?.messages as Array<{ content: Array<Record<string, unknown>> }>;
+  assert.match(String(messages[0]?.content), /display carrier/);
+  assert.match(String(messages[0]?.content), /semantically related/);
   const content = messages[1]!.content;
   assert.ok(content.some((part) => part.type === "image_url"));
   assert.ok(content.some((part) => part.type === "input_audio"));
