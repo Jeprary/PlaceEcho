@@ -1,18 +1,19 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import type {
-  NewMemoryRequest,
+  NewMemoryDraft,
   SelectedMemoryMedia,
 } from "./memorySubmission";
 import { requestVoiceRecordingStream } from "./voiceCapture";
 import type { PanoramaAsset } from "../world/panorama";
 
 type NewMemoryFlowProps = {
-  sceneId: string;
+  sceneId: string | null;
   captureState?: "idle" | "requesting" | "staged" | "ready" | "failed";
   capturedPanorama?: PanoramaAsset | null;
   onCapturePanorama?: () => void;
+  captureWaitingForBackend?: boolean;
   onCancel: () => void;
-  onCreate: (request: NewMemoryRequest) => void;
+  onCreate: (request: NewMemoryDraft) => void;
   submitting?: boolean;
   submissionError?: string | null;
 };
@@ -35,6 +36,7 @@ export function NewMemoryFlow({
   captureState = "idle",
   capturedPanorama = null,
   onCapturePanorama,
+  captureWaitingForBackend = false,
   onCancel,
   onCreate,
   submitting = false,
@@ -68,6 +70,7 @@ export function NewMemoryFlow({
   useEffect(() => {
     if (
       captureState === "ready" &&
+      sceneId !== null &&
       capturedPanorama?.sceneId === sceneId &&
       step === 0
     ) {
@@ -125,7 +128,6 @@ export function NewMemoryFlow({
   function createMemory() {
     releaseAudioResources();
     onCreate({
-      sceneId,
       panorama: {
         name: panoramaName ?? "演示空间全景.jpg",
         file: panoramaFile,
@@ -275,6 +277,11 @@ export function NewMemoryFlow({
         )}
 
         <section className="create-panel">
+          {submissionError && (
+            <p className="create-service-note" role="alert">
+              {submissionError}
+            </p>
+          )}
           {step === 0 && (
             <div className="panel-content panorama-step" key="panorama-step">
               <div className="panel-title"><h2 ref={stepHeadingRef} tabIndex={-1}>获取全景图</h2><p>连接全景相机拍摄，或导入已有全景</p></div>
@@ -282,7 +289,9 @@ export function NewMemoryFlow({
                 <button
                   className="camera-capture-option"
                   type="button"
-                  disabled={captureState === "requesting"}
+                  disabled={
+                    captureState === "requesting" || captureWaitingForBackend
+                  }
                   onClick={() =>
                     onCapturePanorama
                       ? onCapturePanorama()
@@ -290,9 +299,17 @@ export function NewMemoryFlow({
                   }
                 >
                   <span className="acquisition-icon acquisition-icon-camera"><PanoramicCameraIcon /></span>
-                  <strong>{captureState === "requesting" ? "正在拍摄…" : "现在拍摄"}</strong>
+                  <strong>
+                    {captureWaitingForBackend
+                      ? "正在准备拍摄"
+                      : captureState === "requesting"
+                        ? "正在拍摄…"
+                        : "现在拍摄"}
+                  </strong>
                   <small>
-                    {captureState === "staged"
+                    {captureWaitingForBackend
+                      ? "仍可导入已有全景或使用演示全景"
+                      : captureState === "staged"
                       ? "已保存在 iPhone，请恢复网络后继续"
                       : captureState === "failed"
                         ? "拍摄失败，请重试"
@@ -357,7 +374,6 @@ export function NewMemoryFlow({
                 />
                 <span>{contextText.length}/500</span>
               </label>
-              {submissionError && <p role="alert">{submissionError}</p>}
             </div>
           )}
 

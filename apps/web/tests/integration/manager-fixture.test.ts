@@ -27,6 +27,18 @@ test("the single manager fixture exposes two independent ready spaces", async ()
     items.find((item) => item.sceneId === "scene_demo")?.coverUrl,
     "/local-memory/04-stage-blue.jpg",
   );
+  const heroDemo = resolveMemoryEntry(fixture.scenes, {
+    sceneId: "scene_demo",
+    memoryId: "memory_demo_001",
+  });
+  assert.equal(heroDemo.status, "ready");
+  if (heroDemo.status === "ready") {
+    assert.deepEqual(heroDemo.memory.anchor.hero, {
+      status: "completed",
+      job_id: null,
+      asset_url: "/local-hero/IMG_0194-aholo-g1.glb",
+    });
+  }
   assert.equal(
     items.find((item) => item.sceneId === "scene_marble_origin")?.title,
     "窗边那束光",

@@ -64,9 +64,9 @@
         "position": [-0.32, 0.03, -1.15],
         "normal": [0, 1, 0],
         "hero": {
-          "status": "not_requested",
+          "status": "completed",
           "job_id": null,
-          "asset_url": null
+          "asset_url": "/local-hero/IMG_0194-aholo-g1.glb"
         }
       }
     }

@@ -2,6 +2,7 @@ import type { Scene } from "@placeecho/shared";
 import { useRef, useState } from "react";
 import { NewMemoryFlow } from "./NewMemoryFlow";
 import type {
+  NewMemoryDraft,
   MemorySubmissionReceipt,
   NewMemoryRequest,
 } from "./memorySubmission";
@@ -14,6 +15,7 @@ import {
 import type { PanoramaAsset } from "../world/panorama";
 
 type View = "dashboard" | "create";
+const saveUnavailableMessage = "暂时无法保存，请稍后重试。";
 
 type MemoryManagerProps = {
   scenes: readonly Scene[];
@@ -42,42 +44,50 @@ export function MemoryManager({
   );
   const [requestError, setRequestError] = useState<string | null>(null);
   const [draftSceneId, setDraftSceneId] = useState<string | null>(null);
-  const [creatingDraft, setCreatingDraft] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const submittingRequest = useRef(false);
+  const draftSceneRequest = useRef<Promise<string> | null>(null);
 
-  async function beginCreate() {
-    if (creatingDraft) return;
-    if (draftSceneId) {
-      setView("create");
-      return;
-    }
-    setCreatingDraft(true);
-    setRequestError(null);
-    try {
-      const draft = await onBeginCreate();
-      setDraftSceneId(draft.sceneId);
-      setView("create");
-    } catch (error) {
-      setRequestError(
-        error instanceof Error ? error.message : "无法创建新的空间，请重试。",
-      );
-    } finally {
-      setCreatingDraft(false);
-    }
+  function ensureDraftScene(): Promise<string> {
+    if (draftSceneId) return Promise.resolve(draftSceneId);
+    if (draftSceneRequest.current) return draftSceneRequest.current;
+    const request = onBeginCreate()
+      .then((draft) => {
+        setDraftSceneId(draft.sceneId);
+        setRequestError(null);
+        return draft.sceneId;
+      })
+      .finally(() => {
+        if (draftSceneRequest.current === request) {
+          draftSceneRequest.current = null;
+        }
+      });
+    draftSceneRequest.current = request;
+    return request;
   }
 
-  async function createMemory(request: NewMemoryRequest) {
+  function beginCreate() {
+    setView("create");
+    setRequestError(null);
+    if (draftSceneId) return;
+    void ensureDraftScene().catch(() => undefined);
+  }
+
+  async function createMemory(draft: NewMemoryDraft) {
     if (submittingRequest.current) return;
     submittingRequest.current = true;
     setRequestError(null);
     setSubmitting(true);
     let receipt: MemorySubmissionReceipt;
+    let assignedSceneId: string | null = null;
     try {
-      receipt = await onCreateRequest(request);
+      assignedSceneId = await ensureDraftScene();
+      receipt = await onCreateRequest({ ...draft, sceneId: assignedSceneId });
     } catch (error) {
       setRequestError(
-        error instanceof Error ? error.message : "创建请求保存失败，请重试。",
+        assignedSceneId && error instanceof Error
+          ? error.message
+          : saveUnavailableMessage,
       );
       submittingRequest.current = false;
       setSubmitting(false);
@@ -91,7 +101,7 @@ export function MemoryManager({
       memoryId: null,
       title: "新的回忆",
       summary: "正在整理你选择的内容",
-      mediaCount: request.media.length,
+      mediaCount: draft.media.length,
       status: "processing",
       canEnterSpace: false,
       coverUrl: null,
@@ -103,17 +113,19 @@ export function MemoryManager({
   }
 
   if (view === "create") {
-    if (!draftSceneId) return null;
     return (
       <NewMemoryFlow
         sceneId={draftSceneId}
         captureState={captureState}
         capturedPanorama={capturedPanorama}
         onCapturePanorama={
-          onCapturePanorama
+          onCapturePanorama && draftSceneId
             ? () => onCapturePanorama(draftSceneId)
             : undefined
         }
+        captureWaitingForBackend={Boolean(
+          onCapturePanorama && !draftSceneId,
+        )}
         onCancel={() => setView("dashboard")}
         onCreate={createMemory}
         submitting={submitting}
@@ -141,7 +153,7 @@ export function MemoryManager({
 
         <div className="list-heading">
           <div><h2>全部回忆</h2></div>
-          <button type="button" disabled={creatingDraft} onClick={beginCreate}><PlusIcon /> {creatingDraft ? "正在准备…" : "创建新回忆"}</button>
+          <button type="button" onClick={beginCreate}><PlusIcon /> 创建新回忆</button>
         </div>
 
         {requestError && <p role="alert">{requestError}</p>}
