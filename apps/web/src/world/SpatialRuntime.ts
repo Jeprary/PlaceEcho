@@ -58,6 +58,7 @@ import {
   type SpatialRuntimeMode,
 } from "./localizationGrounding";
 import {
+  selectNearestRuntimeMemory,
   selectLocalizationMemory,
   selectRuntimeMemory,
 } from "./runtimeTarget";
@@ -97,7 +98,7 @@ export interface SpatialRuntimeOptions {
   thresholds?: ProximityThresholds;
   reachedPresentationControl?: "timed" | "external";
   targetMemoryId?: string;
-  /** Render positioned non-target Memory Anchors as passive spatial context. */
+  /** Render and interact with every positioned Memory Anchor. */
   showAllAnchors?: boolean;
 }
 
@@ -124,12 +125,19 @@ export class SpatialRuntime {
   private readonly anchorAxis = new Vector3(0, 1, 0);
   private readonly anchorFocusPosition = new Vector3();
   private readonly anchorCapturePosition = new Vector3();
-  private readonly anchorGroup: Group | null;
-  private readonly anchorPlume: Mesh | null;
-  private readonly passiveAnchorVisuals: Array<{ group: Group; plume: Mesh }> = [];
-  private readonly memory: Memory;
+  private anchorGroup: Group | null = null;
+  private anchorPlume: Mesh | null = null;
+  private readonly anchorTargets: Array<{
+    memory: Memory;
+    position: Vector3;
+    axis: Vector3;
+    group: Group;
+    plume: Mesh;
+  }> = [];
+  private memory: Memory;
   private readonly sourceScene: PlaceEchoScene;
   private readonly mode: SpatialRuntimeMode;
+  private readonly interactiveAllAnchors: boolean;
   private readonly thresholds: ProximityThresholds;
   private readonly onSnapshot?: (snapshot: SpatialRuntimeSnapshot) => void;
   private readonly onWorldStatus?: (status: WorldLoadStatus) => void;
@@ -177,6 +185,8 @@ export class SpatialRuntime {
   ) {
     this.sourceScene = options.scene;
     this.mode = options.mode ?? "experience";
+    this.interactiveAllAnchors =
+      this.mode === "experience" && options.showAllAnchors === true;
     this.memory =
       this.mode === "localization"
         ? selectLocalizationMemory(options.scene, options.targetMemoryId)
@@ -238,29 +248,28 @@ export class SpatialRuntime {
     });
     this.scene.add(this.sparkRenderer);
     if (this.mode === "experience") {
-      const anchorVisual = this.createMemoryAnchor(
-        this.anchorPosition,
-        this.anchorAxis,
-      );
-      this.anchorGroup = anchorVisual.group;
-      this.anchorPlume = anchorVisual.plume;
-      this.anchorGroup.visible = false;
-      this.scene.add(this.anchorGroup);
-      if (options.showAllAnchors) {
-        for (const memory of options.scene.memories) {
-          if (memory.id === this.memory.id || !memory.anchor.position) continue;
-          const visual = this.createMemoryAnchor(
-            new Vector3().fromArray(memory.anchor.position),
-            resolveAnchorAxis(memory.anchor.normal),
-          );
-          visual.group.visible = false;
-          this.passiveAnchorVisuals.push(visual);
-          this.scene.add(visual.group);
+      const memories = this.interactiveAllAnchors
+        ? [
+            this.memory,
+            ...options.scene.memories.filter(
+              (memory) =>
+                memory.id !== this.memory.id && memory.anchor.position !== null,
+            ),
+          ]
+        : [this.memory];
+      for (const memory of memories) {
+        if (!memory.anchor.position) continue;
+        const position = new Vector3().fromArray(memory.anchor.position);
+        const axis = resolveAnchorAxis(memory.anchor.normal);
+        const visual = this.createMemoryAnchor(position, axis);
+        visual.group.visible = false;
+        this.anchorTargets.push({ memory, position, axis, ...visual });
+        this.scene.add(visual.group);
+        if (memory.id === this.memory.id) {
+          this.anchorGroup = visual.group;
+          this.anchorPlume = visual.plume;
         }
       }
-    } else {
-      this.anchorGroup = null;
-      this.anchorPlume = null;
     }
     if (this.debugOrigin) this.scene.add(this.createOriginMarker());
 
@@ -751,9 +760,8 @@ export class SpatialRuntime {
         this.splatRevealProgress = null;
         this.settleWorldReadiness("ready");
         if (this.mode === "experience") {
-          if (this.anchorGroup) this.anchorGroup.visible = true;
-          for (const visual of this.passiveAnchorVisuals) {
-            visual.group.visible = true;
+          for (const target of this.anchorTargets) {
+            target.group.visible = true;
           }
           this.startGlideWhenColliderReady();
         }
@@ -774,6 +782,7 @@ export class SpatialRuntime {
 
   private updateAnchor(elapsedSeconds: number): void {
     if (!this.anchorGroup || !this.anchorPlume) return;
+    this.activateNearestAnchor();
     const distance = this.distanceToAnchorVolume();
     let proximity = getAnchorProximity(distance, this.thresholds);
     if (
@@ -833,12 +842,11 @@ export class SpatialRuntime {
         this.reachedPresentationActive = false;
       }
     }
-    this.animateAnchorVisual(this.anchorGroup, this.anchorPlume, elapsedSeconds);
-    for (const [index, visual] of this.passiveAnchorVisuals.entries()) {
+    for (const [index, target] of this.anchorTargets.entries()) {
       this.animateAnchorVisual(
-        visual.group,
-        visual.plume,
-        elapsedSeconds + (index + 1) * 0.4,
+        target.group,
+        target.plume,
+        elapsedSeconds + index * 0.4,
       );
     }
 
@@ -846,6 +854,34 @@ export class SpatialRuntime {
     if (!proximityChanged && elapsedSeconds - this.lastSnapshotAt < 0.2) return;
     this.lastProximity = proximity;
     this.publishSnapshot(proximity, distance);
+  }
+
+  private activateNearestAnchor(): void {
+    if (
+      !this.interactiveAllAnchors ||
+      this.anchorCaptureActive ||
+      this.reachedPresentationActive
+    ) {
+      return;
+    }
+    const nearestMemory = selectNearestRuntimeMemory(
+      this.sourceScene,
+      this.camera.position.toArray(),
+    );
+    if (nearestMemory.id === this.memory.id) return;
+    const target = this.anchorTargets.find(
+      (candidate) => candidate.memory.id === nearestMemory.id,
+    );
+    if (!target) return;
+    this.memory = target.memory;
+    this.anchorPosition.copy(target.position);
+    this.anchorAxis.copy(target.axis);
+    this.anchorFocusPosition
+      .copy(target.position)
+      .addScaledVector(target.axis, 1);
+    this.anchorGroup = target.group;
+    this.anchorPlume = target.plume;
+    this.lastProximity = null;
   }
 
   private publishSnapshot(

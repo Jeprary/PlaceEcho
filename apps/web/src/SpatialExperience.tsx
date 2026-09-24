@@ -96,22 +96,26 @@ export default function SpatialExperience({
   const [optionsOpen, setOptionsOpen] = useState(false);
   const desktopTravelModeRef = useRef(desktopTravelMode);
   desktopTravelModeRef.current = desktopTravelMode;
+  const presentedMemoryId =
+    revealActive && snapshot.memoryId ? snapshot.memoryId : memoryId;
   const presentation = useMemo(
     () =>
       buildMemoryPresentation(
         scene,
-        memoryId,
+        presentedMemoryId,
         demoMediaPresentationOverrides,
       ),
-    [memoryId, scene],
+    [presentedMemoryId, scene],
   );
-  const selectedMemory = scene.memories.find((memory) => memory.id === memoryId);
+  const selectedMemory = scene.memories.find(
+    (memory) => memory.id === presentedMemoryId,
+  );
   const heroAssetUrl =
     selectedMemory?.anchor.hero.status === "completed"
       ? selectedMemory.anchor.hero.asset_url
       : debugHeroPreview &&
           scene.scene_id === "scene_demo" &&
-          memoryId === "memory_demo_001"
+          presentedMemoryId === "memory_demo_001"
         ? "/local-hero/IMG_0194-aholo-g1.glb"
         : null;
   const heroLayout = debugHeroLayout || Boolean(heroAssetUrl);
@@ -253,7 +257,7 @@ export default function SpatialExperience({
           (!heroPreviewDismissed && debugHeroPreview) ||
           (revealActive && snapshot.reachedPresentationActive)
         }
-        memoryId={memoryId}
+        memoryId={presentedMemoryId}
         presentation={presentation}
         heroLayout={heroLayout}
         heroAssetUrl={heroAssetUrl}

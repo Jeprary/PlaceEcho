@@ -90,7 +90,12 @@ export function LiveSceneExperience({
       initialDesktopTravelMode="wasd"
       showAllAnchors
       revealActive={revealActive}
-      onReached={() => setRevealActive(true)}
+      onReached={(memoryId) => {
+        setRevealActive(true);
+        const url = new URL(window.location.href);
+        url.searchParams.set("memoryId", memoryId);
+        window.history.replaceState(null, "", url);
+      }}
       onRevealFinished={() => setRevealActive(false)}
       onReturnToManager={() => {
         const url = new URL(window.location.href);
