@@ -29,6 +29,26 @@ class FakeGpuWorkerClient implements GpuWorkerClient {
   }
 }
 
+class DelayedIndexStorage implements StorageProvider {
+  readonly objects = new Map<string, Uint8Array>();
+
+  async put(key: string, data: Uint8Array): Promise<void> {
+    this.objects.set(key, new Uint8Array(data));
+  }
+
+  async get(key: string): Promise<Uint8Array | null> {
+    if (key === "scenes/index.json") {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    const data = this.objects.get(key);
+    return data ? new Uint8Array(data) : null;
+  }
+
+  async delete(key: string): Promise<void> {
+    this.objects.delete(key);
+  }
+}
+
 test("creates and retrieves a persisted Scene", async (t) => {
   const localDataDirectory = await mkdtemp(
     path.join(tmpdir(), "placeecho-api-test-"),
@@ -71,6 +91,32 @@ test("creates and retrieves a persisted Scene", async (t) => {
   const listResponse = await app.inject({ method: "GET", url: "/api/scenes" });
   assert.equal(listResponse.statusCode, 200);
   assert.deepEqual(listResponse.json<{ scenes: Scene[] }>().scenes, [scene]);
+});
+
+test("keeps every Scene in the index during concurrent creation", async (t) => {
+  const app = buildApp({
+    logger: false,
+    storageProvider: new DelayedIndexStorage(),
+  });
+  t.after(async () => app.close());
+
+  const responses = await Promise.all(
+    Array.from({ length: 12 }, () =>
+      app.inject({ method: "POST", url: "/api/scenes" }),
+    ),
+  );
+  assert.ok(responses.every((response) => response.statusCode === 201));
+  const createdIds = responses
+    .map((response) => response.json<{ scene_id: string }>().scene_id)
+    .sort();
+
+  const listResponse = await app.inject({ method: "GET", url: "/api/scenes" });
+  assert.equal(listResponse.statusCode, 200);
+  const listedIds = listResponse
+    .json<{ scenes: Scene[] }>()
+    .scenes.map((scene) => scene.scene_id)
+    .sort();
+  assert.deepEqual(listedIds, createdIds);
 });
 
 test("returns 404 for a missing Scene", async (t) => {
