@@ -1,73 +1,125 @@
 # PlaceEcho
 
-PlaceEcho is an AI-driven personal spatial-memory experience. It reconnects user-selected personal media to meaningful cues in a lived-in space.
+PlaceEcho is an AI-assisted spatial-memory experience. A person preserves a
+lived-in space, selects the personal media that matters to them, and later
+revisits those memories through cues anchored back into the space.
 
-This repository contains the integrated v0.1 prototype: Web authoring/runtime,
-Scene and media persistence, X5 panorama jobs, optional panorama cleanup,
-Memory/grounding AI boundaries, Marble world generation, Collider Anchors, and
-optional Hero providers.
+> 长期生活的空间里，积累着许多通向个人回忆的线索。
 
-## Repository
+This public repository contains the integrated v0.1 prototype. It is an active
+hackathon build, not a hosted production service or a finished consumer app.
 
-```text
-apps/
-  web/          Vite + React + TypeScript + Three.js shell
-  api/          Node.js + TypeScript + Fastify API shell
-  gpu-worker/   Python + FastAPI GPU-worker shell
-  ios/          reserved native capture-shell boundary
-packages/
-  shared/       shared Scene types and JSON Schema
-docs/           product, architecture, API, and Scene contracts
-assets/demo/    fake, non-private development fixture
-tools/qwen-panorama-cleaner/  optional offline panorama cleanup CLI
-.local-data/    ignored local development state
-```
+## What works today
 
-## Install
+- one React application for the Memory manager, creation flow, spatial runtime,
+  and Memory Reveal;
+- two non-private demo spaces for the local browsing experience;
+- a Three.js/SparkJS Gaussian world with Collider-based camera movement and
+  Memory Anchors;
+- automatic **Wind** travel and switchable desktop **WASD** travel;
+- a circular mobile joystick plus touch/device-orientation steering;
+- staged world loading, per-Scene spawn poses, and image/video/audio Reveal;
+- local/API persistence boundaries for Scenes, media, panorama jobs, Memory
+  analysis, final-world grounding, Anchors, and optional Hero Objects;
+- an optional iOS WKWebView shell for Insta360 X5 preview, capture, app-local
+  panorama import, and later durable synchronization.
 
-Prerequisites: Node.js 22+, pnpm 11+, and Python 3.11+.
+The browser entry currently reads the checked-in demo fixture for its Memory
+manager. New creation requests use the API boundary. Moving from fixture data to
+authoritative deployment data must happen at that data-source boundary; it must
+not introduce a second frontend or a second iOS home screen.
+
+## Quick start
+
+Prerequisites: Node.js 22+, pnpm 11+, and Python 3.11+ only when working on the
+optional GPU worker.
 
 ```bash
 pnpm install
-```
-
-## Run
-
-Web:
-
-```bash
 pnpm dev:web
 ```
 
-API:
+Vite prints the local browser URL. To make the Web preview reachable from a
+phone on the same network, start it with a LAN host:
+
+```bash
+pnpm --filter @placeecho/web dev --host 0.0.0.0
+```
+
+Run the API in a second terminal when testing creation or persistence:
 
 ```bash
 pnpm dev:api
 ```
 
-GPU Worker skeleton:
+The API listens on port `3000` by default and stores local development state
+under the ignored `.local-data/` directory.
 
-```bash
-cd apps/gpu-worker
-python3 -m venv .venv
-.venv/bin/pip install -e .
-.venv/bin/uvicorn placeecho_gpu_worker.main:app --reload
+## Controls
+
+| Device | Movement | Direction |
+| --- | --- | --- |
+| Computer | Open `…` and choose **Wind** or **WASD** | Drag the world / use the trackpad |
+| Phone or tablet | Circular joystick for forward, back, left, and right | Device orientation when permitted; touch remains available |
+
+Changing the computer movement mode does not reload the current world.
+
+## Test data and real data
+
+`assets/demo/` contains fake, non-private fixtures that make the shared React
+experience reproducible. Real panoramas, personal media, Gaussian worlds,
+Colliders, generated Hero assets, and request records belong in `.local-data/`
+or an external storage provider and must never be committed.
+
+The test and deployment builds use the same Web components and Scene contract.
+Configuration and data sources may differ; product behavior and shared contracts
+must not be forked into separate “test” and “production” implementations.
+
+## Repository map
+
+```text
+apps/
+  web/          React + Vite authoring and spatial runtime
+  api/          Fastify scene, storage, AI, and job boundaries
+  gpu-worker/   optional FastAPI/CUDA worker boundary
+  ios/          optional native X5 capture shell around the shared Web app
+packages/
+  shared/       shared Scene types and machine-readable JSON Schema
+docs/           product, architecture, API, and Scene contracts
+assets/demo/    fake, non-private development fixtures
+.local-data/    ignored local development state and large/private assets
 ```
 
-Optional panorama cleanup: see the
-[CLI and API worker implementation](tools/qwen-panorama-cleaner/README.md). The
-API only enables this stage when its Qwen credentials, Python environment, and a
-deployment-specific cleaner config are present; normal stitching remains usable
-without them.
+Optional panorama cleanup is documented in
+[`tools/qwen-panorama-cleaner/README.md`](tools/qwen-panorama-cleaner/README.md).
+The iOS capture and packaging workflow is documented in
+[`apps/ios/README.md`](apps/ios/README.md).
+
+## Verify
+
+```bash
+pnpm verify
+```
+
+This runs repository type checks, production builds, and automated tests. WebGL,
+real device motion, media decoding, X5 capture, and real local world assets also
+require the manual checks in
+[`apps/web/tests/manual/README.md`](apps/web/tests/manual/README.md).
 
 ## Source-of-truth documents
 
 - [Product](docs/PRODUCT.md)
 - [Architecture](docs/ARCHITECTURE.md)
-- [API Contract](docs/API_CONTRACT.md)
-- [Scene Schema](docs/SCENE_SCHEMA.md)
-- [Machine-readable Scene Schema](packages/shared/schema/scene.schema.json)
+- [API contract](docs/API_CONTRACT.md)
+- [Scene schema](docs/SCENE_SCHEMA.md)
+- [Machine-readable Scene schema](packages/shared/schema/scene.schema.json)
+
+The README is an onboarding map, not a second specification. Product,
+architecture, API, and Scene behavior must be changed in the corresponding
+source-of-truth document.
 
 ## Security
 
-Treat all Git history as eventually public. Never commit credentials, `.env`, private media, `.local-data/`, model weights, or large/generated 3D assets.
+Treat all Git history as eventually public. Never commit credentials, `.env`
+files, private media, `.local-data/`, model weights, SDK binaries, or large and
+generated 3D assets.
