@@ -10,7 +10,7 @@ placeecho/
 │   ├── web/          # browser authoring and spatial runtime
 │   ├── api/          # scene, storage, AI, and job boundaries
 │   ├── gpu-worker/   # CUDA/MediaSDK and optional segmentation worker boundary
-│   └── ios/          # reserved thin native capture shell
+│   └── ios/          # optional thin native capture shell
 ├── packages/
 │   └── shared/
 │       ├── types/    # shared TypeScript Scene contract
