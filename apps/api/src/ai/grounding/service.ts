@@ -113,7 +113,8 @@ export class BailianWorldGrounder implements WorldGrounder {
         "Use trigger_3d only for confidence >= 0.75. Coordinates in groundings are integer pixels in their named view. " +
         "Hero bboxes are [x1,y1,x2,y2] normalized to 0..1 in EXIF-corrected media. " +
         "For trigger_3d or request_additional_capture, memory_id and object_name must identify the candidate, " +
-        "observations must contain 1-8 unique media from that Memory with exactly one primary view, and " +
+        "observations must contain 1-8 unique media from that Memory with exactly one view_role \"primary\"; " +
+        "every other observation view_role must be exactly \"supporting\" (never secondary, support, or another synonym), and " +
         "reconstruction_mode must be single_view or multi_view. For skip, use null candidate fields and an empty observations array. " +
         "Output JSON shape: {groundings:[{memory_id,world_grounding:{view_id,x,y}|null}]," +
         "hero_recommendation:{action,memory_id,object_name,observations:[{media_id,bbox_xyxy_norm,view_role}]," +
@@ -361,7 +362,12 @@ function validateHeroRecommendation(
       throw new Error(`${prefix}.media_id is duplicated.`);
     }
     if (!["primary", "supporting"].includes(observation.view_role)) {
-      throw new Error(`${prefix}.view_role must be primary or supporting.`);
+      const received = typeof observation.view_role === "string"
+        ? observation.view_role.slice(0, 32)
+        : typeof observation.view_role;
+      throw new Error(
+        `${prefix}.view_role must be primary or supporting; got ${JSON.stringify(received)}.`,
+      );
     }
     if (!validNormalizedBox(observation.bbox_xyxy_norm)) {
       throw new Error(`${prefix}.bbox_xyxy_norm is not a valid normalized box.`);
