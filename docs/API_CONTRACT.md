@@ -189,6 +189,10 @@ Before either multimodal request, large images are decoded with EXIF orientation
 and converted only in memory to bounded JPEG inference copies: the panorama is
 limited to 2048×1024 and ordinary images to a 1280×1280 box. Original stored
 media is not replaced, recompressed, brightness-normalized, or written back.
+The model reports source pixels in the exact bounded panorama image it sees;
+the backend records that model-image size and deterministically scales the
+validated pixel back to the authoritative original panorama dimensions before
+persisting `source_grounding`.
 
 The backend supplies Memory IDs, validates that every selected media ID appears
 exactly once in a group or `unassigned_media_ids`, and checks source pixels

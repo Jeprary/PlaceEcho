@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Scene } from "@placeecho/shared";
-import { BailianMemoryAnalyzer } from "../src/ai/memory/bailian.js";
+import {
+  BailianMemoryAnalyzer,
+  scaleModelGroundingsToSource,
+} from "../src/ai/memory/bailian.js";
 import { buildApp } from "../src/app.js";
 import type { StorageProvider } from "../src/storage/provider.js";
 
@@ -261,6 +264,27 @@ test("analysis accepts a complete 13-asset capture set in one request", async (t
   });
   assert.equal(response.statusCode, 200, response.body);
   assert.equal(response.json<Scene>().memories[0]?.media_ids.length, 13);
+});
+
+test("model-image panorama pixels scale deterministically to source pixels", () => {
+  const result = scaleModelGroundingsToSource({
+    memories: [{
+      id: "memory_one",
+      media_ids: ["media_one"],
+      name: "One",
+      summary: null,
+      cue: "desk",
+      source_grounding: { x: 1024, y: 512 },
+    }],
+    unassigned_media_ids: [],
+  }, [2048, 1024], [8600, 4300]);
+  assert.deepEqual(result.memories[0]?.source_grounding, { x: 4302, y: 2152 });
+
+  const invalid = scaleModelGroundingsToSource({
+    ...result,
+    memories: [{ ...result.memories[0]!, source_grounding: { x: 2048, y: 0 } }],
+  }, [2048, 1024], [8600, 4300]);
+  assert.equal(invalid.memories[0]?.source_grounding, null);
 });
 
 test("Bailian uses official Qwen3.8 Omni multimodal parts and safely parses text-array JSON", async (t) => {
