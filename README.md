@@ -6,14 +6,14 @@ revisits those memories through cues anchored back into the space.
 
 > 长期生活的空间里，积累着许多通向个人回忆的线索。
 
-This public repository contains the integrated v0.1 prototype. It is an active
-hackathon build, not a hosted production service or a finished consumer app.
+This repository brings together the PlaceEcho Web experience, spatial runtime,
+AI service boundaries, and native capture workflow.
 
-## What works today
+## Product experience
 
 - one React application for the Memory manager, creation flow, spatial runtime,
   and Memory Reveal;
-- two non-private demo spaces for the local browsing experience;
+- two public demo spaces for the local browsing experience;
 - a Three.js/SparkJS Gaussian world with Collider-based camera movement and
   Memory Anchors;
 - automatic **Wind** travel and switchable desktop **WASD** travel;
@@ -72,7 +72,7 @@ Changing the computer movement mode does not reload the current world.
 
 ## Test data and real data
 
-`assets/demo/` contains fake, non-private fixtures that make the shared React
+`assets/demo/` contains synthetic public fixtures that make the shared React
 experience reproducible. Real panoramas, personal media, Gaussian worlds,
 Colliders, generated Hero assets, and request records belong in `.local-data/`
 or an external storage provider and must never be committed.
@@ -92,7 +92,7 @@ apps/
 packages/
   shared/       shared Scene types and machine-readable JSON Schema
 docs/           product, architecture, API, and Scene contracts
-assets/demo/    fake, non-private development fixtures
+assets/demo/    synthetic public development fixtures
 .local-data/    ignored local development state and large/private assets
 ```
 

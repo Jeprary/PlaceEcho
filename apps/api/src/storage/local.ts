@@ -1,4 +1,5 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { StorageProvider } from "./provider.js";
 
@@ -12,7 +13,13 @@ export class LocalStorageProvider implements StorageProvider {
   async put(key: string, data: Uint8Array): Promise<void> {
     const filePath = this.resolveKey(key);
     await mkdir(path.dirname(filePath), { recursive: true });
-    await writeFile(filePath, data);
+    const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
+    try {
+      await writeFile(temporaryPath, data);
+      await rename(temporaryPath, filePath);
+    } finally {
+      await rm(temporaryPath, { force: true });
+    }
   }
 
   async get(key: string): Promise<Uint8Array | null> {

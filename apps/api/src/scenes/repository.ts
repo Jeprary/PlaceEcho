@@ -5,6 +5,8 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
 export class SceneRepository {
+  private indexUpdate = Promise.resolve();
+
   constructor(private readonly storage: StorageProvider) {}
 
   async save(scene: Scene): Promise<void> {
@@ -12,15 +14,7 @@ export class SceneRepository {
       this.sceneKey(scene.scene_id),
       encoder.encode(`${JSON.stringify(scene, null, 2)}\n`),
     );
-    const index = await this.readIndex();
-    if (!index.includes(scene.scene_id)) {
-      index.push(scene.scene_id);
-      index.sort();
-      await this.storage.put(
-        "scenes/index.json",
-        encoder.encode(`${JSON.stringify({ scene_ids: index }, null, 2)}\n`),
-      );
-    }
+    await this.updateIndex(scene.scene_id);
   }
 
   async get(sceneId: string): Promise<Scene | null> {
@@ -59,6 +53,21 @@ export class SceneRepository {
       (value): value is string =>
         typeof value === "string" && /^scene_[a-zA-Z0-9_-]+$/.test(value),
     );
+  }
+
+  private async updateIndex(sceneId: string): Promise<void> {
+    const update = this.indexUpdate.then(async () => {
+      const index = await this.readIndex();
+      if (index.includes(sceneId)) return;
+      index.push(sceneId);
+      index.sort();
+      await this.storage.put(
+        "scenes/index.json",
+        encoder.encode(`${JSON.stringify({ scene_ids: index }, null, 2)}\n`),
+      );
+    });
+    this.indexUpdate = update.catch(() => undefined);
+    await update;
   }
 
   private sceneKey(sceneId: string): string {
