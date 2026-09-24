@@ -30,6 +30,7 @@ import {
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { Octree } from "three/addons/math/Octree.js";
 import {
+  advanceAnchorEncounterGate,
   DEFAULT_PROXIMITY_THRESHOLDS,
   getAnchorProximity,
   type AnchorProximity,
@@ -157,6 +158,7 @@ export class SpatialRuntime {
   private lastProximity: AnchorProximity | null = null;
   private lastSnapshotAt = Number.NEGATIVE_INFINITY;
   private anchorEncounterArmed = true;
+  private lastAnchorDistance = Number.POSITIVE_INFINITY;
   private anchorCaptureActive = false;
   private reachedPresentationActive = false;
   private currentFlightStartedAt = 0;
@@ -706,6 +708,20 @@ export class SpatialRuntime {
     ) {
       proximity = "approaching";
     }
+    const encounterGate = advanceAnchorEncounterGate(
+      {
+        armed: this.anchorEncounterArmed,
+        previousDistance: this.lastAnchorDistance,
+      },
+      {
+        distance,
+        proximity,
+        presentationActive: this.reachedPresentationActive,
+      },
+      this.thresholds,
+    );
+    this.anchorEncounterArmed = encounterGate.armed;
+    this.lastAnchorDistance = encounterGate.previousDistance;
     if (proximity === "reached" && this.anchorEncounterArmed) {
       this.anchorEncounterArmed = false;
       this.anchorCaptureActive = false;
@@ -724,7 +740,7 @@ export class SpatialRuntime {
         }, flightDurationSeconds * 1_000);
       }
     } else if (proximity === "approaching") {
-      if (this.anchorEncounterArmed && !this.anchorCaptureActive) {
+      if (encounterGate.shouldBeginCapture && !this.anchorCaptureActive) {
         this.anchorCaptureActive = true;
         setAnchorCapturePosition(
           this.anchorCapturePosition,
@@ -738,7 +754,6 @@ export class SpatialRuntime {
     } else {
       this.windController.setSpeedScale(1);
       if (proximity === "far") {
-        this.anchorEncounterArmed = true;
         this.reachedPresentationActive = false;
       }
     }
