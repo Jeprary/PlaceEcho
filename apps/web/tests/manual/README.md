@@ -99,6 +99,19 @@ Expected: no camera escape through the Collider, no sticky oscillation, and no
 snap back to the pre-collision heading. Automatic steering exits the surface
 smoothly and hands control back predictably.
 
+## Desktop movement menu
+
+1. Open a ready Memory on a computer and select the top-left “…” control.
+2. Choose “WASD”, hold each of W, A, S, and D, and confirm movement follows the
+   current camera direction while dragging the world still changes the view.
+3. Hold two keys together and confirm diagonal movement is not faster than
+   movement on one axis. Release every key and confirm movement stops.
+4. Open the menu again, choose “风行”, and confirm automatic forward travel
+   resumes without reloading the world.
+
+Expected: the computer can switch movement modes in-place. Mobile keeps the
+round joystick and device-orientation direction control.
+
 ## Processing and persistence
 
 1. Open `/`; Memories whose world or Anchor is missing

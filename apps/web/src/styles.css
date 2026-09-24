@@ -277,9 +277,16 @@ button {
   backdrop-filter: blur(12px);
 }
 
-.world-entry-return {
+.world-options {
+  position: absolute;
+  z-index: 6;
   top: max(1rem, env(safe-area-inset-top));
   left: max(1rem, env(safe-area-inset-left));
+}
+
+.world-entry-return {
+  position: relative;
+  z-index: auto;
   width: 2.5rem;
   padding: 0;
   display: grid;
@@ -296,6 +303,88 @@ button {
   font-weight: 600;
   line-height: 1;
   letter-spacing: 0.05em;
+}
+
+.world-options-menu {
+  width: min(15rem, calc(100vw - 2rem));
+  margin-top: 0.5rem;
+  padding: 0.42rem;
+  border: 1px solid rgba(225, 239, 232, 0.18);
+  border-radius: 0.92rem;
+  color: #e8f0eb;
+  background: rgba(6, 16, 13, 0.86);
+  box-shadow: 0 1rem 2.5rem rgba(0, 0, 0, 0.26);
+  backdrop-filter: blur(18px);
+}
+
+.world-options-menu__group > p {
+  margin: 0;
+  padding: 0.46rem 0.62rem 0.35rem;
+  color: rgba(232, 240, 235, 0.5);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+}
+
+.world-options-menu button {
+  width: 100%;
+  border: 0;
+  border-radius: 0.65rem;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.world-options-menu__group button {
+  position: relative;
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.58rem 2rem 0.58rem 0.62rem;
+}
+
+.world-options-menu__group button:hover,
+.world-options-menu__group button:focus-visible,
+.world-options-menu__group button.is-active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.world-options-menu__group button.is-active::after {
+  position: absolute;
+  top: 50%;
+  right: 0.72rem;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: #f0d39c;
+  content: "";
+  transform: translateY(-50%);
+}
+
+.world-options-menu__group button > span {
+  font-size: 0.9rem;
+  font-weight: 680;
+}
+
+.world-options-menu__group button > small {
+  color: rgba(232, 240, 235, 0.55);
+  font-size: 0.72rem;
+}
+
+.world-options-menu__return {
+  margin-top: 0.4rem;
+  padding: 0.65rem 0.62rem;
+  border-top: 1px solid rgba(225, 239, 232, 0.12) !important;
+  border-radius: 0 0 0.65rem 0.65rem !important;
+  color: rgba(232, 240, 235, 0.76) !important;
+  font-size: 0.82rem !important;
+}
+
+.world-options-menu__return:hover,
+.world-options-menu__return:focus-visible {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.06) !important;
 }
 
 .motion-access-retry {

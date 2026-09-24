@@ -139,3 +139,33 @@ test("mobile joystick moves relative to the camera in four directions", () => {
   for (let frame = 0; frame < 60; frame += 1) controller.update(1 / 60);
   assert.ok(camera.position.x > beforeCameraRelativeForwardX + 0.3);
 });
+
+test("desktop travel can switch between automatic Wind and manual WASD", () => {
+  const canvas = {
+    dataset: {},
+    addEventListener() {},
+    removeEventListener() {},
+  } as unknown as HTMLCanvasElement;
+  const camera = new PerspectiveCamera();
+  const controller = new WindController(camera, canvas, {
+    startsActive: true,
+  });
+
+  for (let frame = 0; frame < 60; frame += 1) controller.update(1 / 60);
+  const automaticZ = camera.position.z;
+  assert.ok(automaticZ < -0.3);
+
+  controller.setManualTravelEnabled(true);
+  for (let frame = 0; frame < 60; frame += 1) controller.update(1 / 60);
+  assert.equal(camera.position.z, automaticZ);
+
+  const beforeStrafeX = camera.position.x;
+  controller.setTravelInput(1, 0);
+  for (let frame = 0; frame < 60; frame += 1) controller.update(1 / 60);
+  assert.ok(camera.position.x > beforeStrafeX + 0.3);
+
+  controller.setManualTravelEnabled(false);
+  const beforeResumedWindZ = camera.position.z;
+  for (let frame = 0; frame < 60; frame += 1) controller.update(1 / 60);
+  assert.ok(camera.position.z < beforeResumedWindZ - 0.3);
+});
