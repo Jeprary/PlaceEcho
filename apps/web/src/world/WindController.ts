@@ -27,6 +27,11 @@ export interface WindControllerOptions {
   resolvePosition?: (proposedPosition: Vector3) => Vector3 | null;
 }
 
+interface ManualTravelOptions {
+  /** Desktop WASD keeps pointer/trackpad look even if the browser exposes motion APIs. */
+  preferPointerLook?: boolean;
+}
+
 const MAX_PITCH = MathUtils.degToRad(85);
 const GYROSCOPE_MAX_PITCH = MathUtils.degToRad(42);
 const GYROSCOPE_LOOK_RESPONSE = 4.8;
@@ -70,6 +75,7 @@ export class WindController {
   private lastPointerX = 0;
   private lastPointerY = 0;
   private orientationActive = false;
+  private pointerLookPreferred = false;
   private glideActive: boolean;
   private manualTravel: boolean;
   private travelStrafe = 0;
@@ -155,8 +161,12 @@ export class WindController {
     this.speedScale = MathUtils.clamp(scale, 0, 1);
   }
 
-  setManualTravelEnabled(enabled: boolean): void {
+  setManualTravelEnabled(
+    enabled: boolean,
+    options: ManualTravelOptions = {},
+  ): void {
     this.manualTravel = enabled;
+    this.pointerLookPreferred = enabled && options.preferPointerLook === true;
     this.travelStrafe = 0;
     this.travelForward = 0;
     this.currentSpeed = 0;
@@ -208,7 +218,11 @@ export class WindController {
 
   update(deltaSeconds: number): void {
     this.windTime += deltaSeconds;
-    const rawOrientation = this.orientationActive && !this.inputLocked
+    const orientationCanSteer =
+      this.orientationActive &&
+      !this.pointerLookPreferred &&
+      !this.inputLocked;
+    const rawOrientation = orientationCanSteer
       ? this.orientationSource?.getOrientation()
       : null;
     if (
@@ -295,7 +309,7 @@ export class WindController {
         ? 1.7
         : this.collisionTurnAnimating || this.collisionActive
           ? COLLISION_TURN_FOLLOW_RESPONSE
-          : this.orientationActive
+          : orientationCanSteer
             ? GYROSCOPE_LOOK_RESPONSE
             : 14;
     const lookBlend = 1 - Math.exp(-lookResponse * deltaSeconds);
@@ -507,7 +521,10 @@ export class WindController {
   }
 
   private readonly handleTrackpad = (event: WheelEvent): void => {
-    if (this.orientationActive || this.inputLocked) return;
+    if (
+      (this.orientationActive && !this.pointerLookPreferred) ||
+      this.inputLocked
+    ) return;
     event.preventDefault();
     if (Math.hypot(event.deltaX, event.deltaY) > 0) {
       this.onSteeringInput?.();
@@ -522,7 +539,7 @@ export class WindController {
 
   private readonly handlePointerDown = (event: PointerEvent): void => {
     if (
-      this.orientationActive ||
+      (this.orientationActive && !this.pointerLookPreferred) ||
       this.inputLocked
     ) return;
     event.preventDefault();

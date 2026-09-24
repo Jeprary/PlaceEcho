@@ -169,3 +169,64 @@ test("desktop travel can switch between automatic Wind and manual WASD", () => {
   for (let frame = 0; frame < 60; frame += 1) controller.update(1 / 60);
   assert.ok(camera.position.z < beforeResumedWindZ - 0.3);
 });
+
+test("desktop WASD restores pointer and trackpad look when motion APIs exist", async () => {
+  const listeners = new Map<string, EventListener>();
+  const canvas = {
+    dataset: {},
+    addEventListener(type: string, listener: EventListener) {
+      listeners.set(type, listener);
+    },
+    removeEventListener() {},
+    focus() {},
+    setPointerCapture() {},
+  } as unknown as HTMLCanvasElement;
+  const camera = new PerspectiveCamera();
+  let orientationReads = 0;
+  const controller = new WindController(camera, canvas, {
+    startsActive: true,
+    orientationSource: {
+      async connect() {
+        return true;
+      },
+      disconnect() {},
+      getOrientation() {
+        orientationReads += 1;
+        return { yaw: 1, pitch: 1 };
+      },
+    },
+  });
+  controller.connect();
+  assert.equal(await controller.enableGyroscope(), true);
+  controller.setManualTravelEnabled(true, { preferPointerLook: true });
+
+  listeners.get("pointerdown")?.({
+    pointerId: 1,
+    clientX: 120,
+    clientY: 90,
+    preventDefault() {},
+  } as unknown as Event);
+  listeners.get("pointermove")?.({
+    pointerId: 1,
+    clientX: 160,
+    clientY: 70,
+    preventDefault() {},
+  } as unknown as Event);
+  controller.update(1 / 60);
+  const afterPointer = camera.quaternion.clone();
+  assert.notDeepEqual(afterPointer.toArray(), [0, 0, 0, 1]);
+  assert.equal(orientationReads, 0);
+
+  listeners.get("wheel")?.({
+    deltaX: 12,
+    deltaY: 8,
+    preventDefault() {},
+  } as unknown as Event);
+  controller.update(1 / 60);
+  assert.notDeepEqual(camera.quaternion.toArray(), afterPointer.toArray());
+  assert.equal(orientationReads, 0);
+
+  controller.setManualTravelEnabled(false);
+  controller.update(1 / 60);
+  assert.equal(orientationReads, 1);
+});

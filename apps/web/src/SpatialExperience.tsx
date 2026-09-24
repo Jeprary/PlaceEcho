@@ -338,7 +338,7 @@ export default function SpatialExperience({
                   }}
                 >
                   <span>WASD</span>
-                  <small>键盘移动，拖动转向</small>
+                  <small>键盘移动，鼠标/触控板转向</small>
                 </button>
               </div>
             )}

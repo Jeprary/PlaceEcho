@@ -282,11 +282,13 @@ export class SpatialRuntime {
 
   setManualTravelEnabled(enabled: boolean): void {
     if (this.mode !== "experience") return;
-    this.windController.setManualTravelEnabled(enabled);
+    this.windController.setManualTravelEnabled(enabled, {
+      preferPointerLook: enabled,
+    });
     this.renderer.domElement.setAttribute(
       "aria-label",
       enabled
-        ? "PlaceEcho 空间。拖动画面转向，使用 W A S D 前后左右移动。"
+        ? "PlaceEcho 空间。使用 W A S D 前后左右移动，鼠标或触控板转向。"
         : "PlaceEcho 空间。使用触控板或拖动画面转向。",
     );
   }

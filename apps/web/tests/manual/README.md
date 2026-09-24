@@ -103,7 +103,8 @@ smoothly and hands control back predictably.
 
 1. Open a ready Memory on a computer and select the top-left “…” control.
 2. Choose “WASD”, hold each of W, A, S, and D, and confirm movement follows the
-   current camera direction while dragging the world still changes the view.
+   current camera direction. Confirm mouse drag and trackpad/wheel gestures still
+   change the view, including when the browser exposes a motion sensor API.
 3. Hold two keys together and confirm diagonal movement is not faster than
    movement on one axis. Release every key and confirm movement stops.
 4. Open the menu again, choose “风行”, and confirm automatic forward travel
