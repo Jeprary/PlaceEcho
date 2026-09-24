@@ -62,19 +62,17 @@ import {
 } from "./runtimeTarget";
 import { getWorldAssetTransform } from "./worldCoordinates";
 import { getWorldSpawnTransform } from "./worldSpawn";
+import {
+  estimateWorldLoadProgress,
+  type WorldLoadPhase,
+  type WorldLoadProgress,
+} from "./worldLoadProgress";
 
 export type WorldLoadStatus = "loading" | "ready" | "fallback";
-export type WorldLoadPhase = "opening" | "decoding" | "preparing";
-
-export interface WorldLoadProgress {
-  phase: WorldLoadPhase;
-  value: number;
-}
+export type { WorldLoadPhase, WorldLoadProgress } from "./worldLoadProgress";
 
 const CAMERA_COLLIDER_RADIUS = 0.12;
 const CAMERA_BOUNDS_INSET = CAMERA_COLLIDER_RADIUS + 0.02;
-const ESTIMATED_SPZ_TRANSFER_MS = 240;
-const ESTIMATED_SPZ_DECODE_MS = 1_800;
 
 export interface SpatialRuntimeSnapshot {
   proximity: AnchorProximity;
@@ -460,6 +458,10 @@ export class SpatialRuntime {
       this.beginWorldPresentation();
     } catch (error) {
       if (this.disposed) return;
+      if (this.worldLoadProgressFrame !== null) {
+        cancelAnimationFrame(this.worldLoadProgressFrame);
+        this.worldLoadProgressFrame = null;
+      }
       console.warn("PlaceEcho local world could not be loaded.", error);
       this.splatFormationActive = false;
       this.splatRevealProgress = null;
@@ -508,30 +510,9 @@ export class SpatialRuntime {
         this.worldLoadProgressFrame = null;
         return;
       }
-      const elapsed = now - startedAt;
-      if (elapsed < ESTIMATED_SPZ_TRANSFER_MS) {
-        this.reportWorldLoadProgress(
-          "opening",
-          MathUtils.lerp(0.03, 0.14, elapsed / ESTIMATED_SPZ_TRANSFER_MS),
-        );
-      } else {
-        const decodeRatio = MathUtils.clamp(
-          (elapsed - ESTIMATED_SPZ_TRANSFER_MS) / ESTIMATED_SPZ_DECODE_MS,
-          0,
-          1,
-        );
-        this.reportWorldLoadProgress(
-          "decoding",
-          MathUtils.lerp(0.14, 0.92, decodeRatio),
-        );
-      }
-      if (
-        elapsed < ESTIMATED_SPZ_TRANSFER_MS + ESTIMATED_SPZ_DECODE_MS
-      ) {
-        this.worldLoadProgressFrame = requestAnimationFrame(update);
-      } else {
-        this.worldLoadProgressFrame = null;
-      }
+      const estimate = estimateWorldLoadProgress(now - startedAt);
+      this.reportWorldLoadProgress(estimate.phase, estimate.value);
+      this.worldLoadProgressFrame = requestAnimationFrame(update);
     };
     this.worldLoadProgressFrame = requestAnimationFrame(update);
   }

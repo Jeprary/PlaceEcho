@@ -3,7 +3,7 @@ import type {
   MemoryPresentation,
   MemoryPresentationSlide,
 } from "./memoryPresentation";
-import { HeroObject } from "./HeroObject";
+import { HeroObject, preloadHeroObject } from "./HeroObject";
 
 type MemorySlidesOverlayProps = {
   active: boolean;
@@ -40,6 +40,11 @@ export function MemorySlidesOverlay({
   const slides = presentation?.memoryId === memoryId ? presentation.slides : [];
   const slide = slides[index];
   const preparedVideo = slides.find((item) => item.kind === "video");
+
+  useEffect(() => {
+    if (!heroAssetUrl || !preloadEnabled) return;
+    void preloadHeroObject(heroAssetUrl).catch(() => undefined);
+  }, [heroAssetUrl, preloadEnabled]);
 
   useEffect(() => {
     if (!presentation || !preloadEnabled) return;

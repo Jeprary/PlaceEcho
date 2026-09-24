@@ -90,6 +90,7 @@ export default function SpatialExperience({
   const [desktopTravelMode, setDesktopTravelMode] =
     useState<DesktopTravelMode>("wind");
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [controlsHelpOpen, setControlsHelpOpen] = useState(false);
   const desktopTravelModeRef = useRef(desktopTravelMode);
   desktopTravelModeRef.current = desktopTravelMode;
   const presentation = useMemo(
@@ -211,6 +212,15 @@ export default function SpatialExperience({
   }, [optionsOpen]);
 
   useEffect(() => {
+    if (!controlsHelpOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setControlsHelpOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [controlsHelpOpen]);
+
+  useEffect(() => {
     setMotionStatus(windMode);
     if (windMode === "active") {
       void runtimeRef.current?.enableGyroscope();
@@ -299,7 +309,7 @@ export default function SpatialExperience({
           className="world-entry-return"
           type="button"
           onClick={() => setOptionsOpen((open) => !open)}
-          aria-label="打开空间菜单"
+          aria-label={mobileTravel ? "返回与操作提示" : "打开空间菜单"}
           aria-haspopup="menu"
           aria-expanded={optionsOpen}
         >
@@ -342,6 +352,22 @@ export default function SpatialExperience({
                 </button>
               </div>
             )}
+            {mobileTravel && (
+              <div className="world-options-menu__group">
+                <p>空间</p>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setOptionsOpen(false);
+                    setControlsHelpOpen(true);
+                  }}
+                >
+                  <span>操作提示</span>
+                  <small>查看移动、转向和回忆播放方式</small>
+                </button>
+              </div>
+            )}
             <button
               className="world-options-menu__return"
               type="button"
@@ -353,6 +379,30 @@ export default function SpatialExperience({
           </div>
         )}
       </div>
+      {controlsHelpOpen && (
+        <div
+          className="world-controls-help"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="world-controls-help-title"
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget) setControlsHelpOpen(false);
+          }}
+        >
+          <section className="world-controls-help__panel">
+            <p className="world-controls-help__eyebrow">操作提示</p>
+            <h2 id="world-controls-help-title">在空间里移动</h2>
+            <ol>
+              <li>推动左下方圆形摇杆，前后左右移动。</li>
+              <li>向左右倾斜手机，改变相机朝向和前进方向。</li>
+              <li>靠近记忆锚点后会自动播放，点击“跳过”即可返回空间。</li>
+            </ol>
+            <button type="button" onClick={() => setControlsHelpOpen(false)}>
+              知道了
+            </button>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

@@ -11,11 +11,32 @@ import {
   PerspectiveCamera,
   Scene,
   SRGBColorSpace,
-  Texture,
   Vector3,
   WebGLRenderer,
 } from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import {
+  GLTFLoader,
+  type GLTF,
+} from "three/examples/jsm/loaders/GLTFLoader.js";
+import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
+
+const heroAssetCache = new Map<string, Promise<GLTF>>();
+
+function loadHeroAsset(assetUrl: string): Promise<GLTF> {
+  const cached = heroAssetCache.get(assetUrl);
+  if (cached) return cached;
+
+  const request = new GLTFLoader().loadAsync(assetUrl).catch((error) => {
+    heroAssetCache.delete(assetUrl);
+    throw error;
+  });
+  heroAssetCache.set(assetUrl, request);
+  return request;
+}
+
+export async function preloadHeroObject(assetUrl: string): Promise<void> {
+  await loadHeroAsset(assetUrl);
+}
 
 type HeroObjectProps = {
   assetUrl: string;
@@ -30,6 +51,7 @@ export function HeroObject({ assetUrl }: HeroObjectProps) {
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
+    setStatus("loading");
 
     let disposed = false;
     let animationFrame = 0;
@@ -76,14 +98,10 @@ export function HeroObject({ assetUrl }: HeroObjectProps) {
     };
     render();
 
-    void new GLTFLoader()
-      .loadAsync(assetUrl)
+    void loadHeroAsset(assetUrl)
       .then((gltf) => {
-        if (disposed) {
-          disposeObject(gltf.scene);
-          return;
-        }
-        hero = gltf.scene;
+        if (disposed) return;
+        hero = cloneSkeleton(gltf.scene) as Group;
         const bounds = new Box3().setFromObject(hero);
         const size = bounds.getSize(new Vector3());
         const center = bounds.getCenter(new Vector3());
@@ -115,7 +133,7 @@ export function HeroObject({ assetUrl }: HeroObjectProps) {
       window.cancelAnimationFrame(animationFrame);
       resizeObserver.disconnect();
       mixer?.stopAllAction();
-      if (hero) disposeObject(hero);
+      if (hero) scene.remove(hero);
       renderer.dispose();
       renderer.domElement.remove();
     };
@@ -128,32 +146,7 @@ export function HeroObject({ assetUrl }: HeroObjectProps) {
       role="img"
       aria-label="这段回忆的三维物件"
     >
-      {status === "loading" && <span>正在唤醒这件物品</span>}
       {status === "failed" && <span>物品暂时无法显示</span>}
     </div>
   );
-}
-
-function disposeObject(root: Group): void {
-  root.traverse((object) => {
-    if (!("geometry" in object)) return;
-    const mesh = object as {
-      geometry?: { dispose(): void };
-      material?:
-        | ({ dispose(): void } & Record<string, unknown>)
-        | Array<{ dispose(): void } & Record<string, unknown>>;
-    };
-    mesh.geometry?.dispose();
-    const materials = Array.isArray(mesh.material)
-      ? mesh.material
-      : mesh.material
-        ? [mesh.material]
-        : [];
-    materials.forEach((material) => {
-      Object.values(material).forEach((value) => {
-        if (value instanceof Texture) value.dispose();
-      });
-      material.dispose();
-    });
-  });
 }

@@ -4,6 +4,7 @@ import type {
   WindOrientationSource,
 } from "./WindController";
 import { requestDeviceOrientationPermission } from "./deviceOrientationPermission";
+import { steeringFromRelativeDeviceTilt } from "./deviceOrientationSteering";
 
 const SCREEN_AXIS = new Vector3(0, 0, 1);
 const DEVICE_TO_CAMERA = new Quaternion(
@@ -12,20 +13,6 @@ const DEVICE_TO_CAMERA = new Quaternion(
   0,
   Math.sqrt(0.5),
 );
-const STEERING_FULL_TILT = MathUtils.degToRad(24);
-
-function tiltToSteering(angle: number): number {
-  const normalized = MathUtils.clamp(
-    Math.abs(angle) / STEERING_FULL_TILT,
-    0,
-    1,
-  );
-  // Continuous response with a flat slope around neutral: tiny tilts remain
-  // controllable without creating the step caused by a hard angular dead zone.
-  const eased = normalized * normalized * (3 - 2 * normalized);
-  return Math.sign(angle) * eased;
-}
-
 export class DeviceOrientationSource implements WindOrientationSource {
   private readonly deviceEuler = new Euler(0, 0, 0, "YXZ");
   private readonly relativeEuler = new Euler(0, 0, 0, "YXZ");
@@ -36,8 +23,11 @@ export class DeviceOrientationSource implements WindOrientationSource {
   private orientation: WindOrientation | null = null;
   private hasBaseline = false;
   private connected = false;
+  private permissionGranted: boolean;
 
-  constructor(private permissionGranted = false) {}
+  constructor(permissionGranted = false) {
+    this.permissionGranted = permissionGranted;
+  }
 
   async connect(): Promise<boolean> {
     if (this.connected) return true;
@@ -104,13 +94,12 @@ export class DeviceOrientationSource implements WindOrientationSource {
       .copy(this.baselineInverse)
       .multiply(this.currentQuaternion);
     this.relativeEuler.setFromQuaternion(this.relativeQuaternion, "YXZ");
-    this.orientation = {
-      // Treat the phone as a spring-centred flight controller: roll requests a
-      // continuous turn, pitch requests a continuous climb/dive, and returning
-      // to the entry pose stops adding rotation.
-      yaw: tiltToSteering(-this.relativeEuler.z),
-      pitch: tiltToSteering(this.relativeEuler.x),
-      roll: 0,
-    };
+    // Treat the phone as a spring-centred flight controller: roll requests a
+    // continuous turn, pitch requests a continuous climb/dive, and returning
+    // to the entry pose stops adding rotation.
+    this.orientation = steeringFromRelativeDeviceTilt(
+      this.relativeEuler.x,
+      this.relativeEuler.z,
+    );
   };
 }
