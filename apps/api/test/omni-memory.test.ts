@@ -339,7 +339,7 @@ test("Bailian uses official Qwen3.8 Omni multimodal parts and safely parses text
   assert.equal(result.scene_context_text, "A room.");
   assert.equal(requestBody?.model, "qwen3.8-omni-flash");
   assert.equal(requestBody?.reasoning_effort, "max");
-  assert.deepEqual(requestBody?.response_format, { type: "json_object" });
+  assert.equal(requestBody?.response_format, undefined);
   const messages = requestBody?.messages as Array<{ content: Array<Record<string, unknown>> }>;
   assert.match(String(messages[0]?.content), /display carrier/);
   assert.match(String(messages[0]?.content), /semantically related/);
@@ -362,5 +362,24 @@ test("Bailian uses official Qwen3.8 Omni multimodal parts and safely parses text
       media: [{ asset: { id: "media_image", source_name: "photo.webp", type: "image", url: null }, bytes }],
     }),
     (error: unknown) => error instanceof Error && error.message === "Bailian request failed with HTTP 429.",
+  );
+
+  globalThis.fetch = async () => Response.json({
+    error: {
+      code: "invalid_api_key",
+      message: "Invalid API-key provided.",
+    },
+  }, { status: 401 });
+  await assert.rejects(
+    () => new BailianMemoryAnalyzer().analyze({
+      scene: inputScene,
+      panorama: bytes,
+      memoryIds: ["memory_one", "memory_two", "memory_three"],
+      media: [{ asset: { id: "media_image", source_name: "photo.webp", type: "image", url: null }, bytes }],
+    }),
+    (error: unknown) =>
+      error instanceof Error &&
+      error.message ===
+        "Bailian request failed with HTTP 401. invalid_api_key: Invalid API-key provided.",
   );
 });

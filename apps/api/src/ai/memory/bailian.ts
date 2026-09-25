@@ -38,13 +38,31 @@ export async function bailianJson(content: unknown[], system: string): Promise<u
       messages: [{ role: "system", content: system }, { role: "user", content }],
       modalities: ["text"],
       reasoning_effort: process.env.DASHSCOPE_REASONING_EFFORT ?? "none",
-      response_format: { type: "json_object" },
       max_tokens: 16000,
       stream: false,
     }),
     signal: AbortSignal.timeout(120_000),
   });
-  if (!response.ok) throw new Error(`Bailian request failed with HTTP ${response.status}.`);
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const errorPayload = await response.json();
+      if (isRecord(errorPayload)) {
+        const error = isRecord(errorPayload.error)
+          ? errorPayload.error
+          : errorPayload;
+        const code = typeof error.code === "string" ? error.code : null;
+        const message = typeof error.message === "string" ? error.message : null;
+        const summary = [code, message].filter(Boolean).join(": ");
+        if (summary) detail = ` ${summary.slice(0, 500)}`;
+      }
+    } catch {
+      // Keep the status-only error when the provider response is not JSON.
+    }
+    throw new Error(
+      `Bailian request failed with HTTP ${response.status}.${detail}`,
+    );
+  }
   let payload: unknown;
   try {
     payload = await response.json();

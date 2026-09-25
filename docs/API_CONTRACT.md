@@ -179,9 +179,10 @@ completed panorama stitch. Uses Bailian (`DASHSCOPE_API_KEY`, optional
 produce 1–3 Memory groups and identify source-panorama cues. The default model
 is `qwen3.8-omni-flash`; the OpenAI-compatible request uses `image_url`,
 `input_audio`, and `video_url` content parts, requests text-only output, uses
-`reasoning_effort: "none"` by default, and requests
-`response_format: { "type": "json_object" }`. A bare workspace host copied from
-the console is normalized to its HTTPS OpenAI-compatible base path.
+`reasoning_effort: "none"` by default, and requires JSON-only text through the
+system contract. It does not send `response_format` because Qwen3.8 Omni Flash
+does not support structured output. A bare workspace host copied from the
+console is normalized to its HTTPS OpenAI-compatible base path.
 Set `DASHSCOPE_REASONING_EFFORT` to a provider-supported value such as `xhigh`
 or `max` for a slower, higher-reasoning comparison without changing the model or
 multimodal request contract.

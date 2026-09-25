@@ -213,7 +213,9 @@ or video assets and the stitched panorama, calls a replaceable
 `MemoryAnalyzer`, validates the model's 1–3 groups and source pixels, then
 persists Memory groups. The default analyzer calls Bailian
 `qwen3.8-omni-flash` through the OpenAI-compatible Chat Completions API using
-the provider's native image, audio, and video content parts. INSP remains an
+the provider's native image, audio, and video content parts. JSON is enforced
+by the system contract and backend validation rather than an unsupported
+structured-output parameter. INSP remains an
 image-compatible panorama capture upload but is excluded from automatic Memory
 analysis selection. Large visual inputs are decoded with EXIF orientation and
 converted in memory to bounded JPEG inference copies (2048×1024 panorama;
